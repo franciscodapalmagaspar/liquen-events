@@ -474,8 +474,8 @@ function seedBusiness(): void {
     value: { doc: RASCUNHO_DO_ESTUDIO, updatedAt: ONTEM, savedBy: "Catarina" },
     updated_at: ONTEM,
   });
-  // Um rascunho APAGADO: a linha fica, o trabalho não. Não é trabalho, não vai
-  // na cópia (ver `clearProposalDraft`).
+  // Uma lápide de um rascunho apagado antes de 17/11: a linha ficou, o trabalho
+  // não. Não é trabalho, não vai na cópia (ver `limpar-app-state.ts`).
   rowsOf("app_state").push({
     key: "proposal-draft:LIQ-ZZZ-9",
     value: null,
@@ -682,9 +682,21 @@ describe("percurso completo: exportar → apagar → repor", () => {
     });
   });
 
+  it("a secção `saiDoAppState` da cópia da noite valida e NÃO se repõe sozinha (P3)", async () => {
+    seedBusiness();
+    const copia = await buildBackupPayload();
+    copia.saiDoAppState = [
+      { key: "proposal-draft:LIQ-OLD-1", motivo: "rascunho-sem-pedido", value: { doc: {} } },
+    ];
+    const file = mustValidate(copia);
+    await applyRestore(file, await planRestore(file));
+    expect(rowsOf("app_state").some((r) => r.key === "proposal-draft:LIQ-OLD-1")).toBe(false);
+  });
+
   it("um rascunho APAGADO não vai na cópia — e repô-lo não ressuscita linhas vazias", async () => {
-    // `clearProposalDraft` grava `null` em vez de remover a linha: a chave fica
-    // lá com "não há rascunho". Isso não é trabalho e não tem nada que ser
+    // Uma lápide (até 17/11 o `clearProposalDraft` gravava `null` em vez de
+    // remover a linha; as que ficaram saem com a limpeza da noite, P3): a chave
+    // fica lá com "não há rascunho". Isso não é trabalho e não tem nada que ser
     // copiado — nem, ao repor, que voltar a aparecer como se fosse.
     seedBusiness();
     const copia = await buildBackupPayload();

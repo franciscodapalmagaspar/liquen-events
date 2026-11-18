@@ -5,6 +5,8 @@ import { getSupabase } from "./supabase";
 import { eRelogioAdiantado, isMissingTable, lerComNovaTentativa } from "./repository";
 import { log } from "./logger";
 import { vigiarChave, vigiarValor } from "./app-state/vigiar";
+import { comTecto, PAUSA_MS, TEMPO_POR_TENTATIVA_MS, TENTATIVAS } from "./app-state/tecto";
+import { emFila, FILE, mudarFicheiro, readFileState } from "./app-state/ficheiro";
 
 /**
  * Tiny persistent key-value state for operational markers (e.g. the list of
@@ -48,7 +50,6 @@ import { vigiarChave, vigiarValor } from "./app-state/vigiar";
  * `onde: "ficheiro-efemero"`: a escrita aconteceu, e não conta como guardada
  * onde não dura.
  */
-const FILE = path.join(process.cwd(), "data", "app-state.json");
 
 /**
  * Porque é que a escrita não ficou. Não é decoração: cada um destes tem uma
@@ -145,89 +146,6 @@ function motivoDaFalha(err: unknown): MotivoDeFalha {
   if (isMissingTable(err)) return "tabela-em-falta";
   if (ehSemPermissao(err)) return "sem-permissao";
   return "escrita-recusada";
-}
-
-/**
- * ════════════════════════════════════════════════════════════════════════════
- * UMA FALHA PASSAGEIRA NÃO PODE CUSTAR UM RASCUNHO
- * ════════════════════════════════════════════════════════════════════════════
- *
- * O mesmo desenho que `proposal-storage.descarregar` já usa para as fotos, e
- * pela mesma razão: uma ligação reciclada do outro lado, um pico no Supabase, e
- * a gravação morria à primeira. Aqui o que morre é a montagem de uma proposta.
- *
- * Duas tentativas extra, com pausa curta e crescente (150 ms, 300 ms), e um
- * tecto de tempo por tentativa — sem ele um pedido pendurado fica com a rota
- * inteira na mão até a plataforma matar a função.
- *
- * O que NÃO se repete: uma tabela em falta e uma permissão recusada. Essas
- * respondem exactamente o mesmo à terceira vez que à primeira, e repeti-las só
- * atrasa o momento em que o ecrã pode dizer a verdade.
- */
-const TENTATIVAS = 3;
-const PAUSA_MS = 150;
-const TEMPO_POR_TENTATIVA_MS = 8000;
-
-async function comTecto<T>(trabalho: PromiseLike<T>, ms: number): Promise<T> {
-  let temporizador: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      trabalho,
-      new Promise<never>((_, rejeitar) => {
-        temporizador = setTimeout(() => rejeitar(new Error("tempo esgotado")), ms);
-      }),
-    ]);
-  } finally {
-    if (temporizador) clearTimeout(temporizador);
-  }
-}
-
-async function readFileState(): Promise<Record<string, unknown>> {
-  try {
-    return JSON.parse(await fs.readFile(FILE, "utf-8"));
-  } catch {
-    return {};
-  }
-}
-
-/**
- * ════════════════════════════════════════════════════════════════════════════
- * O FICHEIRO É UM MAPA INTEIRO: DUAS ESCRITAS AO MESMO TEMPO SÃO UMA SÓ
- * ════════════════════════════════════════════════════════════════════════════
- *
- * Aqui não se grava uma linha, grava-se o mapa TODO: ler o ficheiro, pôr a
- * chave, escrever o ficheiro. Há um `await` no meio, e é isso que estraga tudo
- * — duas chamadas em paralelo lêem ambas o mapa ANTES de qualquer uma escrever,
- * e a segunda grava por cima o mapa dela, sem a chave da primeira. A primeira
- * escrita aconteceu mesmo; foi a seguinte que a apagou.
- *
- * Onde isto doeu: a REPOSIÇÃO de uma cópia de segurança repõe os rascunhos do
- * estúdio em lotes de 25 chamadas paralelas (ver `proposal-drafts.ts`). Medido,
- * de 25 escritas sobrevivia UMA — e a reposição reportava sucesso total, porque
- * cada `setState` devolvia honestamente `{ gravado: true }` sobre uma escrita
- * que de facto tinha acontecido.
- *
- * A solução é a MESMA que o `FileBackend` do `repository.ts` já usa pela mesma
- * razão, e deliberadamente igual para não haver duas ideias diferentes de como
- * se serializa uma escrita a um ficheiro: encadear as operações numa fila, de
- * modo a que o ler-mutar-escrever seja atómico dentro do processo. A fila é do
- * MÓDULO porque o ficheiro também é (há um só `FILE`).
- *
- * O que isto NÃO resolve — e não pode: dois processos a escrever no mesmo
- * ficheiro. Continua a ser um recurso de desenvolvimento; em produção quem
- * guarda é o Supabase, e é o caminho de cima que trata disso.
- */
-let filaDoFicheiro: Promise<unknown> = Promise.resolve();
-
-function emFila<R>(trabalho: () => Promise<R>): Promise<R> {
-  // `then(fn, fn)`: uma escrita que falhou não pode deixar a fila entupida para
-  // as seguintes.
-  const corrida = filaDoFicheiro.then(trabalho, trabalho);
-  filaDoFicheiro = corrida.then(
-    () => {},
-    () => {},
-  );
-  return corrida;
 }
 
 /**
@@ -368,10 +286,18 @@ export async function getStates<T>(keys: readonly string[]): Promise<Map<string,
 /** O tecto do PostgREST por resposta (`max-rows`, 1000 no Supabase). */
 const PAGINA_DO_ESTADO = 1000;
 
+/** Uma entrada da varredura, com a versão para um apagar ou gravar condicional. */
+export interface EntradaDoEstado<T> {
+  key: string;
+  value: T;
+  /** A mesma versão de {@link lerEstadoComVersao} (o `updated_at`). */
+  versao: string;
+}
+
 export async function listStateByPrefix<T>(
   prefix: string,
   limite = 2000,
-): Promise<{ entradas: { key: string; value: T }[]; completa: boolean }> {
+): Promise<{ entradas: EntradaDoEstado<T>[]; completa: boolean }> {
   const sb = getSupabase();
   if (sb) {
     try {
@@ -381,7 +307,7 @@ export async function listStateByPrefix<T>(
        * voltava com 1000 e dizia-se «completa» (revisão de 13/11, n.º 1). Ordem
        * pela chave, que é única: as páginas não se repetem nem saltam linhas.
        */
-      const linhas: { key: string; value: T }[] = [];
+      const linhas: EntradaDoEstado<T>[] = [];
       for (let desde = 0; linhas.length <= limite; desde += PAGINA_DO_ESTADO) {
         const ate = Math.min(desde + PAGINA_DO_ESTADO, limite + 1) - 1;
         // Com nova tentativa no PGRST303 («JWT issued at future»), como o
@@ -390,7 +316,7 @@ export async function listStateByPrefix<T>(
         const { data, error } = await lerComNovaTentativa(() =>
           sb
             .from("app_state")
-            .select("key, value")
+            .select("key, value, updated_at")
             // `%` e `_` são curingas do LIKE: escapá-los impede que um prefixo
             // com um deles varra mais do que devia.
             .like("key", `${prefix.replace(/([%_\\])/g, "\\$1")}%`)
@@ -401,7 +327,7 @@ export async function listStateByPrefix<T>(
         const pagina = data ?? [];
         for (const l of pagina) {
           vigiarValor(l.key, l.value);
-          linhas.push({ key: l.key, value: l.value as T });
+          linhas.push({ key: l.key, value: l.value as T, versao: l.updated_at });
         }
         if (pagina.length < ate - desde + 1) break;
       }
@@ -418,7 +344,7 @@ export async function listStateByPrefix<T>(
     .filter(([k]) => k.startsWith(prefix))
     .map(([key, value]) => {
       vigiarValor(key, value);
-      return { key, value: value as T };
+      return { key, value: value as T, versao: JSON.stringify(value) };
     });
   return { entradas: entradas.slice(0, limite), completa: entradas.length <= limite };
 }
@@ -520,58 +446,7 @@ export async function gravarEstadoSeNaoMudou<T>(
   }
 }
 
-/**
- * Apaga as entradas cuja chave começa por `prefix` E é menor do que
- * `chaveAntesDe` (comparação de texto) — e só essas.
- *
- * Existe para os registos com a DATA dentro da chave (`<prefixo><AAAA-MM-DD>:…`,
- * ver `diagnostico-video`): com a data no formato ISO, «a chave é menor do que
- * `<prefixo><dia>`» é exactamente «é de antes desse dia». As duas condições
- * vão juntas para a base de dados, numa só ordem: nada fora do prefixo pode
- * sair por engano.
- *
- * Devolve quantas saíram, ou `null` quando não se conseguiu apagar (o erro
- * fica registado; quem chama tenta outra vez na noite seguinte).
- */
-export async function apagarEstadoPorPrefixo(
-  prefix: string,
-  chaveAntesDe: string,
-): Promise<number | null> {
-  if (!prefix || !chaveAntesDe.startsWith(prefix)) return 0;
-  const sb = getSupabase();
-  if (sb) {
-    try {
-      const { data, error } = await comTecto(
-        sb
-          .from("app_state")
-          .delete()
-          .like("key", `${prefix.replace(/([%_\\])/g, "\\$1")}%`)
-          .lt("key", chaveAntesDe)
-          .select("key"),
-        TEMPO_POR_TENTATIVA_MS,
-      );
-      if (error) throw error;
-      return (data ?? []).length;
-    } catch (err) {
-      log.error("app-state: apagar por prefixo falhou", err, { prefix });
-      return null;
-    }
-  }
-  try {
-    return await emFila(async () => {
-      const all = await readFileState();
-      const sair = Object.keys(all).filter((k) => k.startsWith(prefix) && k < chaveAntesDe);
-      if (sair.length === 0) return 0;
-      for (const k of sair) delete all[k];
-      await fs.mkdir(path.dirname(FILE), { recursive: true });
-      await fs.writeFile(FILE, JSON.stringify(all, null, 2));
-      return sair.length;
-    });
-  } catch (err) {
-    log.error("app-state: apagar por prefixo em ficheiro falhou", err, { prefix });
-    return null;
-  }
-}
+export { apagarEstadoPorPrefixo } from "./app-state/apagar";
 
 /**
  * Grava, e DIZ se gravou.
@@ -640,6 +515,50 @@ export async function setState<T>(key: string, value: T): Promise<ResultadoDeEsc
     return { gravado: true, duradouro: true, onde: "ficheiro" };
   } catch (err) {
     log.error("app-state: escrita em ficheiro falhou", err, { key });
+    return { gravado: false, duradouro: false, onde: "nenhures", motivo: "escrita-recusada" };
+  }
+}
+
+/**
+ * Apaga a linha, e DIZ se apagou — o par de {@link setState}, com o mesmo
+ * resultado (`gravado` quer dizer «a mudança chegou ao sítio onde fica»).
+ *
+ * Existe para não se gravar `null` no lugar de apagar: uma chave a `null` lê-se
+ * como «não há», mas a linha fica para sempre (eram 103 lápides de rascunhos a
+ * 17/11 — docs/ESTRUTURA-DOS-DADOS.md, G3). Apagar o que não existe não é erro.
+ */
+export async function apagarEstado(key: string): Promise<ResultadoDeEscrita> {
+  vigiarChave(key);
+  const sb = getSupabase();
+  if (sb) {
+    let ultimoErro: unknown = null;
+    for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {
+      try {
+        const { error } = await comTecto(
+          sb.from("app_state").delete().eq("key", key),
+          TEMPO_POR_TENTATIVA_MS,
+        );
+        if (!error) return { gravado: true, duradouro: true, onde: "servidor" };
+        ultimoErro = error;
+      } catch (err) {
+        ultimoErro = err;
+      }
+      if (motivoDaFalha(ultimoErro) !== "escrita-recusada") break;
+      if (tentativa < TENTATIVAS) await new Promise((r) => setTimeout(r, PAUSA_MS * tentativa));
+    }
+    const motivo = motivoDaFalha(ultimoErro);
+    log.error("app-state: apagar falhou", ultimoErro, { key, motivo });
+    return { gravado: false, duradouro: false, onde: "nenhures", motivo };
+  }
+  try {
+    await mudarFicheiro((todos) => {
+      delete todos[key];
+    });
+    return oFicheiroEhEfemero()
+      ? { gravado: true, duradouro: false, onde: "ficheiro-efemero" }
+      : { gravado: true, duradouro: true, onde: "ficheiro" };
+  } catch (err) {
+    log.error("app-state: apagar em ficheiro falhou", err, { key });
     return { gravado: false, duradouro: false, onde: "nenhures", motivo: "escrita-recusada" };
   }
 }

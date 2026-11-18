@@ -1,6 +1,7 @@
 import "server-only";
 import { ESPACOS } from "@/lib/app-state/espacos";
 import {
+  apagarEstado,
   getState,
   listStateByPrefix,
   setState,
@@ -119,14 +120,15 @@ export async function saveProposalDraft(
 }
 
 /** Apaga o rascunho (proposta enviada, ou a equipa limpou-o à mão).
- *  Grava `null` em vez de remover a linha: `app-state` não tem remoção, e uma
- *  chave a null lê-se exatamente como "não há rascunho".
+ *  APAGA a linha (até 17/11 gravava `null`, e cada rascunho limpo ficava como
+ *  lápide para sempre — docs/ESTRUTURA-DOS-DADOS.md, P3). Ler uma chave que não
+ *  existe dá `null`, como dava a lápide: quem lê não nota diferença.
  *
  *  Devolve se a limpeza chegou mesmo ao servidor. Falhar aqui não perde
  *  trabalho — perde-se o contrário, o rascunho fica onde estava e volta a
  *  aparecer —, mas quem chama merece saber, e a rota di-lo. */
 export async function clearProposalDraft(quoteId: string): Promise<ResultadoDeEscrita> {
-  return setState(draftKey(quoteId), null);
+  return apagarEstado(draftKey(quoteId));
 }
 
 /**

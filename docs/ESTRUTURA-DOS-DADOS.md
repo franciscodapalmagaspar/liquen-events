@@ -3,7 +3,47 @@
 Pergunta do dono (17/11): «como está a estrutura dos dados?». A fasquia é a dele
 (regra `codigo.md`): código e dados ao nível da Vercel, da Linear e da Stripe.
 
-Este documento é **só análise e plano**. Nada mudou na base de dados.
+Este documento nasceu **só análise e plano**. Desde 18/11 o P1, o P2 e o P3
+estão feitos **no código** (ramo `dados/p1-a-p3`); a base de dados continua
+sem nenhuma migração aplicada.
+
+## −1. O que está feito
+
+Auditado no código, não de memória. «Feito» quer dizer no ramo, com testes;
+nada disto está no `main` sem o lote.
+
+| Passo | Estado | O que ficou | Onde se afastou do texto |
+|---|---|---|---|
+| **P1** Tipos gerados | **feito** | `src/lib/db/tipos-da-base.ts` gerado da base viva (ferramenta `generate_typescript_types`); `src/lib/db/base.ts` com a única correção (`app_state.value` é `unknown`); `getSupabase()` devolve `SupabaseClient<Database>`; `Mapper.table` só aceita tabelas que existem. `src/lib/db/tipos-da-base.test.ts` fica vermelho quando o `db/schema.sql` e os tipos discordam — **sem rede** (lê os dois ficheiros; o dos tipos pela árvore do compilador). O teste dos mappers passou a usar o mesmo leitor do `schema.sql`. | Sem `npm run tipos:base`: o CLI do Supabase precisa de uma chave pessoal, e o CI não deve ter nenhuma; regenera-se pela ferramenta do Supabase e o teste prende o resto. Os mappers ainda recebem `Record<string, unknown>` (o `Repository` é genérico); passar cada um a `Linha<"tabela">` fica para quando se mexer em cada store. |
+| **P1, achado** | **por aplicar** | O `schema.sql` tem `tasks.notas`, `subtarefas`, `anexos` e `posicao` desde 22/10 (PR #265) e **a produção não as tem**: gravar uma tarefa com o Supabase responde «coluna não existe». A última tarefa criada em produção é de 10/9. A migração está escrita e **não aplicada**: `db/migracoes/20261117_tarefas_painel_de_detalhe.sql`. As quatro linhas estão em `DIVERGENCIAS_CONHECIDAS` no teste, que fica vermelho quando os tipos forem regenerados depois de a aplicar. | — |
+| **P2** Registo dos espaços | **feito** | `src/lib/app-state/espacos.ts`: 30 espaços, cada um com a chave, o esquema zod raso, o dono, o prazo e a cópia. Derivam dele: os conjuntos do `app_state` na cópia (`LEITURAS_DO_APP_STATE` em `api/backup`, com o compilador a obrigar a uma leitura por conjunto), `PREFIXOS_QUE_NAO_SAO_MENCAO`, `PREFIXOS_DE_INDICE_DE_FOTOS`, o que o `juntar-fotos-duplicadas` não conta como uso, e os prefixos que as guardas da reposição usam. `app-state/vigiar.ts`: cada leitura passa pelo esquema e o que não bate só fica **registado** (um aviso por espaço), nunca recusado. `espacos.test.ts` varre `src/` e falha com uma chave por registar. | Os esquemas são **rasos** (o topo do valor), de propósito: medido, ~0,003 ms por rascunho de 500 KB e ~6 ms por 2 000 linhas — contra centenas de ms de ida ao Supabase. Conferidos com a produção (só tipos e nomes de campos): 0 linhas fora da forma. As funções `lerEspaco`/`gravarEspaco` não se fizeram: a vigia está dentro do `getState` e companhia, e apanha todos os sítios sem mudar nenhum. O segundo tempo (recusar) fica para depois de uma semana sem avisos. |
+| **P3** Lápides e caches | **feito (código)** | `clearProposalDraft` **apaga** a linha (`apagarEstado`). A tarefa da noite (`api/cron/backup`, a que já existia) decide ANTES de a cópia se fechar e põe o que vai sair **dentro dela** (`saiDoAppState`, que a reposição não escreve sozinha); só apaga depois de o email sair e com a cópia completa. Regras em `app-state/limpeza.ts` (puras, com testes), o resto em `limpar-app-state.ts`. Tecto de 200 por noite; **a primeira noite é a seco** (só conta e escreve `limpeza:app-state`); uma leitura falhada ou truncada não apaga nada; cada linha sai só se ainda estiver como se leu (lápides: «ainda é nula»; o resto: o mesmo `updated_at`). | Ver a correção às contagens em baixo. Os 26 `tempo-activo:` sem pedido ficam (não autorizados). `apagar-pedido.ts` continua sem tocar no `tempo-activo:`. As `ligacao-*` saem pela noite, não quando a proposta sai. |
+| P4–P11 | por fazer | — | — |
+
+**As contagens do G3, refeitas a 18/11 com as regras do código:**
+
+| O quê | O G3 dizia | O código tira | Porquê a diferença |
+|---|---:|---:|---|
+| lápides `proposal-draft:` | 103 | 103 | — |
+| rascunhos com conteúdo sem pedido | 23 | **10** | o estúdio guarda quatro chaves por pedido (`<id>`, `<id>--orcamento-linhas`, `--sobreposto`, `--orcamento-linhas--sobreposto`); a consulta do G3 comparava a chave inteira e contava **13 rascunhos de pedidos vivos** como órfãos |
+| envios sem pedido | 3 | **1** | 2 são de pedidos que estão na Reciclagem (podem voltar) |
+| `ligacao-*` de propostas apagadas | 19 + 19 | ≤ 18 + 18 | as da Reciclagem ficam (o pedido apagado leva as propostas para lá) |
+| `proposta-web:retrato` | 23 substituídos | **34 expirados** | um retrato expirado (`validoAte`) nunca mais é servido; os substituídos expiram todos em 7 dias |
+| outras `proposta-web:` substituídas há > 30 dias | — | 0 hoje | a paleta (`refs` no lugar da proposta) nunca é órfã |
+
+Primeira noite (a seco): ~184 linhas contadas, nenhuma apagada. Segunda noite
+em diante: até 200 por noite.
+
+**Lições para os próximos projetos** (vão para o `docs/ESTRUTURA-DO-CODIGO.md`
+quando esse ficheiro chegar a este ramo):
+
+- Um teste que compara o esquema escrito com os tipos gerados, sem rede,
+  encontrou no primeiro dia uma funcionalidade partida em produção há quatro
+  semanas. Gerar os tipos não chega: é preciso compará-los.
+- Uma regra de órfãos escrita em SQL à mão errou por 13 em 23. A regra vive
+  num sítio só, numa função pura, e o mesmo código conta e apaga.
+- «Apagar o que já não existe» tem de contar com a Reciclagem: o que está lá
+  existe.
 
 **Como se mediu** (17/11, projeto `fvbafdezhslqojjsjgwi`): só consultas de
 leitura, só de estrutura e de contagens (nomes de tabelas e colunas, tamanhos,

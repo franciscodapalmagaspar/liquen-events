@@ -16,6 +16,7 @@ import { preencherImpressoes } from "@/lib/fotos-parecidas";
 import { medirOcupacao } from "@/lib/ocupacao-do-armazenamento";
 import { limparRegistoAntigo } from "@/lib/registo-de-acoes";
 import { limparDiagnosticosDoVideo } from "@/lib/limpar-diagnosticos-video";
+import { aplicarLimpezaDoAppState, paraACopia, planearNaCopia } from "@/lib/limpar-app-state";
 import { isMissingTable } from "@/lib/repository";
 import type { Quote } from "@/lib/orcamento/types";
 import { log } from "@/lib/logger";
@@ -173,6 +174,14 @@ async function GET_semMedida(request: NextRequest) {
   try {
     const payload = await buildBackupPayload();
     const dia = payload.exportedAt.slice(0, 10);
+    /**
+     * A limpeza do `app_state` (lápides, caches velhas, órfãos — P3) decide-se
+     * AQUI, antes de a cópia se fechar, e o que vai sair segue DENTRO dela
+     * (`saiDoAppState`). Só se apaga lá em baixo, com a cópia enviada e
+     * completa. Ver `limpar-app-state.ts`.
+     */
+    const limpezaPlaneada = await planearNaCopia(payload, new Date());
+    if (limpezaPlaneada) payload.saiDoAppState = paraACopia(limpezaPlaneada);
     const cru = Buffer.from(JSON.stringify(payload), "utf8");
     const comprimido = gzipSync(cru);
 
@@ -516,6 +525,18 @@ async function GET_semMedida(request: NextRequest) {
         );
       }
 
+    // O app_state: o que o plano lá de cima decidiu, e que a cópia já levou.
+    let limpezaDoAppState: Awaited<ReturnType<typeof aplicarLimpezaDoAppState>> | null = null;
+    if (!parcial && limpezaPlaneada) {
+      try {
+        limpezaDoAppState = await aplicarLimpezaDoAppState(limpezaPlaneada, dia);
+      } catch (e) {
+        log.error("cron backup: a limpeza do app_state falhou (a cópia seguiu na mesma)", e, {
+          dia,
+        });
+      }
+    }
+
     // O registo de «quem fez o quê» guarda 12 meses (registo-de-acoes.ts).
     if (!parcial) {
       try {
@@ -602,6 +623,7 @@ async function GET_semMedida(request: NextRequest) {
         ? { ...duplicados, plano: undefined, caminhosApagados: undefined }
         : null,
       pdfsSubstituidos,
+      limpezaDoAppState,
       impressoes,
       ocupacao: ocupacao
         ? { bytes: ocupacao.bytes, completo: ocupacao.completo, medidoEm: ocupacao.medidoEm }
