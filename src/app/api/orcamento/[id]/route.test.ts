@@ -181,6 +181,19 @@ vi.mock("@/lib/apagar-pedido", () => ({ apagarPedidoSemContrato: apagamento.corr
 // Apagar passa pela Reciclagem (R3b, `src/lib/reciclagem.ts`, com testes
 // próprios). Aqui interessa a rota: a guarda, e as respostas de cada desfecho
 // do `apagarPedidoSemContrato` — que a Reciclagem devolve tal e qual.
+const RESPOSTAS_DA_RECICLAGEM = vi.hoisted(
+  () =>
+    ({
+      "nao-existe": [404, "Não encontrado"],
+      "tem-contrato": [
+        409,
+        "Este pedido deu origem a contrato, e um contrato é um registo fiscal que tem de ser conservado. Nada foi apagado.",
+      ],
+      "tem-fatura": [409, "Não consegui apagar este pedido."],
+      "nao-verificado": [500, "Não consegui apagar este pedido."],
+      parou: [500, "Não consegui apagar este pedido."],
+    }) as const,
+);
 const reciclagem = vi.hoisted(() => {
   class NaoDeuParaApagar extends Error {
     constructor(
@@ -199,9 +212,10 @@ vi.mock("@/lib/reciclagem", () => ({
   enviarComDetalhe: async (_tipo: string, id: string) => {
     const r = await (apagamento.correr as (id: string) => ReturnType<typeof apagamento.correr>)(id);
     if (!r.apagado) {
-      // Como a Reciclagem: a frase e o estado saem da regra única.
-      const { respostaAoApagarPedido } = await import("@/lib/resposta-ao-apagar-pedido");
-      const { frase, estado } = respostaAoApagarPedido(r);
+      // A frase e o estado escritos à mão, como a Reciclagem os dá — e não
+      // pela regra (`respostaAoApagarPedido`): assim estes testes prendem a
+      // forma das respostas sem depender dela.
+      const [estado, frase] = RESPOSTAS_DA_RECICLAGEM[r.motivo ?? "parou"];
       throw new reciclagem.NaoDeuParaApagar(frase, estado, r);
     }
     return { reciclagem: { id: "r1" }, detalhe: r };
@@ -527,7 +541,12 @@ describe("DELETE /api/orcamento/[id]", () => {
     });
     const res = await DELETE(req("DELETE"), ctx("LIQ-1"));
     expect(res.status).toBe(409);
-    expect((await res.json()).error).toMatch(/registo fiscal/i);
+    // A forma inteira: a frase do registo fiscal, e SEM a lista do que ficou
+    // (nada saiu, não há nada a contar) — revisão de 18/11, R4.
+    expect(await res.json()).toEqual({
+      error:
+        "Este pedido deu origem a contrato, e um contrato é um registo fiscal que tem de ser conservado. Nada foi apagado.",
+    });
   });
 
   it("um pedido COM fatura responde 409 (conflito, não avaria), com a frase genérica", async () => {
@@ -540,7 +559,8 @@ describe("DELETE /api/orcamento/[id]", () => {
     });
     const res = await DELETE(req("DELETE"), ctx("LIQ-1"));
     expect(res.status).toBe(409);
-    expect((await res.json()).error).toBe("Não consegui apagar este pedido.");
+    // A forma inteira: a frase genérica, COM a lista do que ficou.
+    expect(await res.json()).toEqual({ error: "Não consegui apagar este pedido.", falhou: [] });
   });
 
   it("um pedido que não existe responde 404", async () => {
@@ -551,7 +571,10 @@ describe("DELETE /api/orcamento/[id]", () => {
       contou: { propostas: 0, fotos: 0, rascunhos: 0 },
       falhou: [],
     });
-    expect((await DELETE(req("DELETE"), ctx("LIQ-1"))).status).toBe(404);
+    const res = await DELETE(req("DELETE"), ctx("LIQ-1"));
+    expect(res.status).toBe(404);
+    // A forma inteira: sem a lista do que ficou.
+    expect(await res.json()).toEqual({ error: "Não encontrado" });
   });
 
   it("quando não conseguiu apagar, NÃO diz que apagou — e diz o que ficou", async () => {
