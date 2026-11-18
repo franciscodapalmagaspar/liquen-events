@@ -1684,3 +1684,16 @@ describe("reposição das propostas com os códigos curtos (P7)", () => {
     ]);
   });
 });
+
+describe("propostas da cópia com um pedido que já não existe (P5)", () => {
+  it("entram desligadas (set null) em vez de rebentarem o conjunto", async () => {
+    seedBusiness();
+    const antes = await buildBackupPayload();
+    (antes.proposals as { quoteId?: string }[])[0].quoteId = "LIQ-QUE-JA-SAIU";
+    const file = mustValidate(antes);
+    const result = await applyRestore(file, await planRestore(file));
+    expect(result.failed).toEqual([]);
+    expect(rowsOf("proposals")).toHaveLength(1);
+    expect(rowsOf("proposals")[0].quote_id ?? null).toBeNull();
+  });
+});

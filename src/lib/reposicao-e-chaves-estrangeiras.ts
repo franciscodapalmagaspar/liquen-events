@@ -42,6 +42,16 @@ export function idsQueSaem(naBase: readonly string[], naCopia: readonly string[]
   return naBase.filter((id) => !ficam.has(id));
 }
 
+/** A linha aponta para um pedido que não existe? (Sem ligação não é órfã.) */
+export function eOrfa(
+  linha: Record<string, unknown>,
+  campo: string,
+  pedidosQueExistem: ReadonlySet<string>,
+): boolean {
+  const v = linha[campo];
+  return typeof v === "string" && v.trim() !== "" && !pedidosQueExistem.has(v);
+}
+
 /**
  * Tira a ligação ao pedido às linhas cujo pedido não existe. Devolve linhas
  * NOVAS (não muda as que recebe) e quantas perderam a ligação.
@@ -53,8 +63,7 @@ export function soltarLigacoesOrfas<T extends Record<string, unknown>>(
 ): { linhas: T[]; soltas: number } {
   let soltas = 0;
   const out = linhas.map((l) => {
-    const v = l[campo];
-    if (typeof v !== "string" || !v.trim() || pedidosQueExistem.has(v)) return l;
+    if (!eOrfa(l, campo, pedidosQueExistem)) return l;
     soltas++;
     return { ...l, [campo]: undefined };
   });
@@ -72,18 +81,16 @@ export function semLigacoesAPedidosQueNaoExistem<T extends Record<string, unknow
   pedidosQueExistem: ReadonlySet<string>,
   conjunto: string,
 ): T[] {
-  const r = soltarLigacoesOrfas(linhas, ligacao.campo, pedidosQueExistem);
-  if (r.soltas === 0) return r.linhas;
+  const orfas = linhas.filter((l) => eOrfa(l, ligacao.campo, pedidosQueExistem)).length;
+  if (orfas === 0) return [...linhas];
   log.warn("restauro: linhas da cópia com um pedido que já não existe", {
     dataset: conjunto,
-    linhas: r.soltas,
+    linhas: orfas,
     destino: ligacao.seOPedidoNaoExiste,
   });
-  if (ligacao.seOPedidoNaoExiste === "soltar") return r.linhas;
-  return linhas.filter((l) => {
-    const v = l[ligacao.campo];
-    return typeof v !== "string" || !v.trim() || pedidosQueExistem.has(v);
-  });
+  return ligacao.seOPedidoNaoExiste === "soltar"
+    ? soltarLigacoesOrfas(linhas, ligacao.campo, pedidosQueExistem).linhas
+    : linhas.filter((l) => !eOrfa(l, ligacao.campo, pedidosQueExistem));
 }
 
 /**

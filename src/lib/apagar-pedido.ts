@@ -258,8 +258,12 @@ export async function apagarPedidoSemContrato(
   // origem. Uma TAREFA cairia pela cascata sem relatório nem Reciclagem. Nos
   // dois casos o pedido fica, e a próxima tentativa sabe o que há.
   try {
+    // SEM `motivo`: aqui já saiu muita coisa, e um motivo de recusa diria à
+    // Reciclagem «nada saiu» — e ela deitava fora a única cópia do que saiu.
+    // Sem motivo é uma paragem a meio, e a entrada fica com o que saiu.
     if ((await listContractsForQuote(id)).length > 0) {
-      return { apagado: false, motivo: "tem-contrato", contou, falhou, saiu };
+      falhou.push("nasceu um contrato neste pedido enquanto se apagava");
+      return { apagado: false, contou, falhou, saiu };
     }
     const novas = await listTasksForQuote(id);
     if (novas.length > 0) {

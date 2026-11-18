@@ -668,6 +668,9 @@ export const RESTORE_TARGETS: readonly RestoreTarget<AnyRow>[] = [
     // sem a coluna, as inserções falham TODAS e o `replaceAll` deixava as
     // propostas apagadas. Por isso pergunta-se antes.
     preflight: (rows) => assertProposalDocColumn(rows),
+    // `proposals.quote_id` é `set null`: uma proposta da cópia cujo pedido já
+    // não existe entra desligada, em vez de rebentar o conjunto (e o deixar vazio).
+    ligacaoAoPedido: { campo: "quoteId", seOPedidoNaoExiste: "soltar" },
     // Os códigos curtos dos links (P7) caem em cascata com as propostas e não
     // vão na cópia: sem isto, cada reposição esvaziava a tabela.
     dependenteEmCascata: {

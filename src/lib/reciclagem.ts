@@ -15,6 +15,7 @@ import {
 } from "./reciclagem-store";
 import { marcarFotoMexida } from "./biblioteca-fotos-store";
 import { deleteTask, listTasksForQuote, obterTarefa, reporTarefa } from "./tasks-store";
+import { eTarefaDeUmPedidoApagado, MENSAGEM_PEDIDO_APAGADO } from "./tarefas/pedido-apagado";
 import { deleteSupplier, obterFornecedor, reporFornecedor } from "./suppliers-store";
 import { deleteCalendarEvent, obterEvento, reporEvento } from "./calendar-store";
 import { apagarServico, criarServico, obterServico } from "./servicos-catalogo-store";
@@ -208,7 +209,13 @@ export const TIPOS = {
     rotulo: (t) => t.title,
     obter: obterTarefa,
     apagar: deleteTask,
-    repor: reporTarefa,
+    // Uma tarefa cujo pedido saiu de vez não volta: segue o pedido (P5). Diz-se
+    // com a frase das rotas das tarefas, como «falta aquilo de que depende».
+    repor: (t) =>
+      reporTarefa(t).catch((e: unknown) => {
+        if (eTarefaDeUmPedidoApagado(e)) throw new NaoDaParaRepor(MENSAGEM_PEDIDO_APAGADO);
+        throw e;
+      }),
   }),
   evento: simples<CalendarEvent>({
     nome: "Marcação do calendário",

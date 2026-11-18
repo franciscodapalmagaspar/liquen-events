@@ -360,7 +360,10 @@ describe("P5: um contrato que nasce a meio do apagar", () => {
     };
     const r = await apagarPedidoSemContrato("q1");
     expect(r.apagado).toBe(false);
-    expect(r.motivo).toBe("tem-contrato");
+    // Sem motivo de recusa: já saiu coisa, e a Reciclagem tem de o guardar
+    // (um motivo diria «nada saiu» e ela deitava fora a única cópia).
+    expect(r.motivo).toBeUndefined();
+    expect(r.falhou).toContain("nasceu um contrato neste pedido enquanto se apagava");
     expect(dados.pedidosApagados).toEqual([]);
     expect(dados.leiturasDeContratos).toBe(2);
   });
