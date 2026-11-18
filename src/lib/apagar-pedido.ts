@@ -4,6 +4,7 @@ import { listProposalsForQuote, deleteProposal } from "./proposals-store";
 import {
   ligacoesDoPedido,
   oQueFicouDasPropostas,
+  propostasQueSairamSemResposta,
   oQueAindaPrende,
   registoFiscalDoPedido,
 } from "./o-que-prende-o-pedido";
@@ -223,12 +224,23 @@ export async function apagarPedidoSemContrato(
   // proposta ficam inteiros, e uma segunda tentativa sabe o que falta.
   try {
     const ficaram = (await listProposalsForQuote(id)).map((p) => p.id);
+    // Uma que falhou ao apagar e que a confirmação já não encontra SAIU — só a
+    // resposta se perdeu. Entra em `saiu` e conta: se o apagar parar mais à
+    // frente, a Reciclagem guarda só o que está em `saiu`, e sem isto deitava
+    // fora a única cópia dela (júri de 18/11, 12.ª volta).
+    for (const p of propostasQueSairamSemResposta(falharam, ficaram)) {
+      contou.propostas++;
+      saiu.propostas.push(p);
+    }
     if (ficaram.length > 0) {
       if (listagemFalhou) falhou.push(LISTAGEM_DAS_PROPOSTAS_FALHOU);
       falhou.push(...oQueFicouDasPropostas(ficaram, falharam));
       return { apagado: false, contou, falhou, saiu };
     }
   } catch (e) {
+    // Sem a confirmação não se sabe se as que falharam saíram: ficam fora de
+    // `saiu` — repô-las da Reciclagem por cima de uma que ficou viva escrevia
+    // uma cópia velha sobre o que ela entretanto mudou.
     if (listagemFalhou) falhou.push(LISTAGEM_DAS_PROPOSTAS_FALHOU);
     falhou.push(...oQueFicouDasPropostas([...falharam], falharam));
     falhou.push("não consegui confirmar as propostas deste pedido");

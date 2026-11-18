@@ -3,7 +3,7 @@ import { listContractsForQuote } from "./contracts-store";
 import { listInvoicesForQuote } from "./invoices-store";
 import { getQuote } from "./quotes-store";
 import type { Quote } from "./orcamento/types";
-import { faturasNoMoloni } from "./orcamento/fatura-no-moloni";
+import { fasesQuePodemTerFaturaNoMoloni } from "./orcamento/fatura-no-moloni";
 import { listProposalsForQuote } from "./proposals-store";
 import { listTasksForQuote } from "./tasks-store";
 
@@ -49,8 +49,9 @@ export type RegistosFiscais = Pick<LigacoesDoPedido, "contratos" | "faturas">;
 
 /**
  * Contratos e faturas — as do livro antigo (`invoices`, só de leitura) e as do
- * Moloni (`quote.faturasMoloni`, onde as faturas vivem hoje; a regra do que
- * conta está em `orcamento/fatura-no-moloni.ts`) —, lidos em paralelo.
+ * Moloni (`quote.faturasMoloni`, onde as faturas vivem hoje; conta cada fase
+ * que PODE ter documento lá, marca de «a ser criado» incluída — a regra está em
+ * `orcamento/fatura-no-moloni.ts`) —, lidos em paralelo.
  * Uma leitura que falha fica em `falhou`, e as que correram bem contam na
  * mesma: um registo que se VIU vale mais do que outro que não se pôde ver.
  */
@@ -71,7 +72,7 @@ async function lerFiscais(
     contratos: contratos.status === "fulfilled" ? contratos.value.length : 0,
     faturas:
       (livro.status === "fulfilled" ? livro.value.length : 0) +
-      (pedido.status === "fulfilled" ? faturasNoMoloni(pedido.value) : 0),
+      (pedido.status === "fulfilled" ? fasesQuePodemTerFaturaNoMoloni(pedido.value) : 0),
     ...(falhou ? { falhou: falhou.reason } : {}),
   };
 }
@@ -141,6 +142,18 @@ export function oQueFicouDasPropostas(
   const novas = ficaram.filter((id) => !falharam.has(id)).length;
   if (novas > 0) linhas.push(fraseDasPropostasQueFicaram(novas));
   return linhas;
+}
+
+/**
+ * As propostas que falharam ao apagar mas que a confirmação já não encontra:
+ * saíram, só a resposta se perdeu. Puro.
+ */
+export function propostasQueSairamSemResposta(
+  falharam: ReadonlySet<string>,
+  ficaram: readonly string[],
+): string[] {
+  const aindaLa = new Set(ficaram);
+  return [...falharam].filter((id) => !aindaLa.has(id));
 }
 
 /**

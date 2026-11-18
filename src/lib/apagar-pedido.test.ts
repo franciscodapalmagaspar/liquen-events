@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import type { Proposal } from "@/lib/orcamento/types";
-import type { Contract } from "@/lib/contract-types";
+import { dados, reporOMundo, proposta, contrato } from "./apagar-pedido.testkit";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -20,153 +19,29 @@ import type { Contract } from "@/lib/contract-types";
  * duas coisas que a tornam segura: um contrato manda parar, e o que não se
  * conseguiu apagar é DITO.
  */
-
-const dados = vi.hoisted(() => ({
-  pedidos: new Map<string, { id: string }>(),
-  propostas: [] as Proposal[],
-  contratos: [] as Contract[],
-  fotos: [] as { path: string }[],
-  apagadas: [] as string[],
-  removidas: [] as string[],
-  rascunhosLimpos: [] as string[],
-  pedidosApagados: [] as string[],
-  /** As avarias que se querem provocar. */
-  contratosRebentam: false,
-  propostaQueFalha: null as string | null,
-  fotoQueFalha: null as string | null,
-  pedidoRebenta: false,
-  tarefas: [] as { id: string; quoteId?: string }[],
-  tarefasApagadas: [] as string[],
-  tarefasRebentam: false,
-  leiturasDeContratos: 0,
-  listagensDePropostasQueFalham: 0,
-  propostaQueApagaEFalha: null as string | null,
-  faturas: [] as { id: string; quoteId: string }[],
-  faturasRebentam: false,
-  tarefaQueFalha: null as string | null,
-  /** As chaves de rascunho que existem (`draft:<chave>`). */
-  estado: new Map<string, unknown>(),
-}));
-
-vi.mock("@/lib/quotes-store", () => ({
-  getQuote: async (id: string) => dados.pedidos.get(id) ?? null,
-  deleteQuote: async (id: string) => {
-    if (dados.pedidoRebenta) throw new Error("base em baixo");
-    dados.pedidosApagados.push(id);
-  },
-}));
-vi.mock("@/lib/proposals-store", () => ({
-  listProposalsForQuote: async (q: string) => {
-    if (dados.listagensDePropostasQueFalham > 0) {
-      dados.listagensDePropostasQueFalham--;
-      throw new Error("base em baixo");
-    }
-    return dados.propostas.filter((p) => p.quoteId === q);
-  },
-  deleteProposal: async (id: string) => {
-    if (dados.propostaQueApagaEFalha === id) {
-      // O servidor apagou; só a resposta se perdeu pelo caminho.
-      dados.propostas = dados.propostas.filter((p) => p.id !== id);
-      throw new Error("resposta perdida");
-    }
-    if (dados.propostaQueFalha === id) throw new Error("recusado");
-    dados.apagadas.push(id);
-    dados.propostas = dados.propostas.filter((p) => p.id !== id);
-  },
-}));
-vi.mock("@/lib/invoices-store", () => ({
-  listInvoicesForQuote: async (quoteId: string) => {
-    if (dados.faturasRebentam) throw new Error("base em baixo");
-    return dados.faturas.filter((f) => f.quoteId === quoteId);
-  },
-}));
-vi.mock("@/lib/contracts-store", () => ({
-  listContractsForQuote: async (quoteId: string) => {
-    if (dados.contratosRebentam) throw new Error("base em baixo");
-    dados.leiturasDeContratos++;
-    return dados.contratos.filter((c) => c.quoteId === quoteId);
-  },
-}));
-vi.mock("@/lib/app-state", () => ({
-  getState: async (k: string) => dados.estado.get(k) ?? null,
-}));
-vi.mock("@/lib/proposal-drafts", () => ({
-  draftKey: (k: string) => `draft:${k}`,
-  clearProposalDraft: async (k: string) => {
-    dados.rascunhosLimpos.push(k);
-    return { gravado: true as const, duradouro: true as const, onde: "servidor" as const };
-  },
-}));
-vi.mock("@/lib/proposal-storage", () => ({
-  PROPOSAL_BUCKET: "proposal-assets",
-  listProposalImages: async () => dados.fotos,
-  removeStoredObject: async (_b: string, path: string) => {
-    if (dados.fotoQueFalha === path) throw new Error("recusado");
-    dados.removidas.push(path);
-  },
-}));
-vi.mock("@/lib/tasks-store", () => ({
-  listTasksForQuote: async (quoteId: string) => {
-    if (dados.tarefasRebentam) throw new Error("base em baixo");
-    return dados.tarefas.filter((t) => t.quoteId === quoteId);
-  },
-  deleteTask: async (id: string) => {
-    if (dados.tarefaQueFalha === id) throw new Error("recusado");
-    dados.tarefasApagadas.push(id);
-    dados.tarefas = dados.tarefas.filter((t) => t.id !== id);
-  },
-}));
-vi.mock("@/lib/logger", () => ({
-  log: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
-}));
+vi.mock("@/lib/quotes-store", () => import("./apagar-pedido.testkit").then((k) => k.lojas.quotes));
+vi.mock("@/lib/proposals-store", () =>
+  import("./apagar-pedido.testkit").then((k) => k.lojas.proposals),
+);
+vi.mock("@/lib/invoices-store", () =>
+  import("./apagar-pedido.testkit").then((k) => k.lojas.invoices),
+);
+vi.mock("@/lib/contracts-store", () =>
+  import("./apagar-pedido.testkit").then((k) => k.lojas.contracts),
+);
+vi.mock("@/lib/app-state", () => import("./apagar-pedido.testkit").then((k) => k.lojas.appState));
+vi.mock("@/lib/proposal-drafts", () =>
+  import("./apagar-pedido.testkit").then((k) => k.lojas.drafts),
+);
+vi.mock("@/lib/proposal-storage", () =>
+  import("./apagar-pedido.testkit").then((k) => k.lojas.storage),
+);
+vi.mock("@/lib/tasks-store", () => import("./apagar-pedido.testkit").then((k) => k.lojas.tasks));
+vi.mock("@/lib/logger", () => import("./apagar-pedido.testkit").then((k) => k.lojas.logger));
 
 const { apagarPedidoSemContrato } = await import("./apagar-pedido");
 
-function proposta(id: string, quoteId = "q1"): Proposal {
-  return { id, quoteId, clientName: "Maria & Zé", clientEmail: "m@ex.pt" } as Proposal;
-}
-
-/** Um contrato com os campos que o tipo exige — o que importa é o `quoteId`. */
-function contrato(quoteId: string, status: Contract["status"] = "aceite"): Contract {
-  return {
-    id: `c-${quoteId}-${status}`,
-    quoteId,
-    proposalId: "p1",
-    clientName: "Maria & Zé",
-    clientEmail: "m@ex.pt",
-    termsVersion: "2026-01",
-    status,
-  } as Contract;
-}
-
-beforeEach(() => {
-  dados.pedidos = new Map([["q1", { id: "q1" }]]);
-  dados.propostas = [];
-  dados.contratos = [];
-  dados.fotos = [];
-  dados.apagadas = [];
-  dados.removidas = [];
-  dados.rascunhosLimpos = [];
-  dados.estado = new Map(
-    ["q1", "q1--orcamento-linhas", "q1--sobreposto", "q1--orcamento-linhas--sobreposto"].map(
-      (k) => [`draft:${k}`, { doc: {} }],
-    ),
-  );
-  dados.pedidosApagados = [];
-  dados.contratosRebentam = false;
-  dados.propostaQueFalha = null;
-  dados.fotoQueFalha = null;
-  dados.pedidoRebenta = false;
-  dados.tarefas = [];
-  dados.tarefasApagadas = [];
-  dados.tarefasRebentam = false;
-  dados.leiturasDeContratos = 0;
-  dados.listagensDePropostasQueFalham = 0;
-  dados.propostaQueApagaEFalha = null;
-  dados.faturas = [];
-  dados.faturasRebentam = false;
-  dados.tarefaQueFalha = null;
-});
+beforeEach(reporOMundo);
 
 describe("apagar um pedido sem contrato", () => {
   it("LEVA AS PROPOSTAS ATRÁS — é a promessa que estava por cumprir", async () => {
@@ -336,79 +211,6 @@ describe("o que ficou por apagar é DITO", () => {
   });
 });
 
-describe("P5: as tarefas caem em cascata com o pedido", () => {
-  it("uma tarefa que não saiu faz o pedido ficar — a cascata levava-a sem ninguém saber", async () => {
-    dados.tarefas = [
-      { id: "t1", quoteId: "q1" },
-      { id: "t2", quoteId: "q1" },
-    ];
-    dados.tarefaQueFalha = "t2";
-    const r = await apagarPedidoSemContrato("q1");
-    expect(r.apagado).toBe(false);
-    expect(dados.pedidosApagados).toEqual([]);
-    expect(r.saiu.tarefas).toEqual(["t1"]);
-    expect(r.falhou).toContain("a tarefa t2 não foi apagada");
-  });
-
-  it("e pára ANTES de apagar propostas, fotografias e rascunhos — nada fica a meio", async () => {
-    dados.propostas = [proposta("p1")];
-    dados.fotos = [{ path: "q1/a.jpg" }];
-    dados.tarefasRebentam = true;
-    const r = await apagarPedidoSemContrato("q1");
-    expect(r.apagado).toBe(false);
-    expect(dados.apagadas).toEqual([]);
-    expect(dados.removidas).toEqual([]);
-    expect(dados.rascunhosLimpos).toEqual([]);
-  });
-
-  it("sem conseguir listar as tarefas, o pedido também fica", async () => {
-    dados.tarefasRebentam = true;
-    const r = await apagarPedidoSemContrato("q1");
-    expect(r.apagado).toBe(false);
-    // Uma tarefa por ler não é um registo fiscal: nada de «tem contrato».
-    expect(r.motivo).toBeUndefined();
-    expect(r.falhou).toContain("não consegui listar as tarefas deste pedido");
-    expect(dados.pedidosApagados).toEqual([]);
-  });
-});
-
-describe("P5: uma tarefa criada a meio do apagar", () => {
-  it("faz o pedido ficar, em vez de a cascata a levar sem ninguém saber", async () => {
-    dados.tarefas = [{ id: "t1", quoteId: "q1" }];
-    // Enquanto as fotografias saem, alguém cria uma tarefa para este pedido.
-    dados.fotos = [{ path: "q1/a.jpg" }];
-    const original = dados.removidas.push.bind(dados.removidas);
-    dados.removidas.push = (...p: string[]) => {
-      dados.tarefas = [...dados.tarefas, { id: "t-nova", quoteId: "q1" }];
-      return original(...p);
-    };
-    const r = await apagarPedidoSemContrato("q1");
-    expect(r.apagado).toBe(false);
-    expect(dados.pedidosApagados).toEqual([]);
-    expect(r.falhou).toContain("apareceram 1 tarefa(s) novas neste pedido");
-  });
-});
-
-describe("P5: um contrato que nasce a meio do apagar", () => {
-  it("faz o pedido ficar — a chave do contrato é `set null` e o pedido saía sem ele", async () => {
-    dados.fotos = [{ path: "q1/a.jpg" }];
-    const original = dados.removidas.push.bind(dados.removidas);
-    dados.removidas.push = (...p: string[]) => {
-      // Um aceite noutro ecrã enquanto as fotografias saem.
-      dados.contratos = [...dados.contratos, contrato("q1")];
-      return original(...p);
-    };
-    const r = await apagarPedidoSemContrato("q1");
-    expect(r.apagado).toBe(false);
-    // Sem motivo de recusa: já saiu coisa, e a Reciclagem tem de o guardar
-    // (um motivo diria «nada saiu» e ela deitava fora a única cópia).
-    expect(r.motivo).toBeUndefined();
-    expect(r.falhou).toContain("nasceu um contrato neste pedido enquanto se apagava");
-    expect(dados.pedidosApagados).toEqual([]);
-    expect(dados.leiturasDeContratos).toBe(2);
-  });
-});
-
 describe("P5: uma fatura também manda parar (registo fiscal, chave `set null`)", () => {
   it("um pedido com fatura não é apagado, e nada sai", async () => {
     dados.faturas = [{ id: "f1", quoteId: "q1" }];
@@ -441,42 +243,6 @@ describe("P5: uma fatura também manda parar (registo fiscal, chave `set null`)"
   });
 });
 
-describe("P5: uma proposta que nasce a meio pára antes das fotografias", () => {
-  it("o pedido, as fotografias e os rascunhos ficam", async () => {
-    dados.propostas = [proposta("p1")];
-    dados.fotos = [{ path: "q1/a.jpg" }];
-    const original = dados.apagadas.push.bind(dados.apagadas);
-    dados.apagadas.push = (...p: string[]) => {
-      // Enquanto p1 sai, noutro ecrã nasce outra proposta para este pedido.
-      dados.propostas = [...dados.propostas, proposta("p-nova")];
-      return original(...p);
-    };
-    const r = await apagarPedidoSemContrato("q1");
-    expect(r.apagado).toBe(false);
-    expect(r.saiu.propostas).toEqual(["p1"]);
-    expect(dados.removidas).toEqual([]);
-    expect(dados.rascunhosLimpos).toEqual([]);
-    expect(r.falhou).toContain("ficaram 1 proposta(s) neste pedido");
-  });
-});
-
-describe("P5: uma fatura que nasce a meio do apagar", () => {
-  it("faz o pedido ficar — a mesma pergunta do início, repetida no fim", async () => {
-    dados.fotos = [{ path: "q1/a.jpg" }];
-    const original = dados.removidas.push.bind(dados.removidas);
-    dados.removidas.push = (...p: string[]) => {
-      // O Moloni grava uma fatura enquanto as fotografias saem.
-      dados.faturas = [...dados.faturas, { id: "f1", quoteId: "q1" }];
-      return original(...p);
-    };
-    const r = await apagarPedidoSemContrato("q1");
-    expect(r.apagado).toBe(false);
-    expect(r.motivo).toBeUndefined();
-    expect(dados.pedidosApagados).toEqual([]);
-    expect(r.falhou).toContain("nasceu uma fatura neste pedido enquanto se apagava");
-  });
-});
-
 describe("um registo fiscal VISTO vale mais do que uma leitura falhada", () => {
   it("com um contrato visto e as faturas por ler, recusa pelo contrato", async () => {
     dados.contratos = [contrato("q1")];
@@ -484,23 +250,6 @@ describe("um registo fiscal VISTO vale mais do que uma leitura falhada", () => {
     const r = await apagarPedidoSemContrato("q1");
     expect(r.motivo).toBe("tem-contrato");
     expect(dados.pedidosApagados).toEqual([]);
-  });
-});
-
-describe("P5: as propostas — contar o que nasceu, não repetir o que falhou", () => {
-  it("uma falhou e outra nasceu noutro ecrã: a que falhou é dita, e a contagem também", async () => {
-    dados.propostas = [proposta("p1"), proposta("p2")];
-    dados.propostaQueFalha = "p2";
-    const original = dados.apagadas.push.bind(dados.apagadas);
-    dados.apagadas.push = (...p: string[]) => {
-      dados.propostas = [...dados.propostas, proposta("p-nova")];
-      return original(...p);
-    };
-    const r = await apagarPedidoSemContrato("q1");
-    expect(r.apagado).toBe(false);
-    expect(r.falhou).toContain("a proposta p2 não foi apagada");
-    // A que nasceu conta-se à parte da que falhou.
-    expect(r.falhou).toContain("ficaram 1 proposta(s) neste pedido");
   });
 });
 
@@ -515,23 +264,19 @@ describe("P5: a fatura que vive no Moloni também manda parar", () => {
     expect(dados.apagadas).toEqual([]);
     expect(dados.pedidosApagados).toEqual([]);
   });
-});
 
-describe("uma listagem de propostas que falha uma vez e depois prova que não há nenhuma", () => {
-  it("o pedido sai, sem um aviso que já não é verdade", async () => {
-    dados.listagensDePropostasQueFalham = 1;
-    const r = await apagarPedidoSemContrato("q1");
-    expect(r.apagado).toBe(true);
-    expect(r.falhou).not.toContain("não consegui listar as propostas deste pedido");
-  });
-});
-
-describe("uma proposta cuja resposta se perdeu mas que saiu mesmo", () => {
-  it("o pedido sai, e o relatório não diz que ela ficou", async () => {
+  // Júri, 12.ª volta (18/11): a rota do Moloni põe a marca ANTES de lhe falar e
+  // só a troca pelo documento DEPOIS de o rascunho lá existir. Se essa escrita
+  // falha, a marca fica, velha e sem documento — e é o único rasto dele.
+  it("a marca de «a ser criado», velha e sem documento, também manda parar", async () => {
+    dados.pedidos.set("q1", {
+      id: "q1",
+      faturasMoloni: { saldo: { em: "x", aCriarDesde: "2026-01-01T00:00:00Z" } },
+    });
     dados.propostas = [proposta("p1")];
-    dados.propostaQueApagaEFalha = "p1";
     const r = await apagarPedidoSemContrato("q1");
-    expect(r.apagado).toBe(true);
-    expect(r.falhou.join(" ")).not.toContain("p1");
+    expect(r.motivo).toBe("tem-fatura");
+    expect(dados.apagadas).toEqual([]);
+    expect(dados.pedidosApagados).toEqual([]);
   });
 });

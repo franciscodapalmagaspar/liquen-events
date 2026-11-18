@@ -38,10 +38,10 @@ const {
   ligacoesDoPedido,
   registoFiscal,
   oQueAindaPrende,
+  propostasQueSairamSemResposta,
   registoFiscalDoPedido,
   NaoSeiSeHaRegistoFiscal,
 } = await import("./o-que-prende-o-pedido");
-const { faturasNoMoloni } = await import("./orcamento/fatura-no-moloni");
 
 const nada = { contratos: 0, faturas: 0, propostas: 0, tarefas: 0 };
 
@@ -117,22 +117,6 @@ describe("registoFiscalDoPedido (a pergunta do início)", () => {
 });
 
 describe("as faturas do Moloni também são registo fiscal", () => {
-  it("conta a fase com documento ou passada à mão; a marca de «a ser criado» não conta", () => {
-    expect(faturasNoMoloni(null)).toBe(0);
-    expect(faturasNoMoloni({})).toBe(0);
-    expect(faturasNoMoloni({ faturasMoloni: { sinal: undefined } })).toBe(0);
-    expect(
-      faturasNoMoloni({
-        faturasMoloni: { sinal: { em: "x", aCriarDesde: "2026-11-18T00:00:00Z" } },
-      }),
-    ).toBe(0);
-    expect(
-      faturasNoMoloni({
-        faturasMoloni: { sinal: { em: "x", documentId: 9 }, saldo: { em: "x", manual: true } },
-      }),
-    ).toBe(2);
-  });
-
   it("sem contrato e com o sinal no Moloni, a guarda do início recusa com tem-fatura", async () => {
     falha.nContratos = 0;
     expect(
@@ -149,14 +133,23 @@ describe("as faturas do Moloni também são registo fiscal", () => {
     expect((await ligacoesDoPedido("q")).faturas).toBe(1);
   });
 
-  it("a marca de «a ser criado» sozinha não prende o pedido", async () => {
+  // Júri, 12.ª volta (18/11): a rota põe a marca ANTES de falar com o Moloni e
+  // só a troca pelo documento DEPOIS. Se essa escrita falha, a marca é o único
+  // rasto de um rascunho que existe lá — e apagar o pedido tirava-lhe a origem.
+  it("a marca de «a ser criado», mesmo velha e sem documento, prende o pedido", async () => {
     falha.nContratos = 0;
     expect(
       await registoFiscalDoPedido({
         id: "q",
-        faturasMoloni: { sinal: { em: "x", aCriarDesde: "y" } },
+        faturasMoloni: { sinal: { em: "x", aCriarDesde: "2026-01-01T00:00:00Z" } },
       }),
-    ).toBeNull();
+    ).toBe("tem-fatura");
+  });
+
+  it("e a do fim vê a marca de um rascunho a ser criado enquanto se apagava", async () => {
+    falha.nContratos = 0;
+    falha.moloni = { sinal: { em: "x", aCriarDesde: new Date().toISOString() } };
+    expect((await ligacoesDoPedido("q")).faturas).toBe(1);
   });
 });
 
@@ -174,5 +167,16 @@ describe("ligacoesDoPedido — o registo visto ganha também no fim", () => {
     await expect(ligacoesDoPedido("q")).rejects.toBeInstanceOf(NaoSeiSeHaRegistoFiscal);
     falha.contratos = false;
     falha.faturas = false;
+  });
+});
+
+describe("propostasQueSairamSemResposta — a resposta perdeu-se, a proposta saiu", () => {
+  it("é a que falhou ao apagar e a confirmação já não encontra", () => {
+    expect(propostasQueSairamSemResposta(new Set(["p1", "p2"]), ["p2", "p3"])).toEqual(["p1"]);
+  });
+
+  it("nenhuma falhou, ou todas as que falharam ficaram: nada", () => {
+    expect(propostasQueSairamSemResposta(new Set(), ["p1"])).toEqual([]);
+    expect(propostasQueSairamSemResposta(new Set(["p1"]), ["p1"])).toEqual([]);
   });
 });
