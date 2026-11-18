@@ -1,4 +1,6 @@
+import type { z } from "zod";
 import { ESPACOS, espacoDaChave, type NomeDoEspaco } from "./espacos";
+import type { motivoDeSaida } from "./registo-da-limpeza";
 import type { LinhaVarrida } from "./varrer";
 
 /**
@@ -36,13 +38,7 @@ import type { LinhaVarrida } from "./varrer";
  * inteira dava 13 rascunhos vivos como órfãos (medido a 17/11).
  */
 
-export type MotivoDeSaida =
-  | "lapide"
-  | "rascunho-sem-pedido"
-  | "envio-sem-pedido"
-  | "proposta-web-sem-proposta"
-  | "retrato-expirado"
-  | "ligacao-sem-proposta";
+export type MotivoDeSaida = z.infer<typeof motivoDeSaida>;
 
 /** Pela ordem em que saem quando há mais do que o tecto da noite: primeiro o
  *  que não tem dados de ninguém, por último o que tem. */

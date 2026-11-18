@@ -66,7 +66,10 @@ vi.mock("@/lib/reciclagem-store", () => ({
   },
 }));
 
+import { ESPACOS, espacoDaChave } from "@/lib/app-state/espacos";
+import { registoDaLimpeza } from "@/lib/app-state/registo-da-limpeza";
 import {
+  CHAVE_DO_REGISTO,
   aplicarLimpezaDoAppState,
   planearNaCopia,
   TECTO_DE_BYTES_NA_COPIA,
@@ -109,6 +112,23 @@ beforeEach(() => {
   st.respostaCondicional = "apagado";
   st.varreduraPendurada = false;
   st.agora = null;
+});
+
+/** Um registo válido de uma noite anterior, cuja primeira noite foi `primeiraNoite`. */
+const registoDe = (primeiraNoite: string) => ({
+  valor: {
+    primeiraNoite,
+    ultima: {
+      dia: primeiraNoite,
+      aSeco: true,
+      porMotivo: { lapide: 1 },
+      apagadas: 0,
+      mudaram: 0,
+      falharam: 0,
+      ficam: 0,
+    },
+  },
+  versao: ANTIGA,
 });
 
 const planear = async () => {
@@ -221,14 +241,14 @@ describe("aplicar o plano", () => {
   });
 
   it("a mesma noite, a correr outra vez, continua a seco", async () => {
-    st.registo = { valor: { primeiraNoite: "2026-11-18" }, versao: ANTIGA };
+    st.registo = registoDe("2026-11-18");
     const r = await aplicarLimpezaDoAppState((await planear()).plano, "2026-11-18");
     expect(r?.aSeco).toBe(true);
     expect(st.lapides).toEqual([]);
   });
 
   it("da segunda noite em diante apaga: as lápides num lote, o resto com a versão lida", async () => {
-    st.registo = { valor: { primeiraNoite: "2026-11-17" }, versao: ANTIGA };
+    st.registo = registoDe("2026-11-17");
     const r = await aplicarLimpezaDoAppState((await planear()).plano, "2026-11-18");
     expect(st.lapides).toEqual([["proposal-draft:q1"]]);
     expect(st.condicionais).toEqual([
@@ -239,10 +259,36 @@ describe("aplicar o plano", () => {
   });
 
   it("uma linha que mudou entretanto fica, e conta-se", async () => {
-    st.registo = { valor: { primeiraNoite: "2026-11-17" }, versao: ANTIGA };
+    st.registo = registoDe("2026-11-17");
     st.respostaCondicional = "mudou";
     const r = await aplicarLimpezaDoAppState((await planear()).plano, "2026-11-18");
     expect(r).toMatchObject({ apagadas: 1, mudaram: 2 });
+  });
+
+  it.each([
+    ["sem a última noite", { primeiraNoite: "2026-11-17" }],
+    ["com o dia noutra forma", { ...registoDe("2026-11-17").valor, primeiraNoite: "17/11" }],
+    [
+      "com uma contagem impossível",
+      {
+        ...registoDe("2026-11-17").valor,
+        ultima: { ...registoDe("x").valor.ultima, apagadas: -1 },
+      },
+    ],
+    ["que nem é um objeto", "2026-11-17"],
+  ])("um registo fora da forma (%s): a noite fica a seco e escreve um novo", async (_n, valor) => {
+    st.registo = { valor, versao: ANTIGA };
+    const r = await aplicarLimpezaDoAppState((await planear()).plano, "2026-11-18");
+    expect(r).toMatchObject({ aSeco: true, apagadas: 0 });
+    expect(st.lapides).toEqual([]);
+    expect(st.condicionais).toEqual([]);
+    expect(st.gravados).toEqual([expect.objectContaining({ primeiraNoite: "2026-11-18" })]);
+  });
+
+  it("o registo que se escreve é lido de volta pelo mesmo esquema", async () => {
+    await aplicarLimpezaDoAppState((await planear()).plano, "2026-11-18");
+    expect(registoDaLimpeza.safeParse(st.gravados[0]).success).toBe(true);
+    expect(ESPACOS[espacoDaChave(CHAVE_DO_REGISTO) ?? "rascunhos"].valor).toBe(registoDaLimpeza);
   });
 
   it("o registo que não se lê: não se apaga nada", async () => {
@@ -254,7 +300,7 @@ describe("aplicar o plano", () => {
   });
 
   it("um pedido que voltou da Reciclagem entre a cópia e o apagar: o rascunho dele fica", async () => {
-    st.registo = { valor: { primeiraNoite: "2026-11-17" }, versao: ANTIGA };
+    st.registo = registoDe("2026-11-17");
     const { plano } = await planear();
     // A partir daqui há base: quem existe lê-se AGORA, e o pedido voltou.
     st.agora = {
@@ -268,7 +314,7 @@ describe("aplicar o plano", () => {
   });
 
   it("quem existe agora não se lê: não se apaga nada", async () => {
-    st.registo = { valor: { primeiraNoite: "2026-11-17" }, versao: ANTIGA };
+    st.registo = registoDe("2026-11-17");
     const { plano } = await planear();
     st.agora = { quotes: [{ id: "q1" }] }; // propostas e Reciclagem falham
     expect(await aplicarLimpezaDoAppState(plano, "2026-11-18")).toBeNull();

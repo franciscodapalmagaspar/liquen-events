@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { registoDaLimpeza } from "./registo-da-limpeza";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -186,6 +187,16 @@ export const ESPACOS = {
     tipo: "prefixo",
     dono: "registos-das-limpezas.ts",
     valor: objeto,
+    prazo: SUBSTITUI,
+    copia: FORA,
+  },
+  // A chave fixa ganha ao prefixo (o mais longo): é a ÚNICA dos registos
+  // das limpezas que decide se a noite apaga, e por isso tem a forma inteira.
+  registoDaLimpezaDoAppState: {
+    chave: "limpeza:app-state",
+    tipo: "chave",
+    dono: "limpar-app-state.ts",
+    valor: registoDaLimpeza,
     prazo: SUBSTITUI,
     copia: FORA,
   },

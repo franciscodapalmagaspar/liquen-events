@@ -16,6 +16,7 @@ import {
   type QuemExiste,
   type Saida,
 } from "@/lib/app-state/limpeza";
+import { registoDaLimpeza, type RegistoDaLimpeza } from "@/lib/app-state/registo-da-limpeza";
 import { comTecto } from "@/lib/app-state/tecto";
 import { varrerPrefixo, type LinhaVarrida } from "@/lib/app-state/varrer";
 import { lerTodasAsLinhas } from "@/lib/ler-todas-as-linhas";
@@ -62,7 +63,7 @@ const EM_PARALELO = 6;
 /** Valores lidos de cada vez para a cópia. */
 const LOTE_DE_VALORES = 20;
 
-export const CHAVE_DO_REGISTO = `${ESPACOS.registosDasLimpezas.chave}app-state`;
+export const CHAVE_DO_REGISTO = ESPACOS.registoDaLimpezaDoAppState.chave;
 
 export interface PlanoDaNoite {
   saem: Saida[];
@@ -74,20 +75,6 @@ export interface LinhaQueSai {
   key: string;
   motivo: MotivoDeSaida;
   value: unknown;
-}
-
-export interface RegistoDaLimpeza {
-  /** O dia da primeira noite (a seco). */
-  primeiraNoite: string;
-  ultima: {
-    dia: string;
-    aSeco: boolean;
-    porMotivo: Partial<Record<MotivoDeSaida, number>>;
-    apagadas: number;
-    mudaram: number;
-    falharam: number;
-    ficam: number;
-  };
 }
 
 const linhaDaReciclagem = z.looseObject({
@@ -299,16 +286,22 @@ export async function aplicarLimpezaDoAppState(
   plano: PlanoDaNoite,
   dia: string,
 ): Promise<RegistoDaLimpeza["ultima"] | null> {
-  let lido: { valor: RegistoDaLimpeza | null; versao: string | null };
+  let lido: { valor: unknown; versao: string | null };
   try {
-    lido = await lerEstadoComVersao<RegistoDaLimpeza>(CHAVE_DO_REGISTO, 4_000);
+    lido = await lerEstadoComVersao<unknown>(CHAVE_DO_REGISTO, 4_000);
   } catch (err) {
     log.warn("limpeza do app_state: o registo não se leu — nada sai esta noite", {
       erro: String(err),
     });
     return null;
   }
-  const primeiraNoite = lido.valor?.primeiraNoite ?? dia;
+  // Um registo fora da forma conta como nenhum: a noite fica A SECO e escreve
+  // um novo. Nunca se apaga com base num valor que não se percebe.
+  const registo = lido.valor === null ? null : registoDaLimpeza.safeParse(lido.valor);
+  if (registo && !registo.success) {
+    log.warn("limpeza do app_state: o registo está fora da forma — esta noite fica a seco");
+  }
+  const primeiraNoite = registo?.success ? registo.data.primeiraNoite : dia;
   const aSeco = primeiraNoite === dia;
 
   let apagadas = 0;
