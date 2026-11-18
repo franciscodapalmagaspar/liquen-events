@@ -234,7 +234,15 @@ export type Database = {
           terms_version?: string | null;
           updated_at?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "contracts_quote_id_fkey";
+            columns: ["quote_id"];
+            isOneToOne: false;
+            referencedRelation: "quotes";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       email_templates: {
         Row: {
@@ -522,7 +530,50 @@ export type Database = {
           updated_at?: string | null;
           vat_rate?: number;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "invoices_quote_id_fkey";
+            columns: ["quote_id"];
+            isOneToOne: false;
+            referencedRelation: "quotes";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      ligacoes_de_proposta: {
+        Row: {
+          atual: boolean;
+          codigo: string;
+          criada_em: string;
+          expira_em: string | null;
+          proposal_id: string;
+          revogada_em: string | null;
+        };
+        Insert: {
+          atual?: boolean;
+          codigo: string;
+          criada_em: string;
+          expira_em?: string | null;
+          proposal_id: string;
+          revogada_em?: string | null;
+        };
+        Update: {
+          atual?: boolean;
+          codigo?: string;
+          criada_em?: string;
+          expira_em?: string | null;
+          proposal_id?: string;
+          revogada_em?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ligacoes_de_proposta_proposal_id_fkey";
+            columns: ["proposal_id"];
+            isOneToOne: false;
+            referencedRelation: "proposals";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       material_items: {
         Row: {
@@ -1158,6 +1209,7 @@ export type Database = {
       };
       tasks: {
         Row: {
+          anexos: Json | null;
           area: string | null;
           assignee: string | null;
           client_name: string | null;
@@ -1165,12 +1217,16 @@ export type Database = {
           done: boolean;
           due_date: string | null;
           id: string;
+          notas: string | null;
+          posicao: number | null;
           priority: string;
           quote_id: string | null;
+          subtarefas: Json | null;
           title: string;
           updated_at: string | null;
         };
         Insert: {
+          anexos?: Json | null;
           area?: string | null;
           assignee?: string | null;
           client_name?: string | null;
@@ -1178,12 +1234,16 @@ export type Database = {
           done?: boolean;
           due_date?: string | null;
           id?: string;
+          notas?: string | null;
+          posicao?: number | null;
           priority?: string;
           quote_id?: string | null;
+          subtarefas?: Json | null;
           title: string;
           updated_at?: string | null;
         };
         Update: {
+          anexos?: Json | null;
           area?: string | null;
           assignee?: string | null;
           client_name?: string | null;
@@ -1191,18 +1251,38 @@ export type Database = {
           done?: boolean;
           due_date?: string | null;
           id?: string;
+          notas?: string | null;
+          posicao?: number | null;
           priority?: string;
           quote_id?: string | null;
+          subtarefas?: Json | null;
           title?: string;
           updated_at?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "tasks_quote_id_fkey";
+            columns: ["quote_id"];
+            isOneToOne: false;
+            referencedRelation: "quotes";
+            referencedColumns: ["id"];
+          },
+        ];
       };
     };
     Views: {
       [_ in never]: never;
     };
     Functions: {
+      gravar_ligacao_de_proposta: {
+        Args: {
+          p_codigo: string;
+          p_criada_em: string;
+          p_expira_em: string;
+          p_proposal_id: string;
+        };
+        Returns: boolean;
+      };
       next_invoice_seq: { Args: { p_year: number }; Returns: number };
     };
     Enums: {

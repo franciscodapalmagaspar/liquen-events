@@ -24,13 +24,9 @@ import { diferencasEntre, esquemaDoSql, esquemaDosTipos } from "./comparar-esque
  * (sai da lista no mesmo PR que a resolve).
  */
 const DIVERGENCIAS_CONHECIDAS: Record<string, string> = {
-  // As quatro do painel de detalhe das tarefas (PR #265, 22/10) nunca foram
-  // aplicadas em produção. A migração está escrita e espera:
-  // db/migracoes/20261117_tarefas_painel_de_detalhe.sql.
-  "tasks.anexos: existe no schema.sql e não na base": "migração por aplicar",
-  "tasks.notas: existe no schema.sql e não na base": "migração por aplicar",
-  "tasks.posicao: existe no schema.sql e não na base": "migração por aplicar",
-  "tasks.subtarefas: existe no schema.sql e não na base": "migração por aplicar",
+  // Vazia desde 18/11: as quatro colunas do painel de detalhe das tarefas
+  // (db/migracoes/20261117_tarefas_painel_de_detalhe.sql) foram aplicadas em
+  // produção, e os tipos regenerados da base viva já as trazem.
 };
 
 async function ler(...partes: string[]): Promise<string> {
@@ -44,11 +40,11 @@ describe("db/schema.sql ↔ src/lib/db/tipos-da-base.ts", () => {
     expect(diferencasEntre(ficheiro, base)).toEqual(Object.keys(DIVERGENCIAS_CONHECIDAS).sort());
   });
 
-  it("as duas descrições têm as mesmas 30 tabelas", async () => {
+  it("as duas descrições têm as mesmas 31 tabelas", async () => {
     const ficheiro = esquemaDoSql(await ler("db", "schema.sql"));
     const base = esquemaDosTipos(await ler("src", "lib", "db", "tipos-da-base.ts"));
     expect([...ficheiro.keys()].sort()).toEqual([...base.keys()].sort());
-    expect(base.size).toBeGreaterThanOrEqual(30);
+    expect(base.size).toBeGreaterThanOrEqual(31);
   });
 });
 

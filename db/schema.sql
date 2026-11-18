@@ -761,7 +761,9 @@ end $$;
 alter table public.contracts add column if not exists proposta_pdf_sha256 text;
 alter table public.contracts add column if not exists proposta_pdf_bytes integer;
 
-create index if not exists contracts_proposal_id_idx on public.contracts (proposal_id);
+-- (O `contracts_proposal_id_idx` que estava aqui saiu a 17/11, no P4: a chave
+-- única `contracts_proposal_id_uk`, logo abaixo, é sobre a mesma coluna.)
+drop index if exists public.contracts_proposal_id_idx;
 
 -- Um contrato por proposta — garantia de unicidade na própria base de dados.
 -- É o lock do aceite: dois aceites concorrentes passam ambos o
@@ -1255,3 +1257,119 @@ create index if not exists registo_de_acoes_quando_idx on public.registo_de_acoe
 alter table public.registo_de_acoes enable row level security;
 revoke all on public.registo_de_acoes from anon, authenticated;
 
+
+-- ── P4 (17/11): os CHECK validados ─────────────────────────────────────────
+-- Os CHECK deste ficheiro nascem `not valid` (para não varrer tabelas numa
+-- instalação antiga), e cinco deles são trocados em cada execução. Este bloco,
+-- no fim, volta a validá-los: numa base nova é instantâneo, e numa base onde já
+-- estavam validados não faz nada. Ver db/migracoes/20261117_p4_validar_checks_e_indices.sql.
+do $$
+declare r record;
+begin
+  for r in
+    select conrelid::regclass as tabela, conname
+    from pg_constraint
+    where connamespace = 'public'::regnamespace and contype = 'c' and not convalidated
+  loop
+    -- Uma linha antiga que viole a regra não pode abortar o ficheiro a meio:
+    -- fica por validar (a regra continua a valer para as linhas novas) e diz-se.
+    begin
+      execute format('alter table %s validate constraint %I', r.tabela, r.conname);
+    exception when check_violation then
+      raise notice 'P4: % fica por validar — há linhas que a violam', r.conname;
+    end;
+  end loop;
+end $$;
+
+-- ── P5 (17/11): as chaves estrangeiras para `quotes` que faltavam ──────────
+-- Tarefas saem com o pedido (o que `apagar-pedido.ts` já fazia à mão); faturas e
+-- contratos ficam, sem a ligação. Ver
+-- db/migracoes/20261117_p5_chaves_estrangeiras_para_quotes.sql.
+do $$
+declare
+  fk record;
+begin
+  for fk in
+    select * from (values
+      ('tasks',     'tasks_quote_id_fkey',     'cascade'),
+      ('invoices',  'invoices_quote_id_fkey',  'set null'),
+      ('contracts', 'contracts_quote_id_fkey', 'set null')
+    ) as v(tabela, nome, ao_apagar)
+  loop
+    -- Nasce `not valid` (como os CHECK deste ficheiro) e valida-se à parte: uma
+    -- linha órfã numa base antiga não aborta o ficheiro, fica dito.
+    if not exists (
+      select 1 from pg_constraint
+      where conname = fk.nome and conrelid = format('public.%I', fk.tabela)::regclass
+    ) then
+      execute format(
+        'alter table public.%I add constraint %I foreign key (quote_id) references public.quotes (id) on delete %s not valid',
+        fk.tabela, fk.nome, fk.ao_apagar);
+    end if;
+    begin
+      execute format('alter table public.%I validate constraint %I', fk.tabela, fk.nome);
+    exception when foreign_key_violation then
+      raise notice 'P5: % fica por validar — há linhas órfãs', fk.nome;
+    end;
+  end loop;
+end $$;
+create index if not exists tasks_quote_id_idx     on public.tasks (quote_id);
+create index if not exists contracts_quote_id_idx on public.contracts (quote_id);
+
+-- ── P7 (18/11): os códigos curtos das propostas ────────────────────────────
+-- Ver db/migracoes/20261118_p7_ligacoes_de_proposta.sql e
+-- src/lib/ligacoes-de-proposta-tabela.ts. A cópia do app_state está em
+-- ….copia.sql (numa base nova não há nada a copiar).
+
+create table if not exists public.ligacoes_de_proposta (
+  codigo      text primary key check (codigo ~ '^[0-9a-z]{1,64}$'),
+  proposal_id uuid not null references public.proposals (id) on delete cascade,
+  criada_em   timestamptz not null,
+  -- Anulável como o `expiraEm` do app_state: sem data, não expira.
+  expira_em   timestamptz,
+  -- Ninguém o escreve ainda (a «alavanca» de proposta-link-curto.ts); a leitura já o respeita.
+  revogada_em timestamptz,
+  -- O código que a proposta reaproveita no próximo envio (o antigo `ligacao-de-proposta:`).
+  atual       boolean not null default false
+);
+
+create unique index if not exists ligacoes_de_proposta_uma_atual
+  on public.ligacoes_de_proposta (proposal_id) where atual;
+create index if not exists ligacoes_de_proposta_proposal_id_idx
+  on public.ligacoes_de_proposta (proposal_id);
+
+alter table public.ligacoes_de_proposta enable row level security;
+revoke all on public.ligacoes_de_proposta from anon, authenticated;
+
+-- Gravar um código novo e torná-lo o atual da proposta, numa transação.
+-- `false` quando o código já existia (colisão de um código aleatório): nada muda.
+create or replace function public.gravar_ligacao_de_proposta(
+  p_codigo text,
+  p_proposal_id uuid,
+  p_criada_em timestamptz,
+  p_expira_em timestamptz
+) returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  -- Em fila por proposta (P7b, 18/11): duas gravações ao mesmo tempo não colidem no índice único.
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('ligacoes_de_proposta:' || p_proposal_id::text, 0));
+  insert into public.ligacoes_de_proposta (codigo, proposal_id, criada_em, expira_em, atual)
+  values (p_codigo, p_proposal_id, p_criada_em, p_expira_em, false)
+  on conflict (codigo) do nothing;
+  if not found then
+    return false;
+  end if;
+  update public.ligacoes_de_proposta set atual = false
+    where proposal_id = p_proposal_id and atual and codigo <> p_codigo;
+  update public.ligacoes_de_proposta set atual = true where codigo = p_codigo;
+  return true;
+end;
+$$;
+
+revoke execute on function public.gravar_ligacao_de_proposta(text, uuid, timestamptz, timestamptz)
+  from public, anon, authenticated;
+grant execute on function public.gravar_ligacao_de_proposta(text, uuid, timestamptz, timestamptz)
+  to service_role;

@@ -3,7 +3,9 @@
 -- que não os tinham
 -- ════════════════════════════════════════════════════════════════════════════
 --
--- NÃO APLICADA. Para rever antes de correr no SQL Editor do Supabase.
+-- ✔ APLICADA a 17/11/2026 (23:52 UTC), dentro da migração
+-- 20261117_p4_validar_checks_e_indices.sql; o aconselhador de desempenho deixou
+-- de apontar «FK sem índice».
 --
 -- Confirmado em db/schema.sql: nenhuma destas colunas tem índice, nem é a
 -- primeira coluna de outro índice ou da chave primária. Sem índice, apagar uma
