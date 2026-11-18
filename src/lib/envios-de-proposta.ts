@@ -1,6 +1,12 @@
 import "server-only";
 import { ESPACOS } from "@/lib/app-state/espacos";
-import { getState, listStateByPrefix, setState, type ResultadoDeEscrita } from "./app-state";
+import {
+  apagarEstado,
+  getState,
+  listStateByPrefix,
+  setState,
+  type ResultadoDeEscrita,
+} from "./app-state";
 import type { Mapper } from "./repository";
 import { log } from "./logger";
 
@@ -336,7 +342,11 @@ export async function replaceEnviosDeProposta(tudo: readonly EnviosNaCopia[]): P
   for (let i = 0; i < escritas.length; i += LOTE_DE_ESCRITAS) {
     const lote = escritas.slice(i, i + LOTE_DE_ESCRITAS);
     const resultados = await Promise.all(
-      lote.map(async (e) => ({ key: e.key, ...(await setState(e.key, e.value)) })),
+      // `null` é «não está na cópia»: APAGA-se, não fica lápide (P3).
+      lote.map(async (e) => ({
+        key: e.key,
+        ...(await (e.value === null ? apagarEstado(e.key) : setState(e.key, e.value))),
+      })),
     );
     for (const r of resultados) {
       if (!r.gravado) falhadas.push(`${r.key} (${r.motivo ?? "sem motivo"})`);

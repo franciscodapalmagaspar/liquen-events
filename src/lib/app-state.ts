@@ -1,12 +1,10 @@
 import "server-only";
-import { promises as fs } from "fs";
-import path from "path";
 import { getSupabase } from "./supabase";
 import { eRelogioAdiantado, isMissingTable, lerComNovaTentativa } from "./repository";
 import { log } from "./logger";
 import { vigiarChave, vigiarValor } from "./app-state/vigiar";
 import { comTecto, PAUSA_MS, TEMPO_POR_TENTATIVA_MS, TENTATIVAS } from "./app-state/tecto";
-import { emFila, FILE, mudarFicheiro, readFileState } from "./app-state/ficheiro";
+import { emFila, escreverFicheiro, mudarFicheiro, readFileState } from "./app-state/ficheiro";
 
 /**
  * Tiny persistent key-value state for operational markers (e.g. the list of
@@ -286,18 +284,10 @@ export async function getStates<T>(keys: readonly string[]): Promise<Map<string,
 /** O tecto do PostgREST por resposta (`max-rows`, 1000 no Supabase). */
 const PAGINA_DO_ESTADO = 1000;
 
-/** Uma entrada da varredura, com a versão para um apagar ou gravar condicional. */
-export interface EntradaDoEstado<T> {
-  key: string;
-  value: T;
-  /** A mesma versão de {@link lerEstadoComVersao} (o `updated_at`). */
-  versao: string;
-}
-
 export async function listStateByPrefix<T>(
   prefix: string,
   limite = 2000,
-): Promise<{ entradas: EntradaDoEstado<T>[]; completa: boolean }> {
+): Promise<{ entradas: { key: string; value: T }[]; completa: boolean }> {
   const sb = getSupabase();
   if (sb) {
     try {
@@ -307,7 +297,7 @@ export async function listStateByPrefix<T>(
        * voltava com 1000 e dizia-se «completa» (revisão de 13/11, n.º 1). Ordem
        * pela chave, que é única: as páginas não se repetem nem saltam linhas.
        */
-      const linhas: EntradaDoEstado<T>[] = [];
+      const linhas: { key: string; value: T }[] = [];
       for (let desde = 0; linhas.length <= limite; desde += PAGINA_DO_ESTADO) {
         const ate = Math.min(desde + PAGINA_DO_ESTADO, limite + 1) - 1;
         // Com nova tentativa no PGRST303 («JWT issued at future»), como o
@@ -316,7 +306,7 @@ export async function listStateByPrefix<T>(
         const { data, error } = await lerComNovaTentativa(() =>
           sb
             .from("app_state")
-            .select("key, value, updated_at")
+            .select("key, value")
             // `%` e `_` são curingas do LIKE: escapá-los impede que um prefixo
             // com um deles varra mais do que devia.
             .like("key", `${prefix.replace(/([%_\\])/g, "\\$1")}%`)
@@ -327,7 +317,7 @@ export async function listStateByPrefix<T>(
         const pagina = data ?? [];
         for (const l of pagina) {
           vigiarValor(l.key, l.value);
-          linhas.push({ key: l.key, value: l.value as T, versao: l.updated_at });
+          linhas.push({ key: l.key, value: l.value as T });
         }
         if (pagina.length < ate - desde + 1) break;
       }
@@ -344,7 +334,7 @@ export async function listStateByPrefix<T>(
     .filter(([k]) => k.startsWith(prefix))
     .map(([key, value]) => {
       vigiarValor(key, value);
-      return { key, value: value as T, versao: JSON.stringify(value) };
+      return { key, value: value as T };
     });
   return { entradas: entradas.slice(0, limite), completa: entradas.length <= limite };
 }
@@ -413,8 +403,7 @@ export async function gravarEstadoSeNaoMudou<T>(
         const atual = all[key] === undefined ? null : JSON.stringify(all[key]);
         if (atual !== versao) return "conflito" as const;
         all[key] = value;
-        await fs.mkdir(path.dirname(FILE), { recursive: true });
-        await fs.writeFile(FILE, JSON.stringify(all, null, 2));
+        await escreverFicheiro(all);
         return "gravado" as const;
       });
     } catch (err) {
@@ -493,11 +482,8 @@ export async function setState<T>(key: string, value: T): Promise<ResultadoDeEsc
     // Ler-mutar-escrever em fila: ver `emFila`. Sem isto, o que se grava aqui é
     // o mapa como ele estava para ESTA chamada, e quem entrar a seguir apaga a
     // chave que esta acabou de pôr.
-    await emFila(async () => {
-      const all = await readFileState();
+    await mudarFicheiro((all) => {
       all[key] = value;
-      await fs.mkdir(path.dirname(FILE), { recursive: true });
-      await fs.writeFile(FILE, JSON.stringify(all, null, 2));
     });
     // A escrita aconteceu nos dois casos. O que muda — e é tudo o que muda — é
     // o que se DIZ sobre o sítio onde ela ficou.

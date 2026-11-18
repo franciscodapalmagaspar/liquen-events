@@ -16,7 +16,7 @@ import { preencherImpressoes } from "@/lib/fotos-parecidas";
 import { medirOcupacao } from "@/lib/ocupacao-do-armazenamento";
 import { limparRegistoAntigo } from "@/lib/registo-de-acoes";
 import { limparDiagnosticosDoVideo } from "@/lib/limpar-diagnosticos-video";
-import { aplicarLimpezaDoAppState, paraACopia, planearNaCopia } from "@/lib/limpar-app-state";
+import { aplicarLimpezaDoAppState, planearNaCopia } from "@/lib/limpar-app-state";
 import { isMissingTable } from "@/lib/repository";
 import type { Quote } from "@/lib/orcamento/types";
 import { log } from "@/lib/logger";
@@ -181,7 +181,7 @@ async function GET_semMedida(request: NextRequest) {
      * completa. Ver `limpar-app-state.ts`.
      */
     const limpezaPlaneada = await planearNaCopia(payload, new Date());
-    if (limpezaPlaneada) payload.saiDoAppState = paraACopia(limpezaPlaneada);
+    if (limpezaPlaneada) payload.saiDoAppState = limpezaPlaneada.naCopia;
     const cru = Buffer.from(JSON.stringify(payload), "utf8");
     const comprimido = gzipSync(cru);
 
@@ -529,7 +529,7 @@ async function GET_semMedida(request: NextRequest) {
     let limpezaDoAppState: Awaited<ReturnType<typeof aplicarLimpezaDoAppState>> | null = null;
     if (!parcial && limpezaPlaneada) {
       try {
-        limpezaDoAppState = await aplicarLimpezaDoAppState(limpezaPlaneada, dia);
+        limpezaDoAppState = await aplicarLimpezaDoAppState(limpezaPlaneada.plano, dia);
       } catch (e) {
         log.error("cron backup: a limpeza do app_state falhou (a cópia seguiu na mesma)", e, {
           dia,

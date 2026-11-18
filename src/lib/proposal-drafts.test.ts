@@ -49,6 +49,10 @@ vi.mock("./app-state", () => ({
     return { gravado: true, onde: "servidor" };
   },
   getState: async (key: string) => estado.valores.get(key) ?? null,
+  apagarEstado: async (key: string) => {
+    estado.valores.delete(key);
+    return { gravado: true, onde: "servidor" };
+  },
 }));
 
 import {
@@ -187,8 +191,8 @@ describe("repor os rascunhos", () => {
       updatedAt: ONTEM,
     });
     // Substituir é substituir: o rascunho que estava e não vem no ficheiro
-    // desaparece — a null, que é como o estúdio já diz "não há rascunho".
-    expect(estado.valores.get("proposal-draft:LIQ-AAA-1")).toBeNull();
+    // desaparece — a linha sai, não fica lápide (P3).
+    expect(estado.valores.has("proposal-draft:LIQ-AAA-1")).toBe(false);
   });
 
   it("NÃO toca no resto da tabela partilhada", async () => {

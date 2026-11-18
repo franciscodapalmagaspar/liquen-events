@@ -1,4 +1,5 @@
 import { ESPACOS } from "./espacos";
+import type { LinhaVarrida } from "./varrer";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -8,20 +9,26 @@ import { ESPACOS } from "./espacos";
  * docs/ESTRUTURA-DOS-DADOS.md, P3 (G3). Saem só coisas que não são trabalho de
  * ninguém, ou que o dono autorizou (17/11):
  *
- *  · as LÁPIDES dos rascunhos (`proposal-draft:` com valor nulo — o que o
- *    `clearProposalDraft` gravava até 17/11 em vez de apagar);
+ *  · as LÁPIDES (valor nulo) dos espaços limpos — o que o `clearProposalDraft`
+ *    e as reposições gravavam até 18/11 em vez de apagar;
  *  · os rascunhos e os envios de PEDIDOS QUE JÁ NÃO EXISTEM (autorizado pelo
  *    dono a 17/11, desde que a cópia da noite os leve primeiro);
  *  · a cache da proposta online (`proposta-web:`) de propostas que já não
- *    existem, os retratos já expirados, e as linhas substituídas há mais de
- *    {@link SUBSTITUIDA_HA_DIAS} dias por outra da mesma proposta;
+ *    existem, e os RETRATOS EXPIRADOS — um retrato substituído expira em sete
+ *    dias (`retrato.ts`), e um expirado nunca mais é servido;
  *  · as ligações curtas (`ligacao-*`) de propostas que já não existem.
  *
- * NÃO saem — nem aqui nem em lado nenhum, até o dono decidir — os
- * `tempo-activo:` sem pedido.
+ * NÃO saem: os `tempo-activo:` sem pedido (o dono ainda não decidiu); e o
+ * resto da cache da proposta online (`conteudo`, `cores`, `pontos`, a paleta)
+ * enquanto a proposta existir — a impressão na chave mistura a língua, as
+ * fotografias e o que falta, e «a linha mais nova do grupo» não diz qual é a
+ * atual (revisão de 18/11): apagar a errada era pagar o cálculo outra vez.
  *
- * «Existe» inclui a Reciclagem: um pedido ou uma proposta apagados há menos
- * de 30 dias podem voltar, e voltam com o que tinham.
+ * «Existe» inclui a Reciclagem: um pedido apagado há menos de 30 dias pode
+ * voltar, e volta com o que tinha (uma ligação conta como viva se o pedido
+ * dela existir). E nada com menos de {@link IDADE_MINIMA_HORAS} horas sai por
+ * ser órfão: quem existe lê-se no início da noite, e uma proposta enviada a
+ * meio da limpeza não pode ver o link que acabou de seguir ser apagado.
  *
  * O id de um rascunho é o do pedido ANTES do primeiro `--`: o estúdio guarda
  * quatro chaves por pedido (`<id>`, `<id>--orcamento-linhas`, `<id>--sobreposto`,
@@ -35,7 +42,6 @@ export type MotivoDeSaida =
   | "envio-sem-pedido"
   | "proposta-web-sem-proposta"
   | "retrato-expirado"
-  | "proposta-web-substituida"
   | "ligacao-sem-proposta";
 
 /** Pela ordem em que saem quando há mais do que o tecto da noite: primeiro o
@@ -44,21 +50,29 @@ export const ORDEM_DE_SAIDA: readonly MotivoDeSaida[] = [
   "lapide",
   "retrato-expirado",
   "proposta-web-sem-proposta",
-  "proposta-web-substituida",
   "ligacao-sem-proposta",
   "envio-sem-pedido",
   "rascunho-sem-pedido",
 ];
 
-export const SUBSTITUIDA_HA_DIAS = 30;
-const DIA_MS = 24 * 60 * 60 * 1000;
+export const IDADE_MINIMA_HORAS = 24;
+const HORA_MS = 60 * 60 * 1000;
 
-export interface LinhaLida {
-  key: string;
-  value: unknown;
-  /** O `updated_at` (ver `listStateByPrefix`). */
-  versao: string;
-}
+/** Os campos de topo que as regras leem (o resto do valor não se traz). */
+export const CAMPOS_POR_ESPACO: Readonly<Record<string, readonly string[]>> = {
+  [ESPACOS.ligacoes.chave]: ["propostaId", "pedidoId"],
+  [ESPACOS.ligacoesInversas.chave]: ["codigo"],
+  [ESPACOS.propostaWeb.chave]: ["validoAte"],
+};
+
+/** Os espaços que a noite limpa. */
+export const ESPACOS_LIMPOS: readonly string[] = [
+  ESPACOS.rascunhos.chave,
+  ESPACOS.enviosDeProposta.chave,
+  ESPACOS.ligacoes.chave,
+  ESPACOS.ligacoesInversas.chave,
+  ESPACOS.propostaWeb.chave,
+];
 
 export interface QuemExiste {
   /** Os pedidos, os vivos e os da Reciclagem. */
@@ -67,25 +81,14 @@ export interface QuemExiste {
   propostas: ReadonlySet<string>;
 }
 
-export interface Saida extends LinhaLida {
+export interface Saida extends LinhaVarrida {
   motivo: MotivoDeSaida;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const resto = (chave: string, prefixo: string) => chave.slice(prefixo.length);
-
-function campoDeTexto(valor: unknown, campo: string): string | null {
-  if (!valor || typeof valor !== "object" || Array.isArray(valor)) return null;
-  const v: unknown = Reflect.get(valor, campo);
-  return typeof v === "string" ? v : null;
-}
-
-function campoNumerico(valor: unknown, campo: string): number | null {
-  if (!valor || typeof valor !== "object" || Array.isArray(valor)) return null;
-  const v: unknown = Reflect.get(valor, campo);
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
-}
+const texto = (v: unknown) => (typeof v === "string" ? v : null);
 
 /**
  * `proposta-web:<tipo>:<proposta>:<impressão>`. Só conta como proposta um
@@ -96,63 +99,63 @@ function partesDaPropostaWeb(chave: string): { tipo: string; proposta: string | 
   return { tipo, proposta: UUID.test(proposta) ? proposta : null };
 }
 
-/** A regra de cada linha, sozinha (a «substituída» precisa do grupo: à parte). */
-function motivoDaLinha(l: LinhaLida, existe: QuemExiste, agora: number): MotivoDeSaida | null {
-  const { key, value } = l;
+/** Uma ligação está viva se a proposta OU o pedido dela existirem. */
+function ligacaoViva(campos: LinhaVarrida["campos"], existe: QuemExiste): boolean | null {
+  const proposta = texto(campos.propostaId);
+  if (proposta === null) return null; // não se sabe de quem é: fica
+  const pedido = texto(campos.pedidoId);
+  return existe.propostas.has(proposta) || (pedido !== null && existe.pedidos.has(pedido));
+}
+
+/** Órfã: a regra de cada espaço, sem a idade (que se vê à parte). */
+function orfa(l: LinhaVarrida, existe: QuemExiste, ligacoes: Map<string, boolean | null>) {
+  const { key, campos } = l;
   if (key.startsWith(ESPACOS.rascunhos.chave)) {
-    if (value === null) return "lapide";
     const pedido = resto(key, ESPACOS.rascunhos.chave).split("--")[0];
     return existe.pedidos.has(pedido) ? null : "rascunho-sem-pedido";
   }
   if (key.startsWith(ESPACOS.enviosDeProposta.chave)) {
-    return existe.pedidos.has(resto(key, ESPACOS.enviosDeProposta.chave))
-      ? null
-      : "envio-sem-pedido";
+    const pedido = resto(key, ESPACOS.enviosDeProposta.chave);
+    return existe.pedidos.has(pedido) ? null : "envio-sem-pedido";
   }
   if (key.startsWith(ESPACOS.ligacoesInversas.chave)) {
-    return existe.propostas.has(resto(key, ESPACOS.ligacoesInversas.chave))
-      ? null
-      : "ligacao-sem-proposta";
+    if (existe.propostas.has(resto(key, ESPACOS.ligacoesInversas.chave))) return null;
+    // O inverso segue o código para que aponta: fica se esse estiver vivo.
+    const codigo = texto(campos.codigo);
+    const viva = codigo === null ? undefined : ligacoes.get(`${ESPACOS.ligacoes.chave}${codigo}`);
+    return viva === true || viva === null ? null : "ligacao-sem-proposta";
   }
   if (key.startsWith(ESPACOS.ligacoes.chave)) {
-    // Sem `propostaId` legível não se sabe de quem é: fica.
-    const proposta = campoDeTexto(value, "propostaId");
-    return proposta === null || existe.propostas.has(proposta) ? null : "ligacao-sem-proposta";
+    return ligacoes.get(key) === false ? "ligacao-sem-proposta" : null;
   }
   if (key.startsWith(ESPACOS.propostaWeb.chave)) {
-    const { tipo, proposta } = partesDaPropostaWeb(key);
-    if (proposta !== null && !existe.propostas.has(proposta)) return "proposta-web-sem-proposta";
-    // Um retrato expirado nunca mais é servido (`retrato.ts` refá-lo e grava-o).
-    const validoAte = tipo === "retrato" ? campoNumerico(value, "validoAte") : null;
-    if (validoAte !== null && validoAte < agora) return "retrato-expirado";
+    const { proposta } = partesDaPropostaWeb(key);
+    return proposta !== null && !existe.propostas.has(proposta)
+      ? "proposta-web-sem-proposta"
+      : null;
   }
   return null;
 }
 
-/**
- * As linhas da proposta online que outra linha da MESMA proposta e do mesmo
- * tipo substituiu há mais de {@link SUBSTITUIDA_HA_DIAS} dias. A impressão
- * muda quando o documento muda, e a linha velha ficava para sempre.
- */
-function substituidas(linhas: readonly LinhaLida[], jaSaem: ReadonlySet<string>): Set<string> {
-  const grupos = new Map<string, LinhaLida[]>();
-  for (const l of linhas) {
-    if (!l.key.startsWith(ESPACOS.propostaWeb.chave) || jaSaem.has(l.key)) continue;
-    const { tipo, proposta } = partesDaPropostaWeb(l.key);
-    if (proposta === null || tipo === "retrato") continue; // o retrato tem prazo próprio
-    const g = `${tipo}:${proposta}`;
-    grupos.set(g, [...(grupos.get(g) ?? []), l]);
+function motivoDaLinha(
+  l: LinhaVarrida,
+  existe: QuemExiste,
+  ligacoes: Map<string, boolean | null>,
+  agora: number,
+): MotivoDeSaida | null {
+  if (!ESPACOS_LIMPOS.some((p) => l.key.startsWith(p))) return null;
+  if (l.nula) return "lapide";
+  if (l.key.startsWith(ESPACOS.propostaWeb.chave)) {
+    const validoAte = l.campos.validoAte;
+    const retrato = partesDaPropostaWeb(l.key).tipo === "retrato";
+    if (retrato && typeof validoAte === "number" && validoAte < agora) return "retrato-expirado";
   }
-  const sai = new Set<string>();
-  for (const grupo of grupos.values()) {
-    const datas = grupo.map((l) => Date.parse(l.versao)).filter(Number.isFinite);
-    if (datas.length !== grupo.length || grupo.length < 2) continue;
-    const maisNova = Math.max(...datas);
-    for (const l of grupo) {
-      if (Date.parse(l.versao) + SUBSTITUIDA_HA_DIAS * DIA_MS < maisNova) sai.add(l.key);
-    }
-  }
-  return sai;
+  const motivo = orfa(l, existe, ligacoes);
+  if (!motivo) return null;
+  // Uma versão ilegível ou recente: não se sabe se nasceu depois de se ler
+  // quem existe. Fica para outra noite.
+  const escrita = Date.parse(l.versao);
+  return Number.isFinite(escrita) && escrita < agora - IDADE_MINIMA_HORAS * HORA_MS ? motivo : null;
 }
 
 /**
@@ -160,20 +163,21 @@ function substituidas(linhas: readonly LinhaLida[], jaSaem: ReadonlySet<string>)
  * `ficam` diz quantas ficaram para a noite seguinte por causa do tecto.
  */
 export function oQueSaiDoAppState(
-  linhas: readonly LinhaLida[],
+  linhas: readonly LinhaVarrida[],
   existe: QuemExiste,
   agora: number,
   tecto: number,
 ): { saem: Saida[]; ficam: number } {
+  const ligacoes = new Map<string, boolean | null>();
+  for (const l of linhas) {
+    if (l.key.startsWith(ESPACOS.ligacoes.chave) && !l.nula) {
+      ligacoes.set(l.key, ligacaoViva(l.campos, existe));
+    }
+  }
   const candidatas: Saida[] = [];
   for (const l of linhas) {
-    const motivo = motivoDaLinha(l, existe, agora);
+    const motivo = motivoDaLinha(l, existe, ligacoes, agora);
     if (motivo) candidatas.push({ ...l, motivo });
-  }
-  const jaSaem = new Set(candidatas.map((c) => c.key));
-  const trocadas = substituidas(linhas, jaSaem);
-  for (const l of linhas) {
-    if (trocadas.has(l.key)) candidatas.push({ ...l, motivo: "proposta-web-substituida" });
   }
   const ordem = (m: MotivoDeSaida) => ORDEM_DE_SAIDA.indexOf(m);
   candidatas.sort((a, b) => ordem(a.motivo) - ordem(b.motivo) || a.key.localeCompare(b.key));

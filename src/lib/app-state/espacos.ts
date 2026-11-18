@@ -102,7 +102,10 @@ export const ESPACOS = {
     // `retrato`, `conteudo`, `pontos`, `cores`, `paleta-do-pdf`: cada tipo
     // tem a sua forma; o que todos têm em comum é ser JSON composto.
     valor: z.union([objeto, z.array(z.unknown())]),
-    prazo: { tipo: "limpeza-da-noite", quem: "limpar-app-state.ts (impressões substituídas)" },
+    prazo: {
+      tipo: "limpeza-da-noite",
+      quem: "limpar-app-state.ts (retratos expirados; de propostas apagadas)",
+    },
     copia: FORA,
     mencionaFotos: false,
     mencionaPdfs: false,

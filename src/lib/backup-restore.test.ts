@@ -225,18 +225,23 @@ function fakeSupabase() {
           // A coluna do filtro conta: filtrar por uma que a tabela não tem é o
           // 42703 do Postgres, e nesse caso NÃO se apaga nada — que é
           // exactamente o que acontecia à `biblioteca_fotos`, sem coluna `id`.
-          const run = async (column?: string) => {
+          // `eq` apaga SÓ as linhas iguais (o `apagarEstado` de uma chave do
+          // `app_state`); `not` (a reposição de uma tabela inteira) apaga tudo.
+          const run = async (column?: string, igual?: { valor: unknown }) => {
             if (shouldFail(table, "write")) return { error: new Error(`${table} recusa escritas`) };
             const absent = column ? missingColumnIn(table, [column]) : null;
             if (absent) return { error: undefinedColumn(table, absent) };
             if (column) db.deleteColumns.set(table, column);
             db.writes.push(`delete:${table}`);
-            db.tables.set(table, []);
+            db.tables.set(
+              table,
+              igual && column ? rowsOf(table).filter((r) => r[column] !== igual.valor) : [],
+            );
             return { error: null };
           };
           return {
             not: (column: string) => run(column),
-            eq: (column: string) => run(column),
+            eq: (column: string, valor: unknown) => run(column, { valor }),
             then: (resolve: (v: unknown) => unknown) => run().then(resolve),
           };
         },
@@ -751,7 +756,8 @@ describe("percurso completo: exportar → apagar → repor", () => {
     expect(aviso?.message).toContain("Rascunhos do Estúdio de Propostas (1)");
 
     await applyRestore(file, plan);
-    expect(rowsOf("app_state").find((r) => r.key === "proposal-draft:LIQ-BBB-2")!.value).toBeNull();
+    // A linha sai (P3): não fica lápide.
+    expect(rowsOf("app_state").find((r) => r.key === "proposal-draft:LIQ-BBB-2")).toBeUndefined();
     expect(rowsOf("app_state").find((r) => r.key === "inbox-last-uid")?.value).toBe(4211);
   });
 
