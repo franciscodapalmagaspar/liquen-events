@@ -3,21 +3,19 @@ import { getSupabase } from "./supabase";
 import { lerComNovaTentativa } from "./repository";
 import { log } from "./logger";
 import { vigiarChave, vigiarValor } from "./app-state/vigiar";
-import { comTecto, TEMPO_POR_TENTATIVA_MS } from "./app-state/tecto";
-import { emFila, escreverFicheiro, mudarFicheiro, readFileState } from "./app-state/ficheiro";
+import { comTecto } from "./app-state/tecto";
+import { comTentativas, motivoDaFalha, TEMPO_POR_TENTATIVA_MS } from "./app-state/tentativas";
 import {
-  comTentativas,
-  motivoDaFalha,
+  emFila,
+  escreverFicheiro,
+  mudarFicheiro,
   oFicheiroEhEfemero,
-  type ResultadoDeEscrita,
-} from "./app-state/resultado";
+  readFileState,
+} from "./app-state/ficheiro";
+import type { ResultadoDeEscrita } from "./app-state/resultado";
 import { comoPrefixo } from "./app-state/like";
-export {
-  oFicheiroEhEfemero,
-  type MotivoDeFalha,
-  type OndeFicou,
-  type ResultadoDeEscrita,
-} from "./app-state/resultado";
+export { oFicheiroEhEfemero } from "./app-state/ficheiro";
+export type { MotivoDeFalha, OndeFicou, ResultadoDeEscrita } from "./app-state/resultado";
 
 /**
  * Tiny persistent key-value state for operational markers (e.g. the list of

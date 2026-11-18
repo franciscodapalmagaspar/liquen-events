@@ -1,16 +1,18 @@
 import "server-only";
 import { getSupabase } from "@/lib/supabase";
 import { log } from "@/lib/logger";
-import { comTecto, TEMPO_POR_TENTATIVA_MS } from "./tecto";
+import { comTecto } from "./tecto";
 import { comoPrefixo } from "./like";
-import {
-  comTentativas,
-  motivoDaFalha,
-  oFicheiroEhEfemero,
-  type ResultadoDeEscrita,
-} from "./resultado";
+import { comTentativas, motivoDaFalha, TEMPO_POR_TENTATIVA_MS } from "./tentativas";
+import type { ResultadoDeEscrita } from "./resultado";
 import { vigiarChave } from "./vigiar";
-import { emFila, escreverFicheiro, mudarFicheiro, readFileState } from "./ficheiro";
+import {
+  emFila,
+  escreverFicheiro,
+  mudarFicheiro,
+  oFicheiroEhEfemero,
+  readFileState,
+} from "./ficheiro";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════

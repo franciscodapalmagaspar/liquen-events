@@ -2,7 +2,8 @@ import "server-only";
 import { z } from "zod";
 import { getSupabase } from "@/lib/supabase";
 import { lerComNovaTentativa } from "@/lib/repository";
-import { comTecto, TEMPO_POR_TENTATIVA_MS } from "./tecto";
+import { comTecto } from "./tecto";
+import { TEMPO_POR_TENTATIVA_MS } from "./tentativas";
 import { readFileState } from "./ficheiro";
 import { comoPrefixo } from "./like";
 
