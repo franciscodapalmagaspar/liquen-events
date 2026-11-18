@@ -4,7 +4,11 @@ import { isAuthed } from "@/lib/admin-auth";
 import { enviarParaAReciclagem, quemApagou } from "@/lib/reciclagem";
 import { updateTask } from "@/lib/tasks-store";
 import { taskUpdateSchema, firstError } from "@/lib/validation";
-import { respostaDeConflito, respostaDeMigracaoEmFalta } from "@/lib/resposta-de-conflito";
+import {
+  respostaDeConflito,
+  respostaDeLigacaoQueJaSaiu,
+  respostaDeMigracaoEmFalta,
+} from "@/lib/resposta-de-conflito";
 import { log } from "@/lib/logger";
 import { diaDoPrazo } from "@/lib/tarefas/prazo";
 
@@ -65,6 +69,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (conflito) return conflito;
     const migracao = respostaDeMigracaoEmFalta(err, "As tarefas");
     if (migracao) return migracao;
+    // Ligada a um pedido que outro ecrã acabou de apagar (P5): conflito.
+    const ligacao = respostaDeLigacaoQueJaSaiu(err);
+    if (ligacao) return ligacao;
     log.error("tarefas PATCH falhou", err);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }

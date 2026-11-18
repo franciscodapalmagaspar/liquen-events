@@ -83,3 +83,16 @@ export function respostaDeMigracaoEmFalta(err: unknown, oQueFalta: string): Next
     { status: 503 },
   );
 }
+
+/**
+ * Uma escrita recusada por uma chave estrangeira (23503) — a linha aponta
+ * para uma coisa que outro ecrã acabou de apagar (por exemplo, uma tarefa
+ * para um pedido que saiu: P5). É um conflito, não uma avaria: 409 com a
+ * frase de conflito de sempre (o ecrã manda recarregar), sem `log.error`.
+ */
+export function respostaDeLigacaoQueJaSaiu(err: unknown): NextResponse | null {
+  if (!err || typeof err !== "object" || (err as { code?: unknown }).code !== "23503") {
+    return null;
+  }
+  return NextResponse.json({ error: MENSAGEM_DE_CONFLITO }, { status: 409 });
+}

@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { NextRequest } from "next/server";
 import { ConflictError, MENSAGEM_DE_CONFLITO } from "./repository";
-import { respostaDeConflito, respostaDeMigracaoEmFalta } from "./resposta-de-conflito";
+import {
+  respostaDeConflito,
+  respostaDeLigacaoQueJaSaiu,
+  respostaDeMigracaoEmFalta,
+} from "./resposta-de-conflito";
 
 /**
  * Uma colisão não pode acabar em silêncio NEM em erro cru.
@@ -140,5 +144,19 @@ describe("/api/propostas/[id] PATCH numa colisão", () => {
     const res = await PATCH(req, { params: Promise.resolve({ id: "p1" }) });
     expect(res.status).toBe(503);
     expect((await res.json()).error).toMatch(/db\/schema\.sql/);
+  });
+});
+
+describe("respostaDeLigacaoQueJaSaiu (P5)", () => {
+  it("uma chave estrangeira recusada (23503) é conflito: 409 com a frase de sempre", async () => {
+    const r = respostaDeLigacaoQueJaSaiu({ code: "23503", message: "tasks_quote_id_fkey" });
+    expect(r?.status).toBe(409);
+    expect((await r!.json()).error).toBe(MENSAGEM_DE_CONFLITO);
+  });
+
+  it("outros erros não são conflito", () => {
+    expect(respostaDeLigacaoQueJaSaiu(new Error("rede"))).toBeNull();
+    expect(respostaDeLigacaoQueJaSaiu({ code: "23505" })).toBeNull();
+    expect(respostaDeLigacaoQueJaSaiu(null)).toBeNull();
   });
 });

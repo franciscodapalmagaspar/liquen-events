@@ -39,6 +39,7 @@ const dados = vi.hoisted(() => ({
   tarefasApagadas: [] as string[],
   tarefasRebentam: false,
   leiturasDeContratos: 0,
+  listagensDePropostasQueFalham: 0,
   faturas: [] as { id: string; quoteId: string }[],
   faturasRebentam: false,
   tarefaQueFalha: null as string | null,
@@ -54,7 +55,13 @@ vi.mock("@/lib/quotes-store", () => ({
   },
 }));
 vi.mock("@/lib/proposals-store", () => ({
-  listProposalsForQuote: async (q: string) => dados.propostas.filter((p) => p.quoteId === q),
+  listProposalsForQuote: async (q: string) => {
+    if (dados.listagensDePropostasQueFalham > 0) {
+      dados.listagensDePropostasQueFalham--;
+      throw new Error("base em baixo");
+    }
+    return dados.propostas.filter((p) => p.quoteId === q);
+  },
   deleteProposal: async (id: string) => {
     if (dados.propostaQueFalha === id) throw new Error("recusado");
     dados.apagadas.push(id);
@@ -148,6 +155,7 @@ beforeEach(() => {
   dados.tarefasApagadas = [];
   dados.tarefasRebentam = false;
   dados.leiturasDeContratos = 0;
+  dados.listagensDePropostasQueFalham = 0;
   dados.faturas = [];
   dados.faturasRebentam = false;
   dados.tarefaQueFalha = null;
@@ -469,5 +477,41 @@ describe("um registo fiscal VISTO vale mais do que uma leitura falhada", () => {
     const r = await apagarPedidoSemContrato("q1");
     expect(r.motivo).toBe("tem-contrato");
     expect(dados.pedidosApagados).toEqual([]);
+  });
+});
+
+describe("P5: as propostas — contar o que nasceu, não repetir o que falhou", () => {
+  it("uma falhou e outra nasceu noutro ecrã: a que falhou é dita, e a contagem também", async () => {
+    dados.propostas = [proposta("p1"), proposta("p2")];
+    dados.propostaQueFalha = "p2";
+    const original = dados.apagadas.push.bind(dados.apagadas);
+    dados.apagadas.push = (...p: string[]) => {
+      dados.propostas = [...dados.propostas, proposta("p-nova")];
+      return original(...p);
+    };
+    const r = await apagarPedidoSemContrato("q1");
+    expect(r.apagado).toBe(false);
+    expect(r.falhou).toContain("a proposta p2 não foi apagada");
+    expect(r.falhou).toContain("ficaram 2 proposta(s) neste pedido");
+  });
+});
+
+describe("P5: a fatura que vive no Moloni também manda parar", () => {
+  it("um pedido com o sinal no Moloni não é apagado, e nada sai", async () => {
+    dados.pedidos = new Map([["q1", { id: "q1", faturasMoloni: { sinal: { id: 7 } } }]]);
+    dados.propostas = [proposta("p1")];
+    const r = await apagarPedidoSemContrato("q1");
+    expect(r.motivo).toBe("tem-fatura");
+    expect(dados.apagadas).toEqual([]);
+    expect(dados.pedidosApagados).toEqual([]);
+  });
+});
+
+describe("uma listagem de propostas que falha uma vez e depois prova que não há nenhuma", () => {
+  it("o pedido sai, sem um aviso que já não é verdade", async () => {
+    dados.listagensDePropostasQueFalham = 1;
+    const r = await apagarPedidoSemContrato("q1");
+    expect(r.apagado).toBe(true);
+    expect(r.falhou).not.toContain("não consegui listar as propostas deste pedido");
   });
 });

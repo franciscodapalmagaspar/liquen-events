@@ -4,6 +4,7 @@ import { listTasks, createTask } from "@/lib/tasks-store";
 import { jsonWithEtag } from "@/lib/api-cache";
 import { taskUpdateSchema, firstError } from "@/lib/validation";
 import { log } from "@/lib/logger";
+import { respostaDeLigacaoQueJaSaiu } from "@/lib/resposta-de-conflito";
 import { tituloEPrazo } from "@/lib/tarefas/prazo";
 
 export const runtime = "nodejs";
@@ -45,6 +46,9 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json(task);
   } catch (err) {
+    // Ligada a um pedido que outro ecrã acabou de apagar (P5): conflito.
+    const ligacao = respostaDeLigacaoQueJaSaiu(err);
+    if (ligacao) return ligacao;
     log.error("tarefas POST falhou", err);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }

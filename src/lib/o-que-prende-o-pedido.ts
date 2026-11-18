@@ -1,6 +1,8 @@
 import "server-only";
 import { listContractsForQuote } from "./contracts-store";
 import { listInvoicesForQuote } from "./invoices-store";
+import { getQuote } from "./quotes-store";
+import type { Quote } from "./orcamento/types";
 import { listProposalsForQuote } from "./proposals-store";
 import { listTasksForQuote } from "./tasks-store";
 
@@ -41,28 +43,38 @@ export class NaoSeiSeHaRegistoFiscal extends Error {
   }
 }
 
+/** Contratos e faturas de um pedido. */
+export type RegistosFiscais = Pick<LigacoesDoPedido, "contratos" | "faturas">;
+
 /**
- * Contratos e faturas, lidos em paralelo. Uma leitura que falha fica em
- * `falhou`, e a que correu bem conta na mesma: um registo que se VIU vale
- * mais do que outro que não se pôde ver.
+ * As faturas que o back office pôs no Moloni (`quote.faturasMoloni`, sinal e
+ * saldo): é ONDE as faturas desta casa vivem hoje — a tabela `invoices` é o
+ * livro antigo, só de leitura. Puro.
  */
-async function lerFiscais(
-  pedidoId: string,
-): Promise<{ contratos: number; faturas: number; falhou?: unknown }> {
-  const [contratos, faturas] = await Promise.allSettled([
+export function faturasNoMoloni(pedido: Pick<Quote, "faturasMoloni"> | null): number {
+  return Object.values(pedido?.faturasMoloni ?? {}).filter(Boolean).length;
+}
+
+/**
+ * Contratos e faturas (as do livro antigo e as do Moloni), lidos em paralelo.
+ * Uma leitura que falha fica em `falhou`, e as que correram bem contam na
+ * mesma: um registo que se VIU vale mais do que outro que não se pôde ver.
+ */
+async function lerFiscais(pedidoId: string): Promise<RegistosFiscais & { falhou?: unknown }> {
+  const [contratos, livro, pedido] = await Promise.allSettled([
     listContractsForQuote(pedidoId),
     listInvoicesForQuote(pedidoId),
+    getQuote(pedidoId),
   ]);
-  const falhou =
-    contratos.status === "rejected"
-      ? contratos.reason
-      : faturas.status === "rejected"
-        ? faturas.reason
-        : undefined;
+  const falhou = [contratos, livro, pedido].find((r) => r.status === "rejected") as
+    | PromiseRejectedResult
+    | undefined;
   return {
     contratos: contratos.status === "fulfilled" ? contratos.value.length : 0,
-    faturas: faturas.status === "fulfilled" ? faturas.value.length : 0,
-    ...(falhou !== undefined ? { falhou } : {}),
+    faturas:
+      (livro.status === "fulfilled" ? livro.value.length : 0) +
+      (pedido.status === "fulfilled" ? faturasNoMoloni(pedido.value) : 0),
+    ...(falhou ? { falhou: falhou.reason } : {}),
   };
 }
 
@@ -76,20 +88,26 @@ export async function registoFiscalDoPedido(
   pedidoId: string,
 ): Promise<"tem-contrato" | "tem-fatura" | null> {
   const f = await lerFiscais(pedidoId);
-  const visto = registoFiscal({ ...f, propostas: 0, tarefas: 0 });
+  const visto = registoFiscal(f);
   if (visto) return visto;
   if (f.falhou !== undefined) throw new NaoSeiSeHaRegistoFiscal(f.falhou);
   return null;
 }
 
-/** A pergunta do FIM: tudo o que ainda está ligado. Uma leitura falhada lança. */
+/**
+ * A pergunta do FIM: tudo o que ainda está ligado. Como no início, um registo
+ * fiscal VISTO conta mesmo que outra leitura fiscal tenha falhado (o relatório
+ * diz o que nasceu); sem nenhum visto, uma leitura falhada lança.
+ */
 export async function ligacoesDoPedido(pedidoId: string): Promise<LigacoesDoPedido> {
   const [fiscais, propostas, tarefas] = await Promise.all([
     lerFiscais(pedidoId),
     listProposalsForQuote(pedidoId),
     listTasksForQuote(pedidoId),
   ]);
-  if (fiscais.falhou !== undefined) throw new NaoSeiSeHaRegistoFiscal(fiscais.falhou);
+  if (fiscais.falhou !== undefined && !registoFiscal(fiscais)) {
+    throw new NaoSeiSeHaRegistoFiscal(fiscais.falhou);
+  }
   return {
     contratos: fiscais.contratos,
     faturas: fiscais.faturas,
@@ -99,7 +117,7 @@ export async function ligacoesDoPedido(pedidoId: string): Promise<LigacoesDoPedi
 }
 
 /** Contrato ou fatura: recusam. Puro. */
-export function registoFiscal(l: LigacoesDoPedido): "tem-contrato" | "tem-fatura" | null {
+export function registoFiscal(l: RegistosFiscais): "tem-contrato" | "tem-fatura" | null {
   if (l.contratos > 0) return "tem-contrato";
   if (l.faturas > 0) return "tem-fatura";
   return null;

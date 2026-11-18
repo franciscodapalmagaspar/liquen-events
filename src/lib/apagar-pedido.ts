@@ -64,7 +64,6 @@ import { log } from "@/lib/logger";
 /** O que uma passagem de apagamento levou, e o que não conseguiu levar. */
 export interface ResultadoDoApagamento {
   apagado: boolean;
-  /** Só quando `apagado` é falso. */
   /**
    * Só quando `apagado` é falso e NADA saiu. `nao-verificado`: não se conseguiu
    * ler os contratos ou as faturas — não se apaga nada, e o ecrã diz a frase
@@ -196,6 +195,8 @@ export async function apagarPedidoSemContrato(
   }
 
   // ── As propostas, que é onde estão os dados pessoais a mais ──────────────
+  let propostasQueFalharam = 0;
+  let listagemDasPropostasFalhou = false;
   try {
     const propostas = await listProposalsForQuote(id);
     for (const p of propostas) {
@@ -204,11 +205,13 @@ export async function apagarPedidoSemContrato(
         contou.propostas++;
         saiu.propostas.push(p.id);
       } catch (e) {
+        propostasQueFalharam++;
         falhou.push(`a proposta ${p.id} não foi apagada`);
         log.error("apagar-pedido: proposta não apagada", e, { pedido: id, proposta: p.id });
       }
     }
   } catch (e) {
+    listagemDasPropostasFalhou = true;
     falhou.push("não consegui listar as propostas deste pedido");
     log.error("apagar-pedido: listagem de propostas falhou", e, { pedido: id });
   }
@@ -218,10 +221,17 @@ export async function apagarPedidoSemContrato(
   try {
     const ficaram = await listProposalsForQuote(id);
     if (ficaram.length > 0) {
-      if (!falhou.some((f) => f.startsWith("a proposta "))) {
+      // As que falharam já estão ditas uma a uma; só se acrescenta a contagem
+      // quando há mais (nasceu alguma noutro ecrã).
+      if (ficaram.length > propostasQueFalharam) {
         falhou.push(fraseDasPropostasQueFicaram(ficaram.length));
       }
       return { apagado: false, contou, falhou, saiu };
+    }
+    // A primeira listagem falhou mas esta prova que não há nenhuma: o aviso
+    // já não é verdade, e um pedido apagado por inteiro não leva pontas soltas.
+    if (listagemDasPropostasFalhou) {
+      falhou.splice(falhou.indexOf("não consegui listar as propostas deste pedido"), 1);
     }
   } catch (e) {
     falhou.push("não consegui confirmar as propostas deste pedido");

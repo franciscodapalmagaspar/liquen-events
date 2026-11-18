@@ -14,7 +14,8 @@ import { createRepository, type Mapper } from "./repository";
  * na base de dados com as facturas que já foram emitidas — cada uma é um
  * documento fiscal, e apagar registos fiscais não é uma operação reversível.
  * Este módulo sobrevive para que a CÓPIA DE SEGURANÇA os continue a copiar e a
- * restaurar (`backup-restore.ts`), e nada mais o escreve.
+ * restaurar (`backup-restore.ts`), e para o apagar de um pedido recusar um que
+ * tenha fatura (`o-que-prende-o-pedido.ts`, P5); nada mais o escreve.
  *
  * Não há `createInvoice`, `updateInvoice`, `deleteInvoice` nem
  * `nextInvoiceNumber` — se voltarem a ser precisos, voltam com a decisão de

@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const leituras = vi.hoisted(() => [] as string[]);
-const falha = vi.hoisted(() => ({ contratos: false, faturas: false }));
+const falha = vi.hoisted(() => ({ contratos: false, faturas: false, moloni: false as boolean }));
+vi.mock("./quotes-store", () => ({
+  getQuote: async (q: string) =>
+    falha.moloni ? { id: q, faturasMoloni: { sinal: { id: 1 } } } : { id: q },
+}));
 vi.mock("./contracts-store", () => ({
   listContractsForQuote: async (q: string) => {
     if (falha.contratos) throw new Error("contratos em baixo");
@@ -29,9 +33,16 @@ const {
   oQueAindaPrende,
   registoFiscalDoPedido,
   NaoSeiSeHaRegistoFiscal,
+  faturasNoMoloni,
 } = await import("./o-que-prende-o-pedido");
 
 const nada = { contratos: 0, faturas: 0, propostas: 0, tarefas: 0 };
+
+beforeEach(() => {
+  falha.contratos = false;
+  falha.faturas = false;
+  falha.moloni = false;
+});
 
 describe("o que prende o pedido", () => {
   it("lê as quatro ligações do pedido, todas pelo id dele", async () => {
@@ -48,7 +59,8 @@ describe("o que prende o pedido", () => {
     expect(registoFiscal(nada)).toBeNull();
     expect(registoFiscal({ ...nada, contratos: 1 })).toBe("tem-contrato");
     expect(registoFiscal({ ...nada, faturas: 1 })).toBe("tem-fatura");
-    expect(registoFiscal({ ...nada, propostas: 3, tarefas: 1 })).toBeNull();
+    const soNaoFiscais = { ...nada, propostas: 3, tarefas: 1 };
+    expect(registoFiscal(soNaoFiscais)).toBeNull();
   });
 
   it("no fim, qualquer ligação prende — e diz-se qual", () => {
@@ -66,6 +78,7 @@ describe("registoFiscalDoPedido (a pergunta do início)", () => {
   beforeEach(() => {
     falha.contratos = false;
     falha.faturas = false;
+    falha.moloni = false;
   });
 
   it("só lê contratos e faturas — não as propostas (o doc é pesado) nem as tarefas", async () => {
@@ -84,5 +97,43 @@ describe("registoFiscalDoPedido (a pergunta do início)", () => {
     expect(e).toBeInstanceOf(NaoSeiSeHaRegistoFiscal);
     expect((e as Error).name).toBe("NaoSeiSeHaRegistoFiscal");
     expect(((e as Error).cause as Error).message).toBe("contratos em baixo");
+  });
+});
+
+describe("as faturas do Moloni também são registo fiscal", () => {
+  it("faturasNoMoloni conta o sinal e o saldo que lá estão", () => {
+    expect(faturasNoMoloni(null)).toBe(0);
+    expect(faturasNoMoloni({})).toBe(0);
+    expect(faturasNoMoloni({ faturasMoloni: { sinal: undefined } })).toBe(0);
+    expect(faturasNoMoloni({ faturasMoloni: { sinal: {} as never, saldo: {} as never } })).toBe(2);
+  });
+
+  it("um pedido sem contrato mas com fatura no Moloni recusa com tem-fatura", async () => {
+    falha.moloni = true;
+    // Os contratos do mock devolvem 1; para isolar a fatura, lê-se a regra pura.
+    expect(
+      registoFiscal({
+        contratos: 0,
+        faturas: faturasNoMoloni({ faturasMoloni: { sinal: {} as never } }),
+      }),
+    ).toBe("tem-fatura");
+    falha.moloni = false;
+  });
+});
+
+describe("ligacoesDoPedido — o registo visto ganha também no fim", () => {
+  it("com um contrato visto e as faturas por ler, não lança: conta o contrato", async () => {
+    falha.faturas = true;
+    const l = await ligacoesDoPedido("q");
+    expect(l.contratos).toBe(1);
+    falha.faturas = false;
+  });
+
+  it("sem nenhum registo visto e uma leitura falhada, lança", async () => {
+    falha.contratos = true;
+    falha.faturas = true;
+    await expect(ligacoesDoPedido("q")).rejects.toBeInstanceOf(NaoSeiSeHaRegistoFiscal);
+    falha.contratos = false;
+    falha.faturas = false;
   });
 });
