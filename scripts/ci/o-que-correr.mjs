@@ -53,6 +53,13 @@ const SITIO = [/^src\/app\/\[lang\]\/\(site\)\//, /^public\//, /^src\/components
 /** O back office e as rotas que o servem. */
 const BACK_OFFICE = [/^src\/app\/\[lang\]\/\(admin\)\//, /^src\/app\/api\//];
 
+/**
+ * O SQL não entra no grafo do vitest (lê-se do disco, não se importa): uma
+ * mudança em `db/` corre à mão o teste que o corre num Postgres a sério.
+ */
+const BASE_DE_DADOS = /^db\//;
+export const TESTE_DAS_MIGRACOES = "test/migracoes.pglite.test.ts";
+
 const casa = (lista, f) => lista.some((r) => r.test(f));
 
 /**
@@ -107,7 +114,10 @@ export function oQueCorrer(ficheiros, evento) {
     unidade: "ligados",
     sitio,
     backOffice,
-    ligados: codigo.filter((f) => /\.(m?[jt]sx?)$/.test(f)),
+    ligados: [
+      ...codigo.filter((f) => /\.(m?[jt]sx?)$/.test(f)),
+      ...(codigo.some((f) => BASE_DE_DADOS.test(f)) ? [TESTE_DAS_MIGRACOES] : []),
+    ],
     porque: `código do ${areas}: os testes ligados e os passeios dessa área`,
   };
 }

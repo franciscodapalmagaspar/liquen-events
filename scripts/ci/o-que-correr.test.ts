@@ -40,6 +40,15 @@ describe("o que uma mudança precisa de verificar", () => {
     });
   });
 
+  it("uma migração em db/: corre o teste das migrações num Postgres a sério", () => {
+    const d = oQueCorrer(
+      ["db/migracoes/20261118_p7b_gravar_ligacao_por_proposta.sql"],
+      "pull_request",
+    );
+    expect(d.unidade).toBe("ligados");
+    expect(d.ligados).toEqual(["test/migracoes.pglite.test.ts"]);
+  });
+
   it.each([
     "package.json",
     "package-lock.json",

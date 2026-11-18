@@ -79,6 +79,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",
+    "@electric-sql/pglite": "^0.5.16",
     "@next/bundle-analyzer": "^16.2.6",
     "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
