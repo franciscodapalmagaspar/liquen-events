@@ -1,33 +1,33 @@
-# Graph Report - wt-vercel  (2026-11-11)
+# Graph Report - agent-ab16c1b1a7b584509  (2026-11-18)
 
 ## Corpus Check
-- 2311 files · ~3,346,732 words
+- 2644 files · ~3,785,989 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 320 file(s) not represented in the graph (top: .avif 193, .gz 94, (none) 12)
+- Unclassified: 320 file(s) not represented in the graph (top: .avif 193, .gz 94, (none) 13)
 
 ## Summary
-- 16292 nodes · 43400 edges · 560 communities (521 shown, 39 thin omitted)
-- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 953 edges (avg confidence: 0.9)
+- 18887 nodes · 51281 edges · 576 communities (532 shown, 44 thin omitted)
+- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 1084 edges (avg confidence: 0.9)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `2e61368d`
+- Built from commit: `41bb7f9e`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - theme-storage.ts
-- ref_react
+- saida.ts
 - Button
 - reciclagem.ts
 - AdminClient.tsx
-- logger.ts
-- repository.ts
-- next
+- log
+- theme-types.ts
+- isAuthed
 - proposal-doc.ts
-- ref_server_only
-- ToastProvider
-- setState
+- contracts-store.ts
+- vitest
+- supabase.ts
 - admin-auth.ts
 - i18n/index.ts
 - Temas.tsx
@@ -35,58 +35,58 @@
 - proposta-doc/route.ts
 - proposal-doc-textos.ts
 - getDictionary
-- useCachedList.ts
-- ProposalStudio
-- Overview.tsx
+- juntar-fotos-duplicadas.ts
 - ProposalStudio.tsx
+- StatsDashboard.tsx
+- proposal-doc.ts
 - OrcamentoForm.tsx
 - backup-restore.ts
-- Pagamentos.tsx
-- Guioes.tsx
-- site.ts
+- PaymentsPanel.tsx
+- Propostas.tsx
+- campanhas.ts
 - proposal-ortografia.ts
 - round2
-- ref_node_path
+- escala-nos-titulos.test.ts
 - moldura.ts
 - ref_node_fs
 - imagens/route.ts
-- [token]/page.tsx
-- aquecimento-de-pdf.ts
+- site.ts
+- isDatabaseConfigured
 - [lang]/layout.tsx
-- StatsDashboard.tsx
-- dossier.ts
-- CromadoDoSitio.tsx
+- useCachedList.ts
+- app-state.ts
+- s/[slug]/page.tsx
 - proposal-doc-pdf.ts
-- @testing-library/user-event
-- @testing-library/react
+- AvisoDeArmazenamento.tsx
+- api/backup/route.ts
 - artigos-de-faturacao.ts
 - registo-de-gravacoes.tsx
 - ProposalDoc
 - EntradaEmVideo.tsx
 - proposta-doc/route.test.ts
-- Proposal
+- proposta-estado.ts
 - Tarefas.tsx
 - biblioteca/fotos/route.ts
 - plano.ts
-- vitest
+- getDictionary
 - ProposalStudio.casos.test.tsx
-- gaveta.anular.test.tsx
-- [id]/moloni/route.ts
+- fornecedores/[id]/route.ts
+- Mapper
 - Navbar.tsx
-- CalendarEvent
+- useCachedList.ts
 - image-prep.ts
-- Contratos.tsx
-- proposal-progress.ts
+- ui/index.ts
+- Agente 1 — Paridade desktop/mobile
 - semear-pedido.ts
 - ref_node_child_process
-- GaleriaClient.layout.test.tsx
+- interleave.ts
 - linguagem-natural.ts
 - DefinicoesProposta.tsx
 - GaleriaClient.tsx
 - liquid-glass.ts
 - proposal-geometria.ts
-- package.json
-- AdminLogin.tsx
+- material-lists-store.ts
+- Agente 4 — Formulários e teclado
 - material-do-que-aparece-por-cima.test.ts
 - @playwright/test
 - next.config.ts
@@ -94,13 +94,13 @@
 - tokens.ts
 - ServicesEditor.tsx
 - 60-fotogramas-no-telemovel.mjs
-- paginas-da-proposta.ts
+- [token]/page.tsx
 - capi.ts
 - Auditoria de resiliência e disponibilidade
-- sharp
-- Material.recarregar.test.tsx
-- EmailTemplates.tsx
+- ref_fs
 - pdf-editorial/mosaico.ts
+- EmailTemplates.tsx
+- sessoes-revogadas.ts
 - ThemePicker.tsx
 - admin-mobile.spec.ts
 - ClientMarquee.tsx
@@ -111,7 +111,7 @@
 - montar.ts
 - with
 - pregen-gallery.mjs
-- inventory-store.ts
+- manual/route.ts
 - guioes.ts
 - proposal-traducao-deepl.ts
 - GaleriaClient.a11y.test.tsx
@@ -120,91 +120,91 @@
 - gallery-srcset.ts
 - ref_node_url
 - diagnostico-video.ts
-- moloni.ts
+- dossier.ts
 - qualidade-da-foto.ts
-- mapa-de-mesas.ts
+- mapa-de-mesas-pdf.test.ts
 - pregen-logos.mjs
-- Cortes.movel.test.tsx
+- material-store.ts
 - data.ts
-- s/[slug]/page.tsx
-- esc
+- limpeza-da-noite.ts
+- email-assinatura.ts
 - pdf-editorial/imagens.ts
 - email-template-vars.ts
 - ThemePicker.test.tsx
 - 4. Ecrãs mortos
-- email-rich-format.ts
-- EventTimeline.tsx
+- ImportarProposta.tsx
+- guiao-do-dia.ts
 - EntradaEmVideo.test.tsx
 - Padrão Palumen — a fasquia de qualidade
-- email-rascunho/route.ts
+- ref_node_crypto
 - montar.casos.test.ts
-- retrato.ts
-- export.ts
-- ThemePicker
+- admin-recuperacao.ts
+- printRunSheet
 - pt.ts
+- importar.ts
 - harness.ts
 - scripts
 - Líquen Events
-- visao-geral/route.ts
+- ListaDeTemas.tsx
 - mapa-de-mesas-pdf.ts
 - desfecho.ts
-- site-image-loader.ts
+- nenhum-ficheiro-em-falta.test.tsx
 - TOUCH-AUDIT — a ergonomia táctil do back office
 - dependencies
-- proposta-de-pdf/imagens.ts
+- registo/route.ts
 - gallery-sync.mjs
 - manifest.json
 - BibliotecaRevisao.test.tsx
 - material-offline.ts
-- proposal-copy.ts
+- Pagamentos.tsx
 - steps
 - bench-fotos.mjs
 - Temas.test.tsx
 - criarMotor
 - cor-dominante.ts
-- campos.ts
-- validation.ts
+- impressao-visual.ts
+- documento-completo.ts
 - Na página — as capturas completas
 - orcamento/route.ts
 - imagens-uteis.ts
 - lighthouse
 - Imagens do back office — linha de base (Fase 0)
-- PaginaEditorial.tsx
+- proposta-fotos-verificacao.ts
 - VistasDeHoras.tsx
-- camposDoDocumento
-- ano-do-calendario.ts
-- proposal-doc-render.tamanhos.test.ts
+- campos.ts
+- zip.ts
+- heuristicas.ts
 - GaleriaDoServico.tsx
-- modelo.ts
-- Agente 4 — Templates e variáveis
-- EntradaComFotografia.tsx
+- ref_server_only
+- FundirTemas.test.tsx
+- validation.ts
 - scroll-mobile.mjs
 - with
 - remotion/package.json
-- contract-types.ts
-- guiao-modelos.ts
+- [...caminho]/route.ts
+- guioes/modelos/route.ts
 - ref_playwright
 - with
-- calendar-store.ts
-- QuoteStatus
+- api/backup/route.ts
+- orcamento/[id]/route.ts
 - varrer-aquecimento.ts
-- Foto
-- proposta-de-pdf/index.ts
+- uso.ts
+- proposta-de-pdf/tipos.ts
 - Propostas e Temas ao nível Apple — instruções para o Claude Code
 - tarefas-acessibilidade.spec.ts
 - scroll-inercia.mjs
 - 6. O que foi feito, e porquê
-- comparar-qualidade.mjs
+- espera.ts
 - push.ts
-- email-assinatura.ts
-- theme-picker-cache.ts
-- portugal.ts
+- importar.test.ts
+- DossierClient.tsx
+- migracao.ts
 - horario-pdf.ts
 - piscar-subida.mjs
 - scroll-emparelhado.mjs
 - (admin)/layout.tsx
 - CuradoriaDeFotos
-- EmailTemplatesBilingue
+- EmailTemplatesBilingue.falha.test.tsx
 - Reconstruir o ecrã «Fazer proposta» segundo o sistema da Apple
 - analyze
 - Logística de evento — proposta de desenho
@@ -214,9 +214,9 @@
 - Plano: o site e a galeria, ao pormenor
 - PDF-BEFORE — autópsia do PDF de proposta
 - alvos-de-toque-do-sitio.test.tsx
-- pricing.ts
-- MoodBoardIndice.tsx
-- contract-terms.ts
+- sharp
+- janela-a-pedido.tsx
+- cobrancas.ts
 - TEMAS — Parte A: o esquema novo e o plano de migração
 - Desempenho — o que medimos, e o que está mesmo a atrasar
 - Inventário do site público da Líquen Events
@@ -224,21 +224,21 @@
 - Criativos — dez conceitos para casamentos
 - contacto-do-pedido.ts
 - medir-entrada-admin.mjs
-- ThemeImage
+- balde.ts
 - proposal-preview-cache.ts
 - proposal-pdf.ts
-- tipos.ts
+- hero-image-loader.ts
 - gerar-letras-do-pdf.py
-- MaterialListas
+- Notas da Líquen — o júri independente de 17/11
 - Melhorias ao fluxo «Fazer proposta» do back office da Líquen Events
 - steps
 - remotion
 - gen-nomes-genero.mjs
 - GrelhaDoDia.tsx
-- Sala
+- Sala.tsx
 - Preparador
 - GaleriaClient.visualizador.test.tsx
-- email-template-format.ts
+- mapeamento-e-schema.test.ts
 - compilerOptions
 - Sair do Gmail e passar a enviar de `liquen-events.com`
 - gestos-em-simultaneo.mjs
@@ -249,37 +249,37 @@
 - auditar-percursos-movel.mjs
 - orcamento/route.test.ts
 - Fluidez.contrato.test.ts
-- deslocacao.ts
-- contract-pdf.ts
+- proposta-definicoes-store.ts
+- verificar.ts
 - Sistema de design do back office — o software da Apple, replicado
 - Regras (para o `CLAUDE.md` de cada projeto novo)
 - o-aviso-deixa-se-tocar.mjs
 - medir-fotos-do-estudio.mjs
 - medir-galeria.mjs
-- espera.ts
+- mapa-de-mesas.ts
 - NavEstudio.test.tsx
-- guardado.ts
+- Agente 4 — Templates e variáveis
 - As decisões, com as razões
 - PROMPT — Reconstruir o ecrã "Calendário" segundo o sistema da Apple
 - PROMPT — Reconstruir o ecrã "Tarefas" segundo o sistema da Apple
-- PROMPT — Reconstruir o ecrã "Temas" segundo o sistema da Apple
+- CLAUDE.md
 - O estado da Líquen — para quem vem avaliar a qualidade
 - Camada a camada
 - Reconstruir o ecrã de início de sessão da Líquen segundo o sistema da Apple
 - a-entrada-nao-empurra.mjs
 - LP-AUDIT — o que existe hoje e o que tem de mudar para a Meta
-- reminders/route.test.ts
-- EventTimeline
+- calendario/route.ts
+- Guioes.tsx
 - renderStudio
-- escala.ts
+- EntradaComFotografia.tsx
 - Segmented.marca.test.tsx
 - usePaginaReal.ts
 - conversoes-offline.ts
-- temas-filtros.test.ts
+- ref_react
 - totp.ts
 - nada-fica-por-montar.test.ts
 - Fase 1 — Mercado
-- 3. Sistema de design do sítio público
+- marcar/route.ts
 - Registo da adaptação a mobile
 - 2. Ponto a ponto, como pedido
 - IMAGES-BEFORE — o que as grelhas de imagens do back office fazem hoje
@@ -287,16 +287,16 @@
 - Propostas, PDF e imagens — o que há, o que falta, e o que eu faria
 - Walkthrough.tsx
 - constants.ts
-- memoria-de-precos.ts
-- AvisoDeArmazenamento.test.tsx
+- quotes-store.ts
+- proposta-de-pdf/tipos.ts
 - Temas.split.test.tsx
-- movimento-da-proposta.test.tsx
+- SmoothScroll.tsx
 - GaleriaClient.scroll-restore.test.tsx
-- SupabaseBackend
+- repository.ts
 - RegistoDoVideo
 - ADAPTIVE-PLAN — que forma cada ecrã do back office toma em cada aparelho
 - ADAPTIVE-PRIMITIVES — as peças que mudam de forma
-- CLAUDE.md
+- arquivo.test.ts
 - Redesenho do PDF de proposta da Líquen Events
 - O mapa — o que tinha e o que não tinha volta atrás (análise de 10/10)
 - Passagem de testemunho — Projeto Líquen Events
@@ -305,26 +305,26 @@
 - ads-semanal.mjs
 - medir-social.mjs
 - migrar-lqip.mjs
-- FileBackend
+- repository.test.ts
 - email-templates/route.ts
-- analise-de-propostas.ts
+- envios-de-proposta.ts
 - pedidos-duplicados.ts
-- linhas.ts
+- 2. Problemas, com prova
 - proposta-web/mosaico.ts
-- Resposta às 7 perguntas
+- fase-do-pedido.test.ts
 - 7. O QUE FALTA E FARIA DIFERENÇA
 - e2e-imagens
 - Bloco 6 — da proposta aceite para a operação
 - sw.js
-- exportar-instagram.mjs
-- orcamento/[id]/route.test.ts
-- Propostas.test.tsx
+- o-iphone-com-barras.spec.ts
+- escolhas-leem-se.test.ts
+- orcamento/route.test.ts
 - contraste-dos-rotulos.test.ts
 - prefetch-de-tema.ts
-- GaleriaClient.precarga.test.tsx
+- image-worker.ts
 - SafeImage.test.tsx
-- paleta-das-fotos.ts
-- pdf-text.ts
+- paleta-cores.ts
+- proposal-templates.ts
 - Redesenho do «Fazer proposta» — pedido dela de 9/11/2026
 - Biblioteca de Temas
 - updates
@@ -332,17 +332,17 @@
 - Bucket público? — a recomendação, com o que ela custa
 - A ordem por que se abre
 - Auditoria de cabeçalhos de segurança — Líquen Events
-- Clientes.telemovel.test.tsx
-- MapaDeMesas.test.tsx
+- admin/page.tsx
+- restore/route.test.ts
 - resposta-ao-toque.test.ts
-- ok
-- logger.rgpd.test.ts
+- hojeNoEstudio
+- derivadas/route.ts
 - grupos.ts
 - Auditoria do back office — Fase 1: o mapa do sistema
 - Resposta directa às 6 perguntas
 - PARTE 3 — LIQUID GLASS, A SÉRIO
 - PARTE 9 — COMPONENTES
-- Guiões do dia — a vista de topo
+- MoodBoardFotos.tsx
 - O texto dela
 - outputs
 - pacote-das-miniaturas
@@ -354,12 +354,12 @@
 - semear-caca.mjs
 - Auditoria de segurança — Julho de 2026
 - rules
-- Guioes.test.tsx
+- EnviarModelo.test.tsx
 - moldura-alvos-de-toque.test.ts
 - PainelDoEstudio.test.tsx
 - useMarcaQueAnda
 - tons-do-documento.test.ts
-- load-queue.ts
+- temas-filtros.test.ts
 - env.ts
 - tratamento.ts
 - O carregamento de fotos, medido antes de lhe tocar
@@ -370,21 +370,21 @@
 - o-vidro-deixa-passar.spec.ts
 - o-que-correr.mjs
 - gen-ads.mjs
-- exportar-lps.mjs
+- AvisoDeQualidade.tsx
 - medir-imagens-admin.mjs
 - Backlog de segurança — Médios e Baixos
 - [...rota]/route.ts
 - AdminClient.convidados.test.tsx
-- contraste-das-cores-escritas.test.ts
+- PorqueNaoDaParaEnviar.tsx
 - cores-que-existem.test.ts
 - Cortes.contrato.test.ts
 - duracoes-da-casa.test.ts
-- FechosMeta.tsx
+- conversoes-fecho.ts
 - fila-de-imagens.ts
 - o-valor-que-ela-poe-e-o-valor-que-fica.test.ts
-- proposal-titulos-parecidos.ts
+- tema-nome.ts
 - fronteira-servidor-cliente.test.ts
-- paleta-das-mesas.test.ts
+- deslocacao.ts
 - Fase 0 — Diagnóstico
 - Fase 4 — Medição
 - Auditoria do back office — Relatório
@@ -392,7 +392,7 @@
 - 5. TELEMÓVEL
 - 6. RAPIDEZ
 - Caça de bugs ao back office — estado
-- Diagnóstico — biblioteca lenta, mood boards lentos, PDF com fotos a menos
+- GaleriaClient.layout.test.tsx
 - PARTE 2 — A FÍSICA DO MOVIMENTO
 - Entrar sem palavra-passe (passkeys)
 - A proposta online — a página web própria (23/10)
@@ -402,50 +402,50 @@
 - Fazer proposta — o antes, medido
 - medir-estudio-propostas.mjs
 - so-originais-precisos.mjs
-- warm-image-cache.mjs
+- ReguaDoDia.tsx
 - a-saida-sai-da-arvore.test.ts
-- AdminClient.barra-que-fica.test.tsx
+- proxy.ts
 - AdminClient.menu-sem-dobra.test.tsx
-- AdminClient.saida-da-gaveta.test.tsx
+- image-prep.tamanho.test.ts
 - escala-do-espaco.test.ts
-- EventCosts.colisao.test.tsx
+- preferencias/route.ts
 - EventMaterial.perguntas.test.tsx
-- EnviarModelo.test.tsx
-- NotificationBell.test.tsx
-- RestoreDialog.test.tsx
+- onItemKeyDown
+- pricing.ts
+- ocupacao-do-armazenamento-regras.ts
 - Temas.reversao.test.tsx
 - vistas-que-se-compoem.test.ts
 - espera-em-curso.ts
-- mola.ts
-- tamanhos.ts
+- sitemap.ts
+- ref_react_dom
 - sw-fotos.test.ts
-- Google Ads da Líquen Events
+- enviar-foto-da-proposta.ts
 - Fase 6 — Arranque
 - Desempenho das landing pages — medido, com o resultado que deu
 - Fase 7 — Rotina
 - Medições — depois da Fase 1 (31/10/2026)
 - Adaptação a mobile — auditoria
+- porque-nao-leu.ts
 - o-toque-passa-por-baixo.mjs
 - temas.spec.ts
 - Sem teclado
 - Fazer proposta — o depois, medido
 - Alinhar o gerador com a proposta feita à mão — plano e decisões
-- capture.ts
+- renumber
 - folhas-que-existem.mjs
-- gen-blur.mjs
+- resposta-ao-toque.spec.ts
 - Configuração — pequenos, e alguns são de um minuto
 - Robustez de dados
 - §1 — A CSP com nonce: medida, e NÃO aplicada
 - auth-guard-audit.test.ts
-- teste/route.test.ts
+- gen-criativos.mjs
 - enviar/route.test.ts
-- Acompanhamento.test.tsx
-- AdminClient.menu-do-destino-activo.test.tsx
-- MaterialListas.perguntas.test.tsx
-- MaterialRegras.perguntas.test.tsx
+- Acompanhamento.tsx
+- Auditoria externa (outubro de 2026) — o que foi feito
+- espacos.test.ts
 - numero-heroi-da-visao-geral.test.ts
-- PaymentsPanel.corrida.test.tsx
-- RestoreDialog.saida.test.tsx
+- teste/route.test.ts
+- limpar-caches-ao-sair.ts
 - portao-do-avif.test.ts
 - molas-da-apple.test.ts
 - sw-navegacao.test.ts
@@ -456,31 +456,31 @@
 - Componentes `'use client'` do site público (Fase 0, 30/10/2026)
 - A lista B19, ponto a ponto (31/10/2026)
 - «Nível estúdio» — o antes e o depois (31/10/2026)
-- Agente 5 — Navegação e orientação
-- Moloni — artigos nas propostas e rascunhos de fatura
+- AdminClient.abrir-nao-suja.test.tsx
+- CommsZone.tsx
 - A rapidez do site público — o que foi medido, e o que não vale a pena repetir
 - on
-- Os mood boards do estúdio — o que mudou, contado
+- bo4-procura-lotes-atalhos.spec.ts
 - Líquen Events — Filme do site (Remotion)
-- peso-das-rotas.mjs
+- dominio-parecido.ts
 - sharp-fora-do-arranque.test.ts
 - CamadasCss.contrato.test.ts
-- AdminClient.hierarquia.test.tsx
-- ArrastarParaEnquadrar
+- barras-que-encolhem.test.ts
+- proposta-versao.ts
 - dicas-que-cabem.test.ts
-- EventTasks.perguntas.test.tsx
-- Fornecedores.concorrencia.test.tsx
-- Inventario.perguntas.test.tsx
+- barra-de-destinos.ts
+- quandoGravado
+- gerar-miniaturas-propostas.mjs
 - marcador-nao-e-rotulo.test.ts
-- PaginaEmConstrucao.test.tsx
+- next-font-google.ts
 - separar
-- Tarefas.concorrencia.test.tsx
-- imgs
-- Toast.saida.test.tsx
-- FakeIO
+- peso-das-rotas.mjs
+- Design nível premium
+- Backlog de segurança — Médios e Baixos
+- Temas.saida.test.tsx
 - frases-que-nao-dizem-nada.test.ts
-- data-em-falta.ts
-- Backend
+- ArrastarParaEnquadrar
+- stage-derivation.adversarial.test.ts
 - Tom de voz
 - O back office, auditado — o que corrigir, o que melhorar, o que não fazer
 - 1. DINHEIRO — o que está errado nas contas
@@ -488,7 +488,7 @@
 - Adicionar fotos à galeria
 - PARTE 12 — INTERAÇÃO DE DESKTOP
 - PARTE 4 — A SHELL DE DESKTOP
-- admin-smoke.spec.ts
+- sw-sair.test.ts
 - admin-views.spec.ts
 - fluidity.spec.ts
 - e2e-gravam
@@ -498,367 +498,384 @@
 - unitarios
 - o-back-office-nao-viaja-na-proposta.test.ts
 - .prettierrc.json
-- probe.mjs
-- AdminClient.espera.test.tsx
-- AdminClient.sem-data.test.tsx
-- AdminClient.separadores.test.tsx
-- assinatura.ts
-- EmailDoEnvio.movel.test.tsx
+- entrada/route.test.ts
+- AdminClient.proposta-em-pagina.test.tsx
+- balde.test.ts
+- DefinicoesProposta.test.tsx
+- relatar-falha.ts
+- derivadas-em-falta.mjs
 - Guest
 - heroi-das-propostas.test.ts
-- Overview.entrada.test.tsx
+- app-state.prefixo.test.ts
 - corpos
-- Escolha.teclado.test.tsx
+- gen-favicons.mjs
 - Paineis.contrato.test.ts
-- no-dashes-source.test.ts
-- decoracao.ts
-- proposal-doc-pdf.imagens.test.ts
-- proposal-storage.redireccao.test.ts
+- §2 — Achados por risco
+- recuperar/route.ts
+- equipa/route.ts
+- Agente 9 — Erros silenciosos
 - Índice das capturas
 - Caça exaustiva a bugs — registo
 - PARTE 6 — TIPOGRAFIA
-- Mapa de mesas
+- useCamadaDeHistoria
 - passkeys.spec.ts
-- dupla-compressao.mjs
-- limites-de-tempo.test.ts
-- escala-e-densidade.test.ts
+- [token]/fotos/route.test.ts
+- Líquen Events: o texto legal do formulário, do rodapé e dos e-mails
+- icones.contrato.test.ts
 - Espia
 - reply
-- acharCartaoDoTema
-- colunasEm
-- a-abertura-nao-chega-atrasada.test.ts
-- folha-limpa.test.ts
-- feitas-a-mao.test.ts
+- NotaDaProposta.test.tsx
+- telemovel-propostas.test.ts
+- AnelSoDoTeclado.test.tsx
+- proposta-link-curto.tentativas.test.ts
+- cascata-dos-pedidos.test.ts
 - PARTE 5 — COR
 - PARTE 7 — LAYOUT E DENSIDADE
 - Medições — antes (Fase 0, 30/10/2026)
 - O back office — rapidez e acessibilidade (31/10/2026)
 - Medições — depois da Fase 2 (31/10/2026)
 - Agente 6 — Densidade e legibilidade
-- Agente 7 — Desempenho em rede fraca
+- duracao-com-guarda.test.ts
 - estatico
 - overrides
 - barra-inferior.test.tsx
-- cascata-dos-pedidos.test.ts
-- chao-com-prefixo.test.ts
-- escala-movel.test.ts
-- letra-da-previa.test.ts
+- Anúncios que convertem
+- Aprender com o Francisco
+- splitView
+- Padrão Líquen
 - enviar
-- Temas.perguntas.test.tsx
+- Líquen Events: rodapé legal dos e-mails de confirmação
 - Escolha.nome.test.ts
 - esconder-no-hover.test.ts
-- ObservadorFingido
-- aperto-de-mao-com-o-storage.test.ts
-- page.versao-revista.test.tsx
-- scroll-no-iphone.contrato.test.ts
+- upload-medicao.spec.ts
+- letra-da-previa.test.ts
+- useSeccaoAVista.ts
+- linhas-ao-toque.test.ts
 - Motor
 - IO
 - em-partes.ts
 - AGENTS.md
 - PARTE 8 — ÍCONES E SÍMBOLOS ANIMADOS
-- o-texto-sobre-a-fotografia.spec.ts
 - desenhar
 - hyphen.d.ts
-- .claude/CLAUDE.md
 - depois/LEIA-ME.md
 - proposta/LEIA-ME.md
 - medicao/README.md
 - postcss.config.mjs
 - _LEIA-ME.md
+- quem-pede.ts
+- Entrega impecável
+- Auditoria extrema
+- consentimento-geometria.spec.ts
+- campo-da-paleta-sem-anel.test.ts
+- entrada-dos-fundos.test.ts
+- Field.contrato.test.ts
+- sw-videos.test.ts
+- `db/` — a base de dados como a escrevemos
+- instrumentation-client.ts
+- autonomia.md
+- codigo.md
+- custo.md
+- dados.md
+- dinheiro.md
+- linguagem.md
+- propostas.md
+- zero-erros.md
+- ImagemQueCarrega
 
 ## God Nodes (most connected - your core abstractions)
-1. `vitest` - 988 edges
-2. `@testing-library/react` - 339 edges
-3. `ProposalStudio()` - 331 edges
-4. `next` - 304 edges
-5. `Quote` - 277 edges
-6. `isAuthed()` - 273 edges
-7. `ToastProvider()` - 270 edges
-8. `AdminClient()` - 234 edges
-9. `log` - 182 edges
-10. `Button` - 167 edges
+1. `vitest` - 1140 edges
+2. `@testing-library/react` - 365 edges
+3. `ProposalStudio()` - 361 edges
+4. `next` - 327 edges
+5. `Quote` - 298 edges
+6. `ToastProvider()` - 288 edges
+7. `isAuthed()` - 283 edges
+8. `AdminClient()` - 255 edges
+9. `log` - 216 edges
+10. `Button` - 175 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Custo em toques` --references--> `openQuote()`  [INFERRED]
-  docs/mobile/agente-05.md → src/app/[lang]/(admin)/orcamento/admin/AdminClient.tsx
-- `Profundidade de navegação` --references--> `openQuote()`  [INFERRED]
-  docs/mobile/agente-05.md → src/app/[lang]/(admin)/orcamento/admin/AdminClient.tsx
-- `Ordem de correcção proposta` --references--> `seguirOTeclado()`  [INFERRED]
-  docs/mobile/registo.md → src/app/[lang]/(admin)/orcamento/admin/AdminLogin.tsx
-- `O QUE JÁ ESTÁ FEITO` --references--> `diaPelaTecla()`  [INFERRED]
-  docs/APPLE-CALENDARIO.md → src/app/[lang]/(admin)/orcamento/admin/Calendario.tsx
-- `E o guião do dia também` --references--> `EventTimeline()`  [INFERRED]
-  CLAUDE.md → src/app/[lang]/(admin)/orcamento/admin/EventTimeline.tsx
+- `A varredura dos `new Date(`` --references--> `OutroCampoPublicado`  [INFERRED]
+  docs/caca-de-bugs/agente-08.md → src/lib/proposal-ortografia.ts
+- `OS MODELOS` --references--> `ResultadoDeEscrita`  [INFERRED]
+  docs/GUIAO-DO-DIA.md → src/lib/app-state/resultado.ts
+- `Hoje: 6 / 10` --references--> `ProposalDoc`  [INFERRED]
+  docs/ESTRUTURA-DOS-DADOS.md → src/lib/proposal-doc.ts
+- `P1 — Tipos gerados da base de dados  ·  sem migração  ·  invisível` --references--> `getSupabase()`  [INFERRED]
+  docs/ESTRUTURA-DOS-DADOS.md → src/lib/supabase.ts
+- `B17 · Aviso falso de configuração · `lib/env.ts:28`` --references--> `getSupabase()`  [INFERRED]
+  SECURITY-BACKLOG.md → src/lib/supabase.ts
 
 ## Import Cycles
 - 1-file cycle: `src/lib/blur.ts -> src/lib/blur.ts`
 - 1-file cycle: `src/lib/logo.ts -> src/lib/logo.ts`
 
-## Communities (560 total, 39 thin omitted)
+## Communities (576 total, 44 thin omitted)
 
 ### Community 0 - "theme-storage.ts"
 Cohesion: 0.02
-Nodes (277): Sobre os URLs, Agente 5 — Ficheiros e imagens, O que está bem defendido, com o nome do mecanismo, O que já está certo (e não se toca), Os quatro passos, por ordem, GET, GET_semMedida(), maxDuration (+269 more)
+Nodes (228): Agente 5 — Ficheiros e imagens, O que está bem defendido, com o nome do mecanismo, A varredura dos `new Date(`, O que se mediu e o que se fez (10/11), O que já está certo (e não se toca), Os quatro passos, por ordem, apanharDerivadasEmAtraso(), guardarRetoma() (+220 more)
 
-### Community 1 - "ref_react"
+### Community 1 - "saida.ts"
 Cohesion: 0.02
-Nodes (213): Voltar, sair, fechar, Agente 8 — Sheets e sobreposições, Inventário de sobreposições, Foco, AvisoDeQualidade(), ControlosDoEnvio(), Props, ChipDoDia() (+205 more)
+Nodes (98): Voltar, sair, fechar, montar(), servidor, Command, CommandPalette(), escolher(), onKeyDown(), GRUPOS_DE_PESSOAS (+90 more)
 
 ### Community 2 - "Button"
 Cohesion: 0.02
-Nodes (259): Acompanhamento(), CartaoProps, dataCurta(), emDias(), ESTADOS, eur(), eurOuSemValor(), hojeISO() (+251 more)
+Nodes (228): appendActivity(), lerPedidoInteiro(), BibliotecaRevisao(), aplicar(), guardarComoTema(), assunto(), Campo, ehModelo() (+220 more)
 
 ### Community 3 - "reciclagem.ts"
-Cohesion: 0.02
-Nodes (195): BackupDataset, dynamic, listInvoiceCounters(), maxDuration, README, runtime, dynamic, maxDuration (+187 more)
+Cohesion: 0.03
+Nodes (100): −1. O que está feito, P2 — Registo único dos espaços do `app_state`, com esquema e prazo  ·  sem migração  ·  invisível, DELETE, DELETE_semMedida(), dynamic, GET, GET_semMedida(), idDoRascunho() (+92 more)
 
 ### Community 4 - "AdminClient.tsx"
-Cohesion: 0.02
-Nodes (188): Um susto que valeu a pena: uma linha má derruba o back office inteiro, OS DADOS, Agente 3 — Toque e ergonomia, Inventário de alvos pequenos, Método, e o que fica por confirmar, cabecalhos(), montar(), PRICE (+180 more)
+Cohesion: 0.03
+Nodes (113): Um susto que valeu a pena: uma linha má derruba o back office inteiro, OS DADOS, Agente 3 — Toque e ergonomia, Inventário de alvos pequenos, Método, e o que fica por confirmar, abrir(), AdminClient(), comPedidoInteiro() (+105 more)
 
-### Community 5 - "logger.ts"
-Cohesion: 0.02
-Nodes (156): Agente 7 — Permissões e segurança, O que está bem defendido — e com que nome, dynamic, POST(), runtime, st, texto(), POST() (+148 more)
+### Community 5 - "log"
+Cohesion: 0.01
+Nodes (241): E o custo, desde o início, graphify, 3.ª revisão de 17/11: o navegador deixa de receber endereços do Blob, O Blob (16/11), next, dynamic, GET, runtime (+233 more)
 
-### Community 6 - "repository.ts"
+### Community 6 - "theme-types.ts"
 Cohesion: 0.02
-Nodes (131): @supabase/supabase-js, CONTENT_TYPE, files, queue, SRC_DIR, supabase, dynamic, fornecedoresDoEvento() (+123 more)
+Nodes (95): maxDuration, POST(), runtime, st, CAUSAS, st, TRES, arrumarDepoisDeMover() (+87 more)
 
-### Community 7 - "next"
+### Community 7 - "isAuthed"
 Cohesion: 0.02
-Nodes (159): next, zod, contaAutenticada(), DELETE(), dynamic, PATCH(), renomearSchema, runtime (+151 more)
+Nodes (154): RFC-9110, zod, GET_semMedida(), contaAutenticada(), DELETE(), dynamic, PATCH(), renomearSchema (+146 more)
 
 ### Community 8 - "proposal-doc.ts"
 Cohesion: 0.02
-Nodes (152): 8 · O que ficou corrigido (8 de outubro de 2026), Campos repetidos e derivados, O que já existe e não precisa de ser construído, FotosEmFalta(), DOC, fetchMock, buildRef(), gravadaSemData() (+144 more)
+Nodes (146): Percurso 4 — Trocar de cliente a meio de uma proposta, G6 — `ProposalDoc` (o documento do estúdio) não tem esquema em lado nenhum, Props, Escolha, EmailDoEnvio(), EmailDoEnvioProps, ModeloDaLista, doc (+138 more)
 
-### Community 9 - "ref_server_only"
-Cohesion: 0.02
-Nodes (130): RFC-9110, Os dez piores, e porquê, secret, dynamic, GET(), runtime, dynamic, GET() (+122 more)
+### Community 9 - "contracts-store.ts"
+Cohesion: 0.04
+Nodes (52): GET, authed, dados, authed, dados, params, dados, params (+44 more)
 
-### Community 10 - "ToastProvider"
-Cohesion: 0.02
-Nodes (97): montarAcompanhamento(), PEDIDO, PROPOSTA, montar(), montarEAbrir(), pedido(), montar(), ServicoDaBiblioteca (+89 more)
+### Community 10 - "vitest"
+Cohesion: 0.01
+Nodes (287): @testing-library/react, @testing-library/user-event, vitest, reply(), servidorCom(), servidorVazio(), barra(), foraDoEcra() (+279 more)
 
-### Community 11 - "setState"
-Cohesion: 0.02
-Nodes (126): dynamic, GET, GET_semMedida(), runtime, st, buildBackupPayload(), GET(), authorized() (+118 more)
+### Community 11 - "supabase.ts"
+Cohesion: 0.05
+Nodes (46): CHAVE_DA_COPIA, DIAS_ATE_AVISAR, EstadoDaCopia, estadoDaCopia(), EstadoDaCopiaDeSeguranca, lerData(), MarcadorDeCopia, AGORA (+38 more)
 
 ### Community 12 - "admin-auth.ts"
-Cohesion: 0.03
-Nodes (126): bcryptjs@^3.0.3, @simplewebauthn/server@^13.3.2, bcryptjs, @simplewebauthn/server, dynamic, GET(), runtime, ESCADA (+118 more)
+Cohesion: 0.05
+Nodes (73): bcryptjs, ESCADA, guardado, KEYS, rl, POST(), gastarTentativaDaConta(), runtime (+65 more)
 
 ### Community 13 - "i18n/index.ts"
 Cohesion: 0.03
-Nodes (77): 2.2 Cromado comum (`src/app/[lang]/(site)/layout.tsx` → `src/components/CromadoDoSitio.tsx`), GlobalNotFound(), inter, lingua(), metadata, playfair, DICT, montar() (+69 more)
+Nodes (63): A tabela, 2.2 Cromado comum (`src/app/[lang]/(site)/layout.tsx` → `src/components/CromadoDoSitio.tsx`), DICT, montar(), passkeys, pedidos, router, Error() (+55 more)
 
 ### Community 14 - "Temas.tsx"
 Cohesion: 0.03
-Nodes (133): E há três ecrãs com documento próprio à espera, capaDaFoto(), CapaDoCartao, comCapa(), semAssinatura(), cartao, countLabel(), FundirTemas() (+125 more)
+Nodes (87): bibliotecaAlterada(), bibliotecaAlteradaEmLote(), ESPERA_DO_LOTE_MS, capaDaFoto(), CapaDoCartao, comCapa(), semAssinatura(), cartao (+79 more)
 
 ### Community 15 - "types.ts"
-Cohesion: 0.02
-Nodes (84): Props, PEDIDO, PEDIDO, Props, Props, AVISOS, PAINEIS, QUOTE (+76 more)
+Cohesion: 0.01
+Nodes (204): Ranking — (tempo poupado) ÷ (risco da alteração), ActivityLog(), submitEntry(), KIND_META, metaDaEntrada(), PEDIDO, registarChamada(), Props (+196 more)
 
 ### Community 16 - "proposta-doc/route.ts"
-Cohesion: 0.03
-Nodes (111): RFC-5321, RFC-7505, Agente 10 — Integrações, O que não tem defeito nenhum e vale a pena dizer, Os três que já eram conhecidos — verificação, Corpo, dynamic, POST() (+103 more)
+Cohesion: 0.07
+Nodes (58): Legal do site, Agente 10 — Integrações, O que não tem defeito nenhum e vale a pena dizer, Os três que já eram conhecidos — verificação, Corpo, dynamic, POST(), runtime (+50 more)
 
 ### Community 17 - "proposal-doc-textos.ts"
-Cohesion: 0.03
-Nodes (122): O que foi verificado e está CERTO, EditorDeEscolhas(), apagarOpcao(), FotoDisponivel, desenhar(), FOTOS, UMA, dia() (+114 more)
+Cohesion: 0.05
+Nodes (84): EditorDeEscolhas(), apagarOpcao(), FotoDisponivel, fotosParaAsEscolhas(), Controlado(), desenhar(), FOTOS, UMA (+76 more)
 
 ### Community 18 - "getDictionary"
-Cohesion: 0.06
-Nodes (101): 4. Camada de movimento, 8. SEO / AEO, generateMetadata(), DestinationPage(), generateMetadata(), generateMetadata(), ClientesPage(), generateMetadata() (+93 more)
+Cohesion: 0.05
+Nodes (99): 4. Camada de movimento, 8. SEO / AEO, ClientesPage(), MOSAIC_CELLS, MOSAIC_POOL, FAQ(), ContactoPage(), fotosDestacadas (+91 more)
 
-### Community 19 - "useCachedList.ts"
+### Community 19 - "juntar-fotos-duplicadas.ts"
 Cohesion: 0.02
-Nodes (64): reply(), servidorCom(), servidorVazio(), HOJE, HOJE, montar(), COMPUTADOR, CONTRATO (+56 more)
+Nodes (158): dynamic, GET, GET_semMedida(), maxDuration, runtime, authorized(), comprimirCopia(), dynamic (+150 more)
 
-### Community 20 - "ProposalStudio"
-Cohesion: 0.03
-Nodes (111): Agente 2 — Estado e concorrência, O que está bem defendido (e com que nome), Parte −1 — o estado, e o que ela decidiu, PainelDoEnvio(), AvisoDeOrdem(), BarraDaSeleccao(), baseDoDoc(), baseDoPedidoParaOEcra() (+103 more)
+### Community 20 - "ProposalStudio.tsx"
+Cohesion: 0.01
+Nodes (247): Agente 2 — Estado e concorrência, O que está bem defendido (e com que nome), Agente 2 — Layout e rutura, Listas sem tecto, Resumo, Campos repetidos e derivados, AEnviarAProposta(), estadoDoEnvio() (+239 more)
 
-### Community 21 - "Overview.tsx"
-Cohesion: 0.03
-Nodes (111): Ranking — (tempo poupado) ÷ (risco da alteração), Props, Agenda(), dayLabel(), AgendaItem, eventTypeLabel(), ItemKind, KIND_COLOR (+103 more)
+### Community 21 - "StatsDashboard.tsx"
+Cohesion: 0.05
+Nodes (62): aparece(), colunas(), Contexto, CORTES_DA_CASA, efectivas(), ligada(), separar(), paymentsToCsvRows() (+54 more)
 
-### Community 22 - "ProposalStudio.tsx"
-Cohesion: 0.03
-Nodes (115): AEnviarAProposta(), alvosValidosPara(), ArrastoDosMoodBoards(), aoLargar(), ArrastoProps, CartaoDeBoard(), CelulaDeFoto(), coordenadasDeTeclado() (+107 more)
+### Community 22 - "proposal-doc.ts"
+Cohesion: 0.02
+Nodes (108): 8 · O que ficou corrigido (8 de outubro de 2026), As regras que não se negoceiam, Custo (regra 7), Moloni — artigos nas propostas e rascunhos de fatura, O pedido, nas palavras dela, O que fica por verificar, Para ligar (é ela que o faz — as chaves nunca passam pelo código), POST() (+100 more)
 
 ### Community 23 - "OrcamentoForm.tsx"
 Cohesion: 0.04
-Nodes (107): 7. Formulários, country-flag-icons@1.6.20, country-flag-icons, EscolhaUnica(), FloatingField(), hojeNoFusoDela(), lerAdClick(), OrcamentoForm() (+99 more)
+Nodes (95): contexto(), EscolhaUnica(), FloatingField(), hojeNoFusoDela(), lerAdClick(), OrcamentoForm(), enviar(), submit() (+87 more)
 
 ### Community 24 - "backup-restore.ts"
-Cohesion: 0.02
-Nodes (105): dynamic, hashOf(), lerCorpo(), maxDuration, POST(), RestoreBody, runtime, authed (+97 more)
-
-### Community 25 - "Pagamentos.tsx"
-Cohesion: 0.04
-Nodes (107): ActivityLog(), submitEntry(), KIND_META, metaDaEntrada(), registarChamada(), timeLabel(), ateTres(), EventChecklist() (+99 more)
-
-### Community 26 - "Guioes.tsx"
 Cohesion: 0.03
-Nodes (88): enderecoDoPdf(), linkDoCasal(), PropostaParaAccoes, useAccoesDaPropostaEnviada(), abrirComoOCasal(), abrirFolha(), accoesDe(), botaoDe() (+80 more)
+Nodes (83): BACKUP_DATASETS, SCHEMA_VERSION, ApplyResponse, DryRunResponse, errosDaListaQueSai(), mapper, AnyRow, applyCounters() (+75 more)
 
-### Community 27 - "site.ts"
+### Community 25 - "PaymentsPanel.tsx"
+Cohesion: 0.07
+Nodes (43): Recebido(), confirmar(), gravar(), falha(), okResponse(), primeiraEmEspera(), renderPanel(), SINAL (+35 more)
+
+### Community 26 - "Propostas.tsx"
+Cohesion: 0.07
+Nodes (41): enderecoDoPdf(), linkDoCasal(), useAccoesDaPropostaEnviada(), abrirComoOCasal(), abrirFolha(), accoesDe(), botaoDe(), copiarLink() (+33 more)
+
+### Community 27 - "campanhas.ts"
 Cohesion: 0.04
-Nodes (85): CONTEUDO, dynamic, FOTOS, dynamic, EstiloPage(), dynamic, generateMetadata(), PoloPage() (+77 more)
+Nodes (71): Google Ads da Líquen Events, O que falta, e é dela, O que já está feito no site, O resumo, em oito linhas, Por onde começar, pela ordem, Porque é que é só uma campanha, Porquê o Alentejo, e não o Reino Unido, Caso (+63 more)
 
 ### Community 28 - "proposal-ortografia.ts"
-Cohesion: 0.05
-Nodes (90): Percurso 5 — Mudar o idioma para EN a meio, A varredura dos `new Date(`, Camada 5 — Verificação de conteúdo · **METADE, e a metade que falta é a do CI**, CaixaInglesa(), TextareaQueCresce(), Gralhas(), desenhar(), PorTraduzir() (+82 more)
+Cohesion: 0.03
+Nodes (127): Percurso 5 — Mudar o idioma para EN a meio, Agente 8 — Consistência de dados, Resumo, CaixaInglesa(), TextareaQueCresce(), Gralhas(), desenhar(), PorTraduzir() (+119 more)
 
 ### Community 29 - "round2"
 Cohesion: 0.04
-Nodes (83): Agente 3 — Cálculos, Método, Tabela das combinações verificadas à mão, 1. Peças entregues sem consumidor — com um comentário a jurar que já estão ligadas, 2. A Fase 3 (alternativas) ficou de fora de cinco inventários, 3. Uma regra escrita num sítio e não noutro, 4. A página do casal é a superfície menos protegida, 5. O erro silencioso de fronteira (+75 more)
+Nodes (101): Agente 3 — Cálculos, Método, O que foi verificado e está CERTO, Tabela das combinações verificadas à mão, Agente 6 — Fluxos completos, O que os testes de ponta a ponta já prendem — e o que não, Percurso 1 — Pedido público → Pedidos → proposta → PDF → email → página, Percurso 3 — Proposta enviada → editada → reenviada. O casal vê a versão certa? (+93 more)
 
-### Community 30 - "ref_node_path"
-Cohesion: 0.02
-Nodes (57): LADOS, QUANTAS, pasta, codigo, CSS, Icone, ICONES, RAIZ (+49 more)
+### Community 30 - "escala-nos-titulos.test.ts"
+Cohesion: 0.33
+Nodes (3): CARTAO, PAGINA, RAIZ
 
 ### Community 31 - "moldura.ts"
-Cohesion: 0.09
-Nodes (96): pdf-lib, run(), alturaDaPeca(), Corrida, desenharColuna(), estilos(), linhasDoItem(), partirItem() (+88 more)
+Cohesion: 0.08
+Nodes (101): pdf-lib, desenharColuna(), Foto, BRILHO, LADO_PAGINA, LEITURA, TECTO, BODONI_PRECO_TTF_B64 (+93 more)
 
 ### Community 32 - "ref_node_fs"
-Cohesion: 0.02
-Nodes (54): TEMA, r, [tipo, ficheiro, titulo], fotos, N, DIR, exts, deveConstruir() (+46 more)
+Cohesion: 0.01
+Nodes (116): TEMA, CELULA, DIR, nomes, r, [tipo, ficheiro, titulo], fotos, N (+108 more)
 
 ### Community 33 - "imagens/route.ts"
-Cohesion: 0.04
-Nodes (80): Percurso 2 — Foto na biblioteca → mood board → PDF → página, documentosDoPedido(), fotosDeOutraPasta(), fotosForaDaPastaDoPedido(), GET, GET_semMedida(), maxDuration, mediasAssinadas() (+72 more)
+Cohesion: 0.03
+Nodes (136): Percurso 2 — Foto na biblioteca → mood board → PDF → página, dynamic, maxDuration, POST, POST_semMedida(), runtime, st, documentosDoPedido() (+128 more)
 
-### Community 34 - "[token]/page.tsx"
+### Community 34 - "site.ts"
 Cohesion: 0.04
-Nodes (55): base, FotoDaLupa, Fotografia(), LupaDoMosaico(), reduzMovimento(), lista, t, dynamic (+47 more)
+Nodes (55): GlobalNotFound(), inter, lingua(), metadata, playfair, metadata, NotFound(), NotFoundConteudo() (+47 more)
 
-### Community 35 - "aquecimento-de-pdf.ts"
-Cohesion: 0.04
-Nodes (64): GET, GET_semMedida(), maxDuration, POST, POST_semMedida(), runtime, H, maxDuration (+56 more)
+### Community 35 - "isDatabaseConfigured"
+Cohesion: 0.02
+Nodes (102): A conclusão, dita como ela é, A pista decisiva não é a que tu pensas, Antes das onze respostas: o que consegui medir e o que não consegui, As onze respostas, Diagnóstico — biblioteca lenta, mood boards lentos, PDF com fotos a menos, O bucket público, que tu pediste que eu avaliasse, O que fazer a seguir — por ordem de quanto responde por quanto custa, Sobre a geração do PDF (+94 more)
 
 ### Community 36 - "[lang]/layout.tsx"
 Cohesion: 0.04
-Nodes (61): A tabela, A tua lista, à mão, As migrações (para reveres e aplicares tu), Auditoria externa (outubro de 2026) — o que foi feito, Números (Lighthouse, telemóvel, mediana de 3), Perguntas para ti (a tua regra: «se a causa for diferente, diz-me antes»), Problemas novos que encontrei, Segredos no histórico (gitleaks, 1 526 commits) (+53 more)
+Nodes (79): archivo, dynamicParams, inter, playfair, playfairItalico, RootLayout(), viewport, balizas() (+71 more)
 
-### Community 37 - "StatsDashboard.tsx"
-Cohesion: 0.04
-Nodes (76): O que se assume como «4G fraco», NotasAutomaticas, AnalisePropostas(), extrasDe(), Numero(), PropostaLeve, paymentsToCsvRows(), RFC-5545 (+68 more)
+### Community 37 - "useCachedList.ts"
+Cohesion: 0.02
+Nodes (118): Props, COMPUTADOR, CONTRATO, IPAD_RETRATO, montar(), TELEMOVEL, desenharPainel(), desenharVisaoGeral() (+110 more)
 
-### Community 38 - "dossier.ts"
-Cohesion: 0.05
-Nodes (61): Props, TEMPLATES, EnvioDaMensagem, resumoDoEnvio(), CommsZone(), montar(), DossierAside(), DossierClient() (+53 more)
+### Community 38 - "app-state.ts"
+Cohesion: 0.06
+Nodes (57): P11 — Menores, quando se passar por lá, apagarEstado(), apagarEstadoPorPrefixo(), apagarEstadoSeNaoMudou(), apagarLapides(), st, espacoDaChave(), emFila() (+49 more)
 
-### Community 39 - "CromadoDoSitio.tsx"
-Cohesion: 0.05
-Nodes (49): O movimento de estúdio (31/10), O que se aproveita, SiteLayout(), AnteciparFotos(), IO, montar(), observadores, CromadoDoSitio() (+41 more)
+### Community 39 - "s/[slug]/page.tsx"
+Cohesion: 0.08
+Nodes (32): GlobalError(), STRINGS, ancorasDe(), aPercorrer(), No, NaoEncontradoSocial(), metadata, NotFound() (+24 more)
 
 ### Community 40 - "proposal-doc-pdf.ts"
 Cohesion: 0.03
-Nodes (65): base, cacheB64, casos, catalogo, DIR_FOTOS, foto(), fotos(), pedidos (+57 more)
+Nodes (90): base, cacheB64, casos, catalogo, DIR_FOTOS, foto(), fotos(), pedidos (+82 more)
 
-### Community 41 - "@testing-library/user-event"
-Cohesion: 0.03
-Nodes (48): @testing-library/user-event, avisos, PEDIDO, resposta(), servidor(), avisos, PEDIDO, resposta() (+40 more)
+### Community 41 - "AvisoDeArmazenamento.tsx"
+Cohesion: 0.18
+Nodes (12): AvisoDeArmazenamento(), BASE, COPIA_PARADA, esquecerEstadoDoArmazenamento(), EstadoDoArmazenamentoLido, perguntar(), pedidos, respostaDe() (+4 more)
 
-### Community 42 - "@testing-library/react"
+### Community 42 - "api/backup/route.ts"
 Cohesion: 0.03
-Nodes (35): @testing-library/react, patches, renderAdmin(), servidor, pedidos, renderAdmin(), porResponder, renderAdmin() (+27 more)
+Nodes (63): dynamic, hashOf(), lerCorpo(), maxDuration, POST(), RestoreBody, runtime, BackupDataset (+55 more)
 
 ### Community 43 - "artigos-de-faturacao.ts"
-Cohesion: 0.06
-Nodes (72): Linha a linha nas novas; repartir o total só nas antigas, O que ficou feito, Os artigos (respostas dela, 5/11), PATCH(), runtime, authed, ctx, estado (+64 more)
+Cohesion: 0.04
+Nodes (115): Linha a linha nas novas; repartir o total só nas antigas, O que ficou feito, Os artigos (respostas dela, 5/11), GET_semMedida(), dynamic, GET, GET_semMedida(), POST (+107 more)
 
 ### Community 44 - "registo-de-gravacoes.tsx"
-Cohesion: 0.03
-Nodes (54): abrir(), COM_ESPACOS, escritas, r(), servidor(), cabecalhos(), gravacoes, montar() (+46 more)
+Cohesion: 0.04
+Nodes (56): Agente 7 — Desempenho em rede fraca, As três contas que resumem tudo, Custo por ecrã, O que se assume como «4G fraco», cabecalhos(), gravacoes, montar(), PRICE (+48 more)
 
 ### Community 45 - "ProposalDoc"
-Cohesion: 0.05
-Nodes (68): Conferencia(), MARCA, Props, esquecerDefinicoes(), ler(), OMISSAO, useDefinicoesDaProposta(), EmailDoEnvioProps (+60 more)
+Cohesion: 0.07
+Nodes (48): esquecerDefinicoes(), ler(), useDefinicoesDaProposta(), CampoCarrinhas(), CampoKm(), eur(), LIMITES_CARRINHAS, LIMITES_KM (+40 more)
 
 ### Community 46 - "EntradaEmVideo.tsx"
 Cohesion: 0.05
 Nodes (76): ANIMADAS, ComLigacao, ComPrerender, fonteLeveDeitada(), FONTES, fontesDeEntrada(), fontesLeves(), LEVES (+68 more)
 
 ### Community 47 - "proposta-doc/route.test.ts"
-Cohesion: 0.04
-Nodes (64): GET, POST, baseDoc(), baseDocSemLinhas(), chaveVista(), comChave(), copia, created (+56 more)
+Cohesion: 0.05
+Nodes (64): GET, POST, baseDoc(), baseDocSemLinhas(), chaveVista(), comChave(), contratos, copia (+56 more)
 
-### Community 48 - "Proposal"
-Cohesion: 0.04
-Nodes (43): leitura(), montar(), proposta(), HOJE, PEDIDOS, PROPOSTAS, passadoDaFoto(), LugarDoCliente() (+35 more)
+### Community 48 - "proposta-estado.ts"
+Cohesion: 0.23
+Nodes (12): acompanhamento(), aExpirar(), AVISO_EVENTO_DIAS, AVISO_VALIDADE_DIAS, diasAte(), diasDeValidade(), EM_ABERTO, estaEmAberto() (+4 more)
 
 ### Community 49 - "Tarefas.tsx"
-Cohesion: 0.06
-Nodes (64): Props, Resposta, Corpo(), Linha(), LinhaQueJunta(), nomeDaLigacao(), porExtenso(), ROTULO_DA_PRIORIDADE (+56 more)
+Cohesion: 0.03
+Nodes (88): seleccionarComModificadores(), ORDEM, response(), serve(), UNKNOWN_STATUS_COLOR, Corpo(), Linha(), LinhaQueJunta() (+80 more)
 
 ### Community 50 - "biblioteca/fotos/route.ts"
-Cohesion: 0.05
-Nodes (54): dynamic, POST(), runtime, dynamic, GET(), inteiro(), runtime, dynamic (+46 more)
+Cohesion: 0.04
+Nodes (67): dynamic, maxDuration, POST(), runtime, dynamic, GET(), POST(), runtime (+59 more)
 
 ### Community 51 - "plano.ts"
-Cohesion: 0.06
-Nodes (61): fontesDasFolhas(), Folhear(), PAGINA_PREFERIDA, PaginaDaSeccao(), PaginaParaOPainel, PainelDoEstudio(), SECCOES_COM_PAGINA, chaves (+53 more)
+Cohesion: 0.05
+Nodes (80): BlocoDeTitulo(), Cabecalho(), caixa(), cq(), Emoldurada(), FOLHA_INTEIRA, fontesDasFolhas(), Foto() (+72 more)
 
-### Community 52 - "vitest"
-Cohesion: 0.03
-Nodes (29): vitest, authed, store, DOC, H, abrirMenuDoPedido(), avisos, chamadas (+21 more)
+### Community 52 - "getDictionary"
+Cohesion: 0.07
+Nodes (52): generateMetadata(), CONTEUDO, DestinationPage(), dynamic, FOTOS, generateMetadata(), dynamic, EstiloPage() (+44 more)
 
 ### Community 53 - "ProposalStudio.casos.test.tsx"
 Cohesion: 0.03
-Nodes (16): assetsServidor, Contexto, copiaServidor, docsDeVersao, FotoImportada, modelosServidor, NomeDoPasso, NUMERO_DO_PASSO (+8 more)
+Nodes (18): assetsServidor, ComPedido(), Contexto, copiaServidor, docsDeVersao, FotoImportada, modelosServidor, NomeDoPasso (+10 more)
 
-### Community 54 - "gaveta.anular.test.tsx"
-Cohesion: 0.04
-Nodes (44): corpos, ITENS, montar(), resposta(), abrirAPergunta(), gravadas, ITENS, montar() (+36 more)
-
-### Community 55 - "[id]/moloni/route.ts"
+### Community 54 - "fornecedores/[id]/route.ts"
 Cohesion: 0.06
-Nodes (53): E o custo, desde o início, graphify, dynamic, GET(), maxDuration, runtime, authed, base (+45 more)
+Nodes (36): PATCH(), runtime, authed, store, dynamic, PATCH(), runtime, ALLOWED (+28 more)
+
+### Community 55 - "Mapper"
+Cohesion: 0.05
+Nodes (33): ACOES, dynamic, POST(), runtime, TIPOS, RestoreTarget, MatchKind, RuleAction (+25 more)
 
 ### Community 56 - "Navbar.tsx"
-Cohesion: 0.06
-Nodes (38): Agente 9 — Acessibilidade (mobile e VoiceOver do iOS), Padrões, não ocorrências, Bloco(), ObservadorFalso, useEntradaAoChegar(), Magnetic(), carregar(), FakeIO (+30 more)
+Cohesion: 0.07
+Nodes (17): Agente 9 — Acessibilidade (mobile e VoiceOver do iOS), Padrões, não ocorrências, Bloco(), ObservadorFalso, useEntradaAoChegar(), carregar(), FakeIO, Props (+9 more)
 
-### Community 57 - "CalendarEvent"
-Cohesion: 0.03
-Nodes (36): desenhar(), escritas, hoje, PROVA, arrastarPara(), Chamada, dia(), etiqueta() (+28 more)
+### Community 57 - "useCachedList.ts"
+Cohesion: 0.02
+Nodes (121): agruparPorMes(), desenhar(), escritas, hoje, PROVA, arrastarPara(), Chamada, dia() (+113 more)
 
 ### Community 58 - "image-prep.ts"
-Cohesion: 0.07
-Nodes (55): acquire(), corNoFioPrincipal(), COVER_MAX_EDGE, COVER_QUALITY, decode(), drawTo(), encode(), ensurePool() (+47 more)
+Cohesion: 0.09
+Nodes (40): acquire(), corNoFioPrincipal(), COVER_MAX_EDGE, COVER_QUALITY, decode(), DestinoDaFoto, drawTo(), encode() (+32 more)
 
-### Community 59 - "Contratos.tsx"
-Cohesion: 0.07
-Nodes (49): AvisoDataOcupada(), PORQUE, PROXIMIDADE, AbrirPedido(), aceitePorDe(), CartaoDeContrato(), CartaoSemContrato(), colunasDeContratos() (+41 more)
+### Community 59 - "ui/index.ts"
+Cohesion: 0.02
+Nodes (222): Agente 8 — Sheets e sobreposições, Inventário de sobreposições, PropostaParaAccoes, AvisoDeFalha(), AddEventModal(), ListaDeCalendarios(), Avatar(), CartaoDeCliente() (+214 more)
 
-### Community 60 - "proposal-progress.ts"
-Cohesion: 0.05
-Nodes (45): Agente 8 — Consistência de dados, Resumo, Agente 1 — Paridade desktop/mobile, Avisos para quem corrigir, O que classifico como «computador apenas», O que NÃO cobri, Tabela de paridade, Agente 2 — Layout e rutura (+37 more)
+### Community 60 - "Agente 1 — Paridade desktop/mobile"
+Cohesion: 0.25
+Nodes (7): Agente 1 — Paridade desktop/mobile, Avisos para quem corrigir, O que classifico como «computador apenas», O que NÃO cobri, Tabela de paridade, moveItem(), moveTo()
 
 ### Community 61 - "semear-pedido.ts"
 Cohesion: 0.06
-Nodes (26): TEMAS, linhas(), prepararChecklist(), primeiraPorMarcar(), abrirMaterial(), collectErrors(), IGNORED_CONSOLE, isIgnored() (+18 more)
+Nodes (29): collectErrors(), IGNORED_CONSOLE, isIgnored(), login(), VIEWS, TEMAS, linhas(), prepararChecklist() (+21 more)
 
 ### Community 62 - "ref_node_child_process"
-Cohesion: 0.03
-Nodes (29): AMOSTRAS, ESCALA_DO_TOQUE, escalaComputada(), medirOToque(), RAIZ_UI, PERDOADOS, FICHEIROS, ESCALA (+21 more)
+Cohesion: 0.04
+Nodes (27): destino, formatado, gerado, PERDOADOS, compor(), contraste(), luminancia(), resolver() (+19 more)
 
-### Community 63 - "GaleriaClient.layout.test.tsx"
-Cohesion: 0.06
-Nodes (43): agruparCenas(), COR_MAX, COR_MAX_LARGO, distanciaDeCor(), hamming(), LIMIAR_CENA, LIMIAR_CENA_LARGO, LIMIAR_PB (+35 more)
+### Community 63 - "interleave.ts"
+Cohesion: 0.10
+Nodes (19): cache, COLLECTION_RULES, collectionFor(), CollectionRule, photos, bucketKey(), cabeAqui(), comMosaico() (+11 more)
 
 ### Community 64 - "linguagem-natural.ts"
-Cohesion: 0.07
-Nodes (46): RAIZ, ErroDoBackOffice(), copiarMarca(), relatarErro(), enviados, ErrosDoSite(), relatar, relatarErroPara() (+38 more)
+Cohesion: 0.06
+Nodes (51): RAIZ, ErroDoBackOffice(), copiarMarca(), relatarErro(), enviados, ErrosDoSite(), relatar, relatarErroPara() (+43 more)
 
 ### Community 65 - "DefinicoesProposta.tsx"
-Cohesion: 0.06
-Nodes (46): CAMPOS_DE, comVirgula(), DefinicoesProposta(), eur(), idade(), LIMITES, Numero(), porNoServidor() (+38 more)
+Cohesion: 0.13
+Nodes (22): CAMPOS_DE, comVirgula(), DefinicoesProposta(), eur(), idade(), LIMITES, Numero(), porNoServidor() (+14 more)
 
 ### Community 66 - "GaleriaClient.tsx"
 Cohesion: 0.07
@@ -869,76 +886,76 @@ Cohesion: 0.05
 Nodes (46): 1. Refração no bordo (lensing) — [APPLE], 2. Reflexo especular com lado — [APPLE], 3. A forma nunca salta — [APPLE], 4.1 A pastilha estica enquanto viaja — [APPLE], 4.2 Carregar amassa o vidro — [EI], 4.3 A superfície transforma-se, não troca — [APPLE], 4.4 Fusão — [APPLE, `GlassEffectContainer`], 4.5 A escala altera a física — [APPLE] (+38 more)
 
 ### Community 68 - "proposal-geometria.ts"
-Cohesion: 0.08
-Nodes (48): Area, areaDoMoodboard(), arranjoDoMoodboard(), aspetoDaCaixa(), aspetoDaCapa(), aspetoDoCollage(), aspetoSeguro(), CaixaPdf (+40 more)
+Cohesion: 0.06
+Nodes (57): As quatro tarefas medidas, O que fica por fazer, O que passou a estar feito, O que passou a existir, O que se mede sozinho, e continua a ser verdade, Os mood boards do estúdio — o que mudou, contado, Area, areaDoMoodboard() (+49 more)
 
-### Community 69 - "package.json"
-Cohesion: 0.05
-Nodes (51): PAGES, eslintConfig, devDependencies, @axe-core/playwright@^4.11.3, eslint@^9, eslint-config-next@16.2.11, husky@^9.1.7, jsdom@^29.1.1 (+43 more)
-
-### Community 70 - "AdminLogin.tsx"
+### Community 69 - "material-lists-store.ts"
 Cohesion: 0.08
-Nodes (39): Agente 4 — Formulários e teclado, O que já está certo, e não se deve mexer, Ordem de correção sugerida, abrirEspaco(), AdminLogin(), entrarPorDispositivo(), submit(), aoFocarCampo() (+31 more)
+Nodes (38): num(), PATCH(), runtime, authed, linhas, patch(), dynamic, POST() (+30 more)
+
+### Community 70 - "Agente 4 — Formulários e teclado"
+Cohesion: 0.24
+Nodes (10): Agente 4 — Formulários e teclado, O que já está certo, e não se deve mexer, Ordem de correção sugerida, Onde estou, o que falta, abrirEspaco(), aoFocarCampo(), aoSairDoCampo(), deslocamentoParaOTeclado() (+2 more)
 
 ### Community 71 - "material-do-que-aparece-por-cima.test.ts"
 Cohesion: 0.06
 Nodes (49): barra(), blocoAdmin(), BRANCO, corComAlpha(), hexParaRgb(), material(), PRETO, RAIZ (+41 more)
 
 ### Community 72 - "@playwright/test"
-Cohesion: 0.05
-Nodes (10): DA_AUDITORIA, ENDERECOS, RAMOS, MEDIDAS, ESTADO_ADMIN, IGNORADOS, comum, PORT (+2 more)
+Cohesion: 0.03
+Nodes (15): PAGINAS, DA_AUDITORIA, ENDERECOS, RAMOS, MEDIDAS, ROTAS, IGNORADOS, contraste() (+7 more)
 
 ### Community 73 - "next.config.ts"
-Cohesion: 0.06
-Nodes (32): BINARIO_DO_SHARP, comOSharpOndeEPreciso(), nextConfig, withBundleAnalyzer, EXTENSOES, resolver(), rotasDe(), rotasQueUsam() (+24 more)
+Cohesion: 0.04
+Nodes (39): BINARIO_DO_SHARP, comOSharpOndeEPreciso(), nextConfig, withBundleAnalyzer, aplicar, contagem, detalhe, falharam (+31 more)
 
 ### Community 74 - "bench-back-office.mjs"
 Cohesion: 0.09
 Nodes (49): args, BUDGETS, buildDoc(), captureSession(), CATEGORIAS, CHUNK_MARKERS, chunkLabelCache, chunkSize() (+41 more)
 
 ### Community 75 - "tokens.ts"
-Cohesion: 0.07
-Nodes (39): CURVA, MolaAoLargar(), animate, montar(), getObserver(), observeReveal(), observers, RevealCallback (+31 more)
+Cohesion: 0.08
+Nodes (32): CURVA, MolaAoLargar(), animate, montar(), raiz, CURVA, animate, dur (+24 more)
 
 ### Community 76 - "ServicesEditor.tsx"
-Cohesion: 0.08
-Nodes (46): guardarNaBiblioteca(), autoLetter(), CampoDeEscrita, CampoQueCresce(), CheckIcon(), cleanPastedLine(), CopyIcon(), DragHandle() (+38 more)
+Cohesion: 0.12
+Nodes (25): BibliotecaServicos(), guardarNaBiblioteca(), CampoDeEscrita, CampoQueCresce(), CheckIcon(), CopyIcon(), DragHandle(), fieldProps() (+17 more)
 
 ### Community 77 - "60-fotogramas-no-telemovel.mjs"
 Cohesion: 0.09
 Nodes (46): abrirColunaDeDestinos(), abrirPainelDoPedido(), abrirPaleta(), acharChromium(), aleatorioSemeado(), ALTURA, args, aVista() (+38 more)
 
-### Community 78 - "paginas-da-proposta.ts"
-Cohesion: 0.08
-Nodes (38): pdfjs-dist@^6.2.108, pdfjs-dist, GET(), maxDuration, runtime, GET(), maxDuration, runtime (+30 more)
+### Community 78 - "[token]/page.tsx"
+Cohesion: 0.06
+Nodes (37): pdfjs-dist@^6.2.108, pdfjs-dist, carregarPdfjs(), Pagina(), VerOPdfNoEcra(), dynamic, generateMetadata(), LETRA_BODONI (+29 more)
 
 ### Community 79 - "capi.ts"
-Cohesion: 0.09
-Nodes (38): corpoSchema, eventoSchema, limparUrl(), maxDuration, POST(), capi, evento(), pedir() (+30 more)
+Cohesion: 0.13
+Nodes (26): corpoSchema, eventoSchema, limparUrl(), maxDuration, POST(), capi, evento(), pedir() (+18 more)
 
 ### Community 80 - "Auditoria de resiliência e disponibilidade"
 Cohesion: 0.04
 Nodes (43): 1. Sobrevive a um deploy, 2. NÃO sobrevive a um deploy, 3. Sobrevive ao deploy — mas só naquele navegador, 4. Como saber, sem adivinhar, 5. O que é RECUSADO em vez de fingido, Onde fica guardado, 1. Tectos de pedidos, 2. Custo de cada pedido (+35 more)
 
-### Community 81 - "sharp"
-Cohesion: 0.05
-Nodes (28): sharp, allFiles, EXT, queue, savedMB, savedPct, SRC_DIR, APLICAR (+20 more)
+### Community 81 - "ref_fs"
+Cohesion: 0.03
+Nodes (59): autoScroll(), captureVariant(), main(), PAGES, SCREENSHOTS_DIR, VARIANTS, waitForImages(), fd (+51 more)
 
-### Community 82 - "Material.recarregar.test.tsx"
-Cohesion: 0.05
-Nodes (31): comAviso(), escritas, reply(), servidor(), comDados(), reply(), todasEmBaixo(), chegarAoBotaoDeGravar() (+23 more)
-
-### Community 83 - "EmailTemplates.tsx"
-Cohesion: 0.10
-Nodes (41): apagarRascunho(), chaveDoRascunho(), computeBody(), DESCRIPTIONS, EditorClassico(), abrirOPublicado(), descartarRascunho(), descartarRascunhoMesmo() (+33 more)
-
-### Community 84 - "pdf-editorial/mosaico.ts"
+### Community 82 - "pdf-editorial/mosaico.ts"
 Cohesion: 0.09
 Nodes (37): DiagramaDaDisposicao(), EscolherDisposicao(), Opcao, aspectos, aspectoUtil(), Caixa, celulaDeTexto(), colunasIguais() (+29 more)
 
-### Community 85 - "ThemePicker.tsx"
+### Community 83 - "EmailTemplates.tsx"
+Cohesion: 0.05
+Nodes (92): apagarRascunho(), chaveDoRascunho(), computeBody(), DESCRIPTIONS, EditorClassico(), abrirOPublicado(), descartarRascunho(), descartarRascunhoMesmo() (+84 more)
+
+### Community 84 - "sessoes-revogadas.ts"
 Cohesion: 0.08
-Nodes (44): esquecerBiblioteca(), dismissJob(), emit(), failedByQuote, failedFor(), flightKey(), HeavySlot, heavyWaiting (+36 more)
+Nodes (35): POST(), runtime, terminadas, CarregamentoPage(), metadata, ADMIN_NAME_COOKIE, lerSessao(), sessionVersion() (+27 more)
+
+### Community 85 - "ThemePicker.tsx"
+Cohesion: 0.04
+Nodes (96): FotoDaPagina, guardada(), PaginaEmConstrucao(), aquecerBiblioteca(), aquecerFotosEmSegundoPlano(), buscarPrimeiraPagina(), buscarTemas(), emVooPaginas (+88 more)
 
 ### Community 86 - "admin-mobile.spec.ts"
 Cohesion: 0.08
@@ -946,43 +963,43 @@ Nodes (35): auditarUmaVez(), collectErrors(), esperarPelaVista(), expectErgonomi
 
 ### Community 87 - "ClientMarquee.tsx"
 Cohesion: 0.09
-Nodes (35): Client, ClientLogo(), ClientLogoGrid(), Mark(), PARES_NA_FITA, sortearComPares(), css(), fotogramas() (+27 more)
+Nodes (34): Client, ClientLogo(), ClientLogoGrid(), Mark(), PARES_NA_FITA, sortearComPares(), css(), fotogramas() (+26 more)
 
 ### Community 88 - "proposal-doc-render.ts"
-Cohesion: 0.09
-Nodes (37): A pista decisiva não é a que tu pensas, Sobre a geração do PDF, formasDeCaminhosOuErro(), lerFotoEditorialGuardada(), Medida, focoAutomatico(), conteudoDoEditorial(), FontesDasFotos (+29 more)
+Cohesion: 0.06
+Nodes (56): 6. Proposta online e PDF — 8/10, Para o 10, Para o 9, Parte −1 — o que ela decidiu e onde a execução se afastou do texto, formasDeCaminhosOuErro(), CHAVE_DA_CAPA, FOTOS_NO_TECTO_DO_PDF, fotosEscolhidasDoDocumento() (+48 more)
 
 ### Community 89 - "email-templates-store.ts"
-Cohesion: 0.07
-Nodes (36): dynamic, GET(), guardar(), POST, PUT, runtime, dynamic, GET() (+28 more)
+Cohesion: 0.05
+Nodes (59): dynamic, GET(), guardar(), POST, PUT, runtime, dynamic, GET() (+51 more)
 
 ### Community 90 - "email-modelos.ts"
 Cohesion: 0.09
-Nodes (34): dynamic, enderecoValido(), iguais(), POST(), runtime, FIM_VAZIO, semFimEmBranco(), ChaveDeModelo (+26 more)
+Nodes (33): dynamic, enderecoValido(), iguais(), POST(), runtime, FIM_VAZIO, semFimEmBranco(), get (+25 more)
 
 ### Community 91 - "EditorDoMapa.tsx"
-Cohesion: 0.10
-Nodes (40): aEscrever(), agrupar(), Anel(), Gesto, NovoConvidado(), Props, ResumoDoEvento, Vista (+32 more)
+Cohesion: 0.17
+Nodes (23): Icone(), IconeAnular(), IconeBar(), IconeBuffet(), IconeDuplicar(), IconeEncaixar(), IconeFechar(), IconeLixo() (+15 more)
 
 ### Community 92 - "montar.ts"
-Cohesion: 0.10
-Nodes (39): DocComTotais, marcarExtra(), nomesDosExtras(), opcionaisDe(), Totais, totaisDasVersoes(), TresValores, aoMeio() (+31 more)
+Cohesion: 0.08
+Nodes (43): Parte −1 — o estado, e o que ela decidiu, PainelDoEnvio(), inserirParagrafoDoQueMudou(), alturaDaPeca(), aoMeio(), Corrida, estilos(), linhasDoItem() (+35 more)
 
 ### Community 93 - "with"
 Cohesion: 0.05
 Nodes (41): name, runs-on, steps, timeout-minutes, jobs, build, name, on (+33 more)
 
 ### Community 94 - "pregen-gallery.mjs"
-Cohesion: 0.05
-Nodes (38): analisarFoto(), analisar(), analises, badKeys, byKey, bytesAvifByWidth, bytesByWidth, CACHE_DIR (+30 more)
+Cohesion: 0.04
+Nodes (65): Tipos de letra (`src/app/[lang]/layout.tsx`), agruparCenas(), analisarFoto(), clamp(), COR_MAX, COR_MAX_LARGO, distanciaDeCor(), hamming() (+57 more)
 
-### Community 95 - "inventory-store.ts"
-Cohesion: 0.09
-Nodes (32): ALLOWED, coerce(), CONDITIONS, DELETE(), PATCH(), runtime, authed, del() (+24 more)
+### Community 95 - "manual/route.ts"
+Cohesion: 0.06
+Nodes (26): RFC-5321, RFC-7505, authed, mail, releitura, sessao, store, authed (+18 more)
 
 ### Community 96 - "guioes.ts"
-Cohesion: 0.10
-Nodes (34): A janela é comum a todas as réguas, ALTURA_DO_CARRIL, estiloDoBloco(), FOLGA_ENTRE_CARRIS, marcasDeHora(), ReguaDoDia(), ReguaDoDiaProps, TamanhoDaRegua (+26 more)
+Cohesion: 0.11
+Nodes (24): A cor nunca é o único portador, A janela é comum a todas as réguas, A régua deitada é o objecto central, O DESENHO, O que a vista mostra, por ordem, chaveDoResponsavel(), colunasDe(), colunasPorResponsavel() (+16 more)
 
 ### Community 97 - "proposal-traducao-deepl.ts"
 Cohesion: 0.10
@@ -990,83 +1007,83 @@ Nodes (36): dynamic, GET(), POST(), runtime, semSessao(), baseDoDeepL(), chaveDe
 
 ### Community 98 - "GaleriaClient.a11y.test.tsx"
 Cohesion: 0.07
-Nodes (17): maxIdx(), photos, tiles(), order(), photos, Label, PHOTOS, baralhar() (+9 more)
+Nodes (17): abrirEcarregar(), heroi(), photos, abrir(), photos, Label, PHOTOS, baralhar() (+9 more)
 
 ### Community 99 - "supabase.ts"
-Cohesion: 0.08
-Nodes (32): dynamic, GET(), lerPoliticaServida(), maxDuration, runtime, acabar(), AvariaDeFoto, BALDES (+24 more)
+Cohesion: 0.14
+Nodes (17): acabar(), AvariaDeFoto, BALDES, CATALOGO, CausaDeFotoInvisivel, diagnosticarFotos(), DiagnosticoDeFotos, imgSrcDe() (+9 more)
 
 ### Community 100 - "EditorDoMapa"
 Cohesion: 0.12
-Nodes (39): lista(), EditorDoMapa(), acrescentarConvidado(), acrescentarElemento(), acrescentarMesa(), agendar(), apagar(), comecarArrasto() (+31 more)
+Nodes (33): EditorDoMapa(), acrescentarConvidado(), acrescentarElemento(), acrescentarMesa(), agendar(), apagar(), comecarArrasto(), largar() (+25 more)
 
 ### Community 101 - "gallery-srcset.ts"
-Cohesion: 0.09
-Nodes (26): ECRAS, CORTE_TELEMOVEL, ESCADA_ECRA_GRANDE, ESCADA_TELEMOVEL, ficheiroDaGaleria(), FormatoDaGaleria, larguraEsperada(), sizesDaFila() (+18 more)
+Cohesion: 0.06
+Nodes (26): CORTE_TELEMOVEL, BACKOFF_MS, GalleryImage(), GalleryImageProps, currentSrc(), FakeIO, img(), renderTile() (+18 more)
 
 ### Community 102 - "ref_node_url"
-Cohesion: 0.06
-Nodes (26): desenhar(), FORMATOS, lerVariantes(), logoRecortado(), main(), RAIZ, SAIDA, SEGURA (+18 more)
+Cohesion: 0.07
+Nodes (29): esc(), folha(), legendas(), lerCampanhas(), lerConceitos(), lerVariantes(), linkDoAnuncio(), main() (+21 more)
 
 ### Community 103 - "diagnostico-video.ts"
 Cohesion: 0.08
 Nodes (34): Acontecimento, Corpo, dynamic, Estado, num, runtime, CORPO, estado (+26 more)
 
-### Community 104 - "moloni.ts"
+### Community 104 - "dossier.ts"
 Cohesion: 0.09
-Nodes (33): GET, POST, authed, ctx, DOC, estado, moloni, artigosNoMoloni() (+25 more)
+Nodes (28): TODAY, FailedOp, Props, casamento(), Fonte, makeQuote(), computeEventMetrics(), ContractedAmounts (+20 more)
 
 ### Community 105 - "qualidade-da-foto.ts"
-Cohesion: 0.09
-Nodes (29): FotoEmDuvida, medirFicheiro(), Pergunta, Banco(), medidas, TITULO, useAvisoDeQualidade(), ASPETO_DA_FOLHA (+21 more)
+Cohesion: 0.10
+Nodes (24): FotosEmFalta(), DOC, fetchMock, aCapaDelaVaiNoPdf(), aFaltaDaCapaTrava(), ASPETO_DA_FOLHA, LADO_MINIMO_DA_CAPA, perdaNaFolha() (+16 more)
 
-### Community 106 - "mapa-de-mesas.ts"
-Cohesion: 0.12
-Nodes (34): DesenhoDaMesa(), acrescentarLugares(), ajustar(), cadeiras(), dimensoes(), duplicarMesa(), Elemento, ELEMENTOS (+26 more)
+### Community 106 - "mapa-de-mesas-pdf.test.ts"
+Cohesion: 0.16
+Nodes (13): desenhar(), ajustar(), dimensoes(), duplicarMesa(), mapaVazio(), mudarMesa(), novaMesa(), novoElemento() (+5 more)
 
 ### Community 107 - "pregen-logos.mjs"
-Cohesion: 0.06
-Nodes (31): HERO_SOURCES, HERO_WIDTHS, MANIFESTO, novoManifesto, OUT_DIR, PUBLIC, badKeys, byKey (+23 more)
+Cohesion: 0.09
+Nodes (25): badKeys, byKey, bytesByWidth, CACHE_DIR, countByWidth, failures, index, INDEX_FILE (+17 more)
 
-### Community 108 - "Cortes.movel.test.tsx"
-Cohesion: 0.07
-Nodes (27): aparece(), colunas(), Contexto, CORTES_DA_CASA, efectivas(), ligada(), separar(), EmailTemplates() (+19 more)
+### Community 108 - "material-store.ts"
+Cohesion: 0.10
+Nodes (27): dynamic, maxDuration, POST(), runtime, dynamic, normMinimo(), normNumero(), POST() (+19 more)
 
 ### Community 109 - "data.ts"
-Cohesion: 0.08
-Nodes (31): ESTUDIO, localDaProposta(), initialDoc(), nomesDoCasal(), pedidoBase, ADDON_CATALOG, ADDON_CATEGORIES, BUDGET_RANGES (+23 more)
+Cohesion: 0.10
+Nodes (23): pedidoBase, ADDON_CATALOG, ADDON_CATEGORIES, BUDGET_RANGES, CEREMONY_TYPES, CERIMONIAS_RETIRADAS, chaveDeRotulo(), COORDENACAO_DO_DIA (+15 more)
 
-### Community 110 - "s/[slug]/page.tsx"
-Cohesion: 0.12
-Nodes (27): ancorasDe(), aPercorrer(), No, Caso, naoServidos, servidos, todos, dynamic (+19 more)
+### Community 110 - "limpeza-da-noite.ts"
+Cohesion: 0.06
+Nodes (53): CHAVE_NA_COPIA, contagem, dia, linhaQueSai, LinhaQueSai, motivoDeSaida, registoDaLimpeza, RegistoDaLimpeza (+45 more)
 
-### Community 111 - "esc"
-Cohesion: 0.09
-Nodes (30): DadosDoPedidoParaAEquipa, ESTILO_DO_EMAIL, htmlDoPedidoParaAEquipa(), LinhaDoCartao, linhaDoResumo(), responder(), DESENHO_DELA, PEDIDO (+22 more)
+### Community 111 - "email-assinatura.ts"
+Cohesion: 0.05
+Nodes (61): Os três casos conhecidos — estado, buildClientConfirmation(), ConfirmationArgs, ConfirmationEvent, COPY, firstName(), assinanteDoEmail(), ASSINATURA_CARGO (+53 more)
 
 ### Community 112 - "pdf-editorial/imagens.ts"
 Cohesion: 0.08
-Nodes (30): E o vidro tem o seu, 2.3 As mesmas molas, resolvidas para CSS, Parte −1 — o que ela decidiu e onde a execução se afastou do texto, 6. Tokens base (Fase 1), aplicarTecto(), CARTAO, comGrao(), Degrade (+22 more)
+Nodes (27): 1. Determinismo: a geração dá os mesmos bytes?, 2. A receita: fica guardado o documento EXACTO do envio?, 3. Dependências da reprodução: o que parte a igualdade com o tempo, 4. Teste em produção (só SELECT, pelo MCP, a 14/11), 5. Custo, 6. Alternativas sem apagar, com números, 7. Plano proposto (por fases; nada apaga sem a autorização dele), 8. Riscos (+19 more)
 
 ### Community 113 - "email-template-vars.ts"
-Cohesion: 0.10
-Nodes (31): Os três casos conhecidos — estado, chave(), dataPorExtenso(), marcadoresDoPedido(), artigoDoTipo(), construirValores(), DadosDaProposta, DadosDoEvento (+23 more)
+Cohesion: 0.11
+Nodes (27): marcadoresDoPedido(), artigoDoTipo(), construirValores(), DadosDaProposta, DadosDoEvento, dataPorExtenso(), Destinatario, EntradaDosValores (+19 more)
 
 ### Community 114 - "ThemePicker.test.tsx"
-Cohesion: 0.08
-Nodes (22): activas(), classes(), colunas(), comMuitos(), efectivas(), Handler, Host(), ligada() (+14 more)
+Cohesion: 0.07
+Nodes (24): makeQuote(), muitos(), activas(), classes(), colunas(), comMuitos(), efectivas(), Handler (+16 more)
 
 ### Community 115 - "4. Ecrãs mortos"
 Cohesion: 0.06
 Nodes (34): 1.1 Um cesto que atravessa temas, 1.2 Dizer de que tema veio cada foto, 1.3 Selecionar todas as visíveis dentro de um tema, 1.4 Guardar o nome original do ficheiro, 1.5 Levar um tema inteiro para o disco, 1.6 Etiquetas nas fotos, 1. Temas, 2.1 A página onde o noivo decide não diz o que ele está a comprar (+26 more)
 
-### Community 116 - "email-rich-format.ts"
-Cohesion: 0.11
-Nodes (34): BLOCK_TAGS, BRAND_TEXT_COLORS, COLOR_SET, hasBlockChild(), isRichBody(), Marks, marksFrom(), normalizeAlign() (+26 more)
+### Community 116 - "ImportarProposta.tsx"
+Cohesion: 0.07
+Nodes (80): impressaoDoFicheiro(), perguntarGuardadas(), prepareImageWithThumb(), aPerguntar(), DE_FORA, ImportarProposta(), alternar(), criar() (+72 more)
 
-### Community 117 - "EventTimeline.tsx"
-Cohesion: 0.12
-Nodes (28): O que a vista mostra, por ordem, BlocoProps, Colisao, EditableField, GRAVAR_AO_ESCREVER_MS, Props, sortByTime(), FolhaDaTimeline() (+20 more)
+### Community 117 - "guiao-do-dia.ts"
+Cohesion: 0.19
+Nodes (17): guardarComoModelo(), analisarODia(), BURACO_MINIMO_MIN, DEGRAUS_DE_DURACAO, duracaoDe(), estaNoDia(), minutosDe(), OpcaoDeDuracao (+9 more)
 
 ### Community 118 - "EntradaEmVideo.test.tsx"
 Cohesion: 0.09
@@ -1076,29 +1093,29 @@ Nodes (22): 5. Vídeo de entrada da página inicial, arrancarEntrada(), EntradaE
 Cohesion: 0.06
 Nodes (32): B0. Quem és e qual é a fasquia, B10. Vídeo, B11. Conteúdo e CMS, B12. Desempenho (orçamento obrigatório, medido no telemóvel em 4G), B13. SEO e AEO (SEO para motores de IA), B14. Acessibilidade (WCAG 2.2 AA), B15. Segurança e privacidade, B16. Formulários e email (+24 more)
 
-### Community 120 - "email-rascunho/route.ts"
-Cohesion: 0.11
-Nodes (28): dynamic, GET(), runtime, dynamic, GET(), runtime, dynamic, POST() (+20 more)
+### Community 120 - "ref_node_crypto"
+Cohesion: 0.05
+Nodes (49): Agente 7 — Permissões e segurança, O que está bem defendido — e com que nome, Registo completo, secret, dynamic, GET(), runtime, dynamic (+41 more)
 
 ### Community 121 - "montar.casos.test.ts"
-Cohesion: 0.08
-Nodes (26): asDuas(), b64, comCaminhos(), FORMAS, medidas, paraDesenhar(), ref(), refs() (+18 more)
+Cohesion: 0.12
+Nodes (14): corDaCapa(), desenhar(), docDeTeste(), Escrita, fotos(), semOrcamento, fotosDoPlano(), renderEditorialPdf() (+6 more)
 
-### Community 122 - "retrato.ts"
-Cohesion: 0.11
-Nodes (31): assinarFotosDeTema(), marcador(), temAssinaturasPorFazer(), H, url(), tirarAssinaturasDeTema(), aMontar, assinadosEmMemoria (+23 more)
-
-### Community 123 - "export.ts"
+### Community 122 - "admin-recuperacao.ts"
 Cohesion: 0.09
-Nodes (28): 1. Montar 7 páginas de mood board com 46 fotos — **Desktop**, 2. Rever o PDF antes de enviar — **Desktop**, 3. Ajustar preço e sinal — **Consulta**, 4. Consultar o evento do dia durante uma montagem — **Consulta, e é a tarefa mais mal servida do repositório**, 5. Ver a checklist da carrinha — **Mobile nativo. E é o único ecrã que já está certo.**, Agente 10 — Classificação de tarefas, As cinco tarefas pedidas por nome, O que isto orienta (+20 more)
+Nodes (30): estado, guardado, KEYS, ligacaoParaCatarina(), pedirRecuperacao(), CHAVE_ESTADO, emailDoToken(), ficouGravado() (+22 more)
 
-### Community 124 - "ThemePicker"
-Cohesion: 0.09
-Nodes (28): fotoEmCache(), clearFailed(), guardarMiniaturas(), importedSources(), montar(), Res, semCabecalhos, THEME (+20 more)
+### Community 123 - "printRunSheet"
+Cohesion: 0.12
+Nodes (16): A DECISÃO, ANTES DE TUDO: REUTILIZAR, A NAVEGAÇÃO, Guiões do dia — a vista de topo, O QUE FICOU POR FAZER, OS MODELOS, OS TESTES, E QUE AVARIA CADA UM GUARDA, 1. Montar 7 páginas de mood board com 46 fotos — **Desktop**, 2. Rever o PDF antes de enviar — **Desktop** (+8 more)
 
-### Community 125 - "pt.ts"
+### Community 124 - "pt.ts"
 Cohesion: 0.09
-Nodes (13): RAIZ, abrir(), photos, BLOCO, CSS, H, GENERADAS, en (+5 more)
+Nodes (14): RAIZ, maxIdx(), photos, tiles(), BLOCO, CSS, H, GENERADAS (+6 more)
+
+### Community 125 - "importar.ts"
+Cohesion: 0.05
+Nodes (72): EscolherOIva(), PARECE, Props, descarregarPedido(), VIA, documentoEmTexto(), ParteLida, UnidadeLida (+64 more)
 
 ### Community 126 - "harness.ts"
 Cohesion: 0.13
@@ -1106,39 +1123,39 @@ Nodes (27): abrirEstudio(), irAosServicos(), LONGO, VISTAS, AlvoPequeno, alvosPe
 
 ### Community 127 - "scripts"
 Cohesion: 0.06
-Nodes (32): scripts, analyze, build, compress:images, dev, format, format:check, gallery:sync (+24 more)
+Nodes (33): scripts, analyze, build, compress:images, dev, format, format:check, gallery:sync (+25 more)
 
 ### Community 128 - "Líquen Events"
 Cohesion: 0.06
-Nodes (29): CI/CD, Deployment, Docker (anywhere), Environment, Getting started, Líquen Events, Operations, Scripts (+21 more)
+Nodes (30): CI/CD, Deployment, Docker (anywhere), Environment, Getting started, Líquen Events, Operations, Scripts (+22 more)
 
-### Community 129 - "visao-geral/route.ts"
-Cohesion: 0.11
-Nodes (24): dynamic, GET, GET_semMedida(), goalError(), PUT, runtime, saveSchema, authed (+16 more)
+### Community 129 - "ListaDeTemas.tsx"
+Cohesion: 0.12
+Nodes (23): Capa(), montar(), tema, ListaDeTemas(), ListaDeTemasProps, EsqueletoDeCor(), PASSO_DA_LISTA, Lista() (+15 more)
 
 ### Community 130 - "mapa-de-mesas-pdf.ts"
-Cohesion: 0.11
-Nodes (30): VistaEmLista(), CADEIRA, chaveDoLugar(), contas(), lerMapa(), nomeDoLugar(), numerosDosLugares(), BRANCO (+22 more)
+Cohesion: 0.13
+Nodes (27): VistaEmLista(), chaveDoLugar(), lerMapa(), nomeDoLugar(), numerosDosLugares(), BRANCO, CABECALHO, cabecalho() (+19 more)
 
 ### Community 131 - "desfecho.ts"
-Cohesion: 0.14
-Nodes (28): Fase, PerguntaDeDesfecho(), confirmarGanho(), guardarMotivo(), marcar(), porqueNaoGravou(), Props, textoDoValor() (+20 more)
+Cohesion: 0.06
+Nodes (50): apagamento, authed, contratos, propostas, reciclagem, rl, semeador, store (+42 more)
 
-### Community 132 - "site-image-loader.ts"
-Cohesion: 0.13
-Nodes (27): chaves, GALLERY_QUALITY, GALLERY_WIDTHS, galleryImageLoader(), galleryImageUrl(), galleryKey(), snapGalleryWidth(), OUT_DIR (+19 more)
+### Community 132 - "nenhum-ficheiro-em-falta.test.tsx"
+Cohesion: 0.08
+Nodes (46): O que se aproveita, chaves, GALLERY_QUALITY, GALLERY_WEBP_WIDTHS, GALLERY_WIDTHS, galleryImageLoader(), galleryImageUrl(), galleryKey() (+38 more)
 
 ### Community 133 - "TOUCH-AUDIT — a ergonomia táctil do back office"
 Cohesion: 0.06
 Nodes (29): 1. A linha do grupo de serviços não cabia, 2. E `sm:` não servia para a resolver, A rede que impede a regressão, As condições, Duas coisas que só apareceram por medir DENTRO da gaveta, MOBILE-AUDIT — o back office no telemóvel, a fazer trabalho a sério, O Crítico: o iPad estava fora da regra que impede o zoom do iOS, O "+" do calendário: não crescer, desaparecer (+21 more)
 
 ### Community 134 - "dependencies"
-Cohesion: 0.06
-Nodes (31): dependencies, @dnd-kit/modifiers@^9.0.0, @dnd-kit/sortable@^10.0.0, gsap@3.15.0, hyphen@^1.14.1, lenis@1.3.27, next@16.4.3, nodemailer@^10.2.1 (+23 more)
+Cohesion: 0.03
+Nodes (90): eslintConfig, dependencies, @anthropic-ai/sdk@^1.8.0, bcryptjs@^3.0.3, country-flag-icons@1.6.20, @dnd-kit/core@^6.3.1, @dnd-kit/modifiers@^9.0.0, @dnd-kit/sortable@^10.0.0 (+82 more)
 
-### Community 135 - "proposta-de-pdf/imagens.ts"
-Cohesion: 0.10
-Nodes (23): O que esta autópsia NÃO explica, e é o mais importante, drawCoverImage(), drawImageCover(), embedImage(), once(), embutivelNoPdf(), ficheiroIncompleto(), garantirFormatoImprimivel() (+15 more)
+### Community 135 - "registo/route.ts"
+Cohesion: 0.05
+Nodes (60): @simplewebauthn/server@^13.3.2, @simplewebauthn/server, store, wa, dynamic, entradaSchema, GET(), POST() (+52 more)
 
 ### Community 136 - "gallery-sync.mjs"
 Cohesion: 0.06
@@ -1149,16 +1166,16 @@ Cohesion: 0.06
 Nodes (30): galeria, capturedAt, height, galeria-mobile, capturedAt, height, home, capturedAt (+22 more)
 
 ### Community 138 - "BibliotecaRevisao.test.tsx"
-Cohesion: 0.08
-Nodes (18): abrir(), ETIQUETAS, pedidos, resposta, doc, Estudio(), fetchMock, pedidos (+10 more)
+Cohesion: 0.10
+Nodes (13): abrir(), ETIQUETAS, pedidos, resposta, A, B, montar(), quoteCom() (+5 more)
 
 ### Community 139 - "material-offline.ts"
-Cohesion: 0.13
-Nodes (25): Carregamento(), marcar(), marcarFecho(), montar(), COM_CRITICO, enviadas, ITENS, montar() (+17 more)
+Cohesion: 0.14
+Nodes (27): Carregamento(), marcar(), marcarFecho(), montar(), COM_CRITICO, enviadas, ITENS, montar() (+19 more)
 
-### Community 140 - "proposal-copy.ts"
-Cohesion: 0.11
-Nodes (26): Agente 6 — Fluxos completos, O que os testes de ponta a ponta já prendem — e o que não, Percurso 1 — Pedido público → Pedidos → proposta → PDF → email → página, Percurso 3 — Proposta enviada → editada → reenviada. O casal vê a versão certa?, Percurso 4 — Trocar de cliente a meio de uma proposta, Percurso 6 — Criar, duplicar e apagar uma proposta, Resumo dos catorze, Escolha (+18 more)
+### Community 140 - "Pagamentos.tsx"
+Cohesion: 0.12
+Nodes (31): Cartao, COLUNAS, Detalhe(), copiar(), registarLembrete(), Filtro, Icone(), IconeAlerta() (+23 more)
 
 ### Community 141 - "steps"
 Cohesion: 0.07
@@ -1169,36 +1186,36 @@ Cohesion: 0.13
 Nodes (27): argv, benchBrowser(), benchServerHop(), fmtKB(), fmtMB(), mean(), median(), MP_LEVELS (+19 more)
 
 ### Community 143 - "Temas.test.tsx"
-Cohesion: 0.07
-Nodes (16): COLUNAS, GRELHA_DE_FOTOS, PISO_DA_CELULA_PX, Contexto, CORTES_DA_JANELA, fp, JANELAS, jpg() (+8 more)
+Cohesion: 0.05
+Nodes (46): COLUNAS, GRELHA_DE_FOTOS, PISO_DA_CELULA_PX, acharCartaoDoTema(), cartaoDoTema(), chooseFiles(), colunasDoAutoFill(), colunasEm() (+38 more)
 
 ### Community 144 - "criarMotor"
 Cohesion: 0.15
 Nodes (30): criarMotor(), aFrenteDe(), aliviar(), aoGesto(), aquecer(), aquecerSeForHora(), cancelarPassagem(), contarParagem() (+22 more)
 
 ### Community 145 - "cor-dominante.ts"
-Cohesion: 0.15
-Nodes (21): corDominanteDePixeis(), corMedia(), desviosDaPaleta(), distancia(), fotosQueDestoam(), hex(), hsl(), lerHex() (+13 more)
+Cohesion: 0.17
+Nodes (20): arrumarPorCor(), corSegura(), corDominanteDePixeis(), corMedia(), desviosDaPaleta(), distancia(), fotosQueDestoam(), hex() (+12 more)
 
-### Community 146 - "campos.ts"
-Cohesion: 0.11
-Nodes (29): Achado, cabecalhosDe(), Colheita, Contexto, ehCabecalhoCorrente(), fonteNegra(), lerDaRef(), lerTemplateDaRef() (+21 more)
+### Community 146 - "impressao-visual.ts"
+Cohesion: 0.10
+Nodes (29): Parecida, estado, existe, getTheme, BITS, bitsPelaMediana(), caixaSemMargens(), cinzentoDePixeis() (+21 more)
 
-### Community 147 - "validation.ts"
-Cohesion: 0.09
-Nodes (25): activityEntrySchema, anexoDaTarefaSchema, checklistItemSchema, coordenada, dataDoEvento, ehDiaDeCalendario(), entityId, eventSupplierSchema (+17 more)
+### Community 147 - "documento-completo.ts"
+Cohesion: 0.10
+Nodes (57): caracteresQueContam(), Construtor, Contagem, contarNaOrigem(), contarPowerPoint(), EstiloDoWord, estilosDoWord(), ImagemLida (+49 more)
 
 ### Community 148 - "Na página — as capturas completas"
 Cohesion: 0.07
 Nodes (29): calendario, cliente, emails, material, modelos-email, Na página — as capturas completas, pdf, pedidos (+21 more)
 
 ### Community 149 - "orcamento/route.ts"
-Cohesion: 0.14
-Nodes (24): Camada 6 — Contratos e tipos · **TIPOS FEITOS, CONTRATOS A 10 %**, buildEmail(), BuiltEmail, campoDaRecusa(), confirmarAoCliente(), maxDuration, mensagemDeLimite(), mensagemDeValidacao() (+16 more)
+Cohesion: 0.11
+Nodes (29): Camada 6 — Contratos e tipos · **TIPOS FEITOS, CONTRATOS A 10 %**, buildEmail(), BuiltEmail, campoDaRecusa(), confirmarAoCliente(), maxDuration, mensagemDeLimite(), mensagemDeValidacao() (+21 more)
 
 ### Community 150 - "imagens-uteis.ts"
-Cohesion: 0.10
-Nodes (21): PAGINAS, abrirMenuEColherFalhas(), ECRAS, PAGINAS, ArgColheita, colher(), contar(), esperarBandaAssente() (+13 more)
+Cohesion: 0.11
+Nodes (19): abrirMenuEColherFalhas(), ECRAS, PAGINAS, ArgColheita, colher(), contar(), esperarBandaAssente(), esperarChegadaAoAlvo() (+11 more)
 
 ### Community 151 - "lighthouse"
 Cohesion: 0.07
@@ -1208,41 +1225,41 @@ Nodes (28): concurrency, cancel-in-progress, group, config, modo, jobs, lighthou
 Cohesion: 0.07
 Nodes (27): 1. Paginação por cursor — não é possível contra o Storage, 2. Pesquisa dentro de um tema — não há por onde pesquisar, 3. O PDF ainda descarrega o original de 2200 px para uma célula pequena, As três coisas que não estão feitas, e porquê, E o Pilar 2 (bucket público)?, Escolher 14 fotos da Biblioteca para um mood board, Imagens do back office — depois dos 8 pilares, Leia isto antes da tabela (+19 more)
 
-### Community 153 - "PaginaEditorial.tsx"
-Cohesion: 0.14
-Nodes (27): BlocoDeTitulo(), Cabecalho(), caixa(), cq(), Emoldurada(), FOLHA_INTEIRA, Foto(), FOTO_DA_PROPOSTA (+19 more)
+### Community 153 - "proposta-fotos-verificacao.ts"
+Cohesion: 0.06
+Nodes (50): 10. A foto escolhida que caía para outra, em silêncio (corrigido a 14/11), dynamic, maxDuration, POST(), runtime, formasDeCaminhos(), FotoEscolhida, chaveDaResposta() (+42 more)
 
 ### Community 154 - "VistasDeHoras.tsx"
-Cohesion: 0.14
-Nodes (26): Bloco(), chaoDaColuna(), diaDaSemana(), DiaDeHoras, DiaDisposto, dispor(), EntradaDeHoras, numeroDoDia() (+18 more)
-
-### Community 155 - "camposDoDocumento"
-Cohesion: 0.17
-Nodes (29): arred(), camposDoDocumento(), coluna(), comoLinha(), corpoDaPagina(), guardarTotal(), lerApresentacao(), lerCronograma() (+21 more)
-
-### Community 156 - "ano-do-calendario.ts"
-Cohesion: 0.13
-Nodes (22): CalendarioAno(), INICIAIS, semanas(), montar(), Calendarios, ListaDeCalendariosProps, anoDoCalendario(), COMPROMETEM (+14 more)
-
-### Community 157 - "proposal-doc-render.tamanhos.test.ts"
 Cohesion: 0.12
-Nodes (22): arrumarPorCor(), moverSeleccaoParaBoard(), removeBoardImageAt(), drawCollage(), caixasDoDesenho(), docCom(), jpegs, MINI_NORMAL (+14 more)
+Nodes (29): Bloco(), chaoComDiasInteiros(), chaoDaColuna(), diaDaSemana(), DiaDeHoras, DiaDisposto, dispor(), EntradaDeHoras (+21 more)
+
+### Community 155 - "campos.ts"
+Cohesion: 0.09
+Nodes (63): Achado, arred(), cabecalhosDe(), camposDoDocumento(), coluna(), comoLinha(), Contexto, corpoDaPagina() (+55 more)
+
+### Community 156 - "zip.ts"
+Cohesion: 0.07
+Nodes (52): authed, gravacoes, Chamada, comParecidas(), FICHEIRO, impressaoDoNome(), preparar(), resumoDoNome() (+44 more)
+
+### Community 157 - "heuristicas.ts"
+Cohesion: 0.08
+Nodes (61): CandidataAoTotal, candidataPorPessoa(), candidatasDerivadas(), Confianca, DataLida, datasDaLinha(), eCandidataATotal(), eDesconto() (+53 more)
 
 ### Community 158 - "GaleriaDoServico.tsx"
 Cohesion: 0.10
 Nodes (16): altDe(), FotoDoServico, GaleriaDoServico(), Props, sizesDe(), fotos, IO, montar() (+8 more)
 
-### Community 159 - "modelo.ts"
-Cohesion: 0.12
-Nodes (24): CapituloWeb, CondicoesWeb, ConteudoWeb, FactoWeb, FotoWeb, InvestimentoWeb, PecaWeb, TemaWeb (+16 more)
+### Community 159 - "ref_server_only"
+Cohesion: 0.03
+Nodes (134): Sobre os URLs, maxDuration, POST, POST_semMedida(), runtime, doc(), H, pedir() (+126 more)
 
-### Community 160 - "Agente 4 — Templates e variáveis"
-Cohesion: 0.16
-Nodes (23): Agente 4 — Templates e variáveis, Como reproduzir, O que foi testado e não deu nada, MARCADOR_DA_LIGACAO, resolverLigacaoDaProposta(), temLigacaoDaProposta(), VALOR_DA_LIGACAO_NO_RASCUNHO, corpoEnviavel() (+15 more)
+### Community 160 - "FundirTemas.test.tsx"
+Cohesion: 0.15
+Nodes (9): countLabel(), FundirTemas(), run(), plural(), desenhar(), g, origem, outros (+1 more)
 
-### Community 161 - "EntradaComFotografia.tsx"
-Cohesion: 0.13
-Nodes (21): O QUE JÁ ESTÁ FEITO, DIA_EM_LISBOA, EntradaComFotografia(), ESCADA_FAIXA, ESCADA_PAINEL, fotografiaDoDia(), HORA_EM_LISBOA, PeriodoDoDia (+13 more)
+### Community 161 - "validation.ts"
+Cohesion: 0.08
+Nodes (27): activityEntrySchema, anexoDaTarefaSchema, checklistItemSchema, coordenada, dataDoEvento, ehDiaDeCalendario(), entityId, eventSupplierSchema (+19 more)
 
 ### Community 162 - "scroll-mobile.mjs"
 Cohesion: 0.08
@@ -1256,13 +1273,13 @@ Nodes (27): steps, steps, steps, steps, steps, steps, steps, steps (+19 more)
 Cohesion: 0.10
 Nodes (24): @remotion/cli, @remotion/google-fonts, tsx, dependencies, react@19.2.4, react-dom@19.2.4, remotion@^4.0.0, @remotion/cli@^4.0.0 (+16 more)
 
-### Community 165 - "contract-types.ts"
+### Community 165 - "[...caminho]/route.ts"
 Cohesion: 0.09
-Nodes (11): authed, dados, authed, dados, params, dados, params, dados (+3 more)
+Nodes (34): GET, H, pedir(), url(), caminhoValido(), idDaLoja(), origemDoBlob(), assinar() (+26 more)
 
-### Community 166 - "guiao-modelos.ts"
-Cohesion: 0.16
-Nodes (21): DELETE(), dynamic, runtime, dynamic, GET(), POST(), runtime, apagarModeloDeGuiao() (+13 more)
+### Community 166 - "guioes/modelos/route.ts"
+Cohesion: 0.27
+Nodes (13): dynamic, GET(), POST(), runtime, DemasiadosModelos, guardarModeloDeGuiao(), listarModelosDeGuiao(), MAX_BYTES (+5 more)
 
 ### Community 167 - "ref_playwright"
 Cohesion: 0.08
@@ -1272,33 +1289,33 @@ Nodes (16): ARRANJOS, REPETICOES, VARIANTES, REPETICOES, VARIANTES, blocos, PERF
 Cohesion: 0.08
 Nodes (25): name, permissions, runs-on, steps, jobs, analysis, name, on (+17 more)
 
-### Community 169 - "calendar-store.ts"
-Cohesion: 0.12
-Nodes (18): dynamic, GET(), KINDS, POST(), runtime, authed, store, chavesDeDatasJaGeradas() (+10 more)
+### Community 169 - "api/backup/route.ts"
+Cohesion: 0.04
+Nodes (77): 5. Ver a checklist da carrinha — **Mobile nativo. E é o único ecrã que já está certo.**, GET(), contextoDoPedido(), dynamic, emGrupos(), GET(), marcada(), maxDuration (+69 more)
 
-### Community 170 - "QuoteStatus"
-Cohesion: 0.16
-Nodes (22): EstadoParaEscolher, Props, Props, esquecerFalhasDePreparacao(), falhouHa, marcarPropostaEmPreparacao(), registarAcontecimento(), st (+14 more)
+### Community 170 - "orcamento/[id]/route.ts"
+Cohesion: 0.08
+Nodes (36): acontecimentoDoPatch(), BaseUltrapassada, PATCH(), runtime, ACONTECIMENTO_DA_PROPOSTA, moverOPedido(), PATCH(), runtime (+28 more)
 
 ### Community 171 - "varrer-aquecimento.ts"
 Cohesion: 0.15
 Nodes (15): chave(), ESPACO_MS, esquecerVarreduraFeita(), marcarVarreduraFeita(), podeVarrer(), dormir(), esquecerVarreduraDeAquecimento(), Lote (+7 more)
 
-### Community 172 - "Foto"
-Cohesion: 0.10
-Nodes (18): Peca, Album, Forma, Foto, NOTA_DA_QUALIDADE, serve(), Foco, DadosDaCapa (+10 more)
+### Community 172 - "uso.ts"
+Cohesion: 0.06
+Nodes (64): submit(), apagarDoBlob(), BlobAvariado, BlobRecusado, cabecalhoNoBlob(), comTravao(), copiarNoBlob(), enderecoPrivado() (+56 more)
 
-### Community 173 - "proposta-de-pdf/index.ts"
-Cohesion: 0.12
-Nodes (16): Caixa, MAX_BYTES_DE_FOTOS, ResultadoDoMotor, ImagemDesenhada, imagensDaPagina(), LeituraDePdf, lerPdf(), LojaDeObjectos (+8 more)
+### Community 173 - "proposta-de-pdf/tipos.ts"
+Cohesion: 0.08
+Nodes (29): imageContentKey(), Caixa, arredondar(), avisoDoQueNaoEraFoto(), bytesDaImagem(), fotosDoPdf(), ImagemLida, MAX_BYTES_DE_FOTOS (+21 more)
 
 ### Community 174 - "Propostas e Temas ao nível Apple — instruções para o Claude Code"
 Cohesion: 0.08
-Nodes (24): 0. Como trabalhar (regras obrigatórias), 1. Resumo — as 5 mudanças que fazem o salto, 2. Como funciona hoje (diagnóstico), 3. Fazer proposta — redesenho (E1–E10), 4. Documento da proposta (PDF) — redesenho (P1–P7), 5. Temas — redesenho ao estilo da app Fotografias (T1–T7), 7. Plano por fases, 8. Prompt para começar (+16 more)
+Nodes (25): 0. Como trabalhar (regras obrigatórias), 1. Resumo — as 5 mudanças que fazem o salto, 2. Como funciona hoje (diagnóstico), 3. Fazer proposta — redesenho (E1–E10), 4. Documento da proposta (PDF) — redesenho (P1–P7), 5. Temas — redesenho ao estilo da app Fotografias (T1–T7), 6. Tokens base (Fase 1), 7. Plano por fases (+17 more)
 
 ### Community 175 - "tarefas-acessibilidade.spec.ts"
-Cohesion: 0.08
-Nodes (9): MEDIDAS, LARGURAS, SERVICOS, hoje(), MARCA, semeadas, semear(), aJanelaTem() (+1 more)
+Cohesion: 0.20
+Nodes (7): PAGES, hoje(), MARCA, semeadas, semear(), @axe-core/playwright@^4.11.3, @axe-core/playwright
 
 ### Community 176 - "scroll-inercia.mjs"
 Cohesion: 0.10
@@ -1308,29 +1325,29 @@ Nodes (22): args, corridas, CPU, CSS_B, DESKTOP, desvio(), emparelhar(), gesto()
 Cohesion: 0.09
 Nodes (23): 1. A tabela, 2. Os alvos, um a um, sem arredondar a meu favor, 3. Porque é que o LCP não desceu: **não é uma fotografia**, 4. O metro de frames que eu tinha, e porque foi deitado fora, 5. A compressão custou alguma coisa? SSIM contra o original, 6. O que foi feito, e porquê, 7. O que fica por fazer, dito por escrito, 8. Como repetir (+15 more)
 
-### Community 178 - "comparar-qualidade.mjs"
-Cohesion: 0.08
-Nodes (19): acumulado, amostra, LARGURAS, N, passo, todos, VARIANTES, EXT (+11 more)
+### Community 178 - "espera.ts"
+Cohesion: 0.13
+Nodes (27): QuoteCard, BASE_OMISSAO, chave(), distanciaKm(), EVORA, kmDeEvora(), kmEntre(), kmPorEstrada() (+19 more)
 
 ### Community 179 - "push.ts"
-Cohesion: 0.15
-Nodes (20): DELETE(), GET(), POST(), runtime, authState, push, VALID_SUB, DATA_FILE (+12 more)
+Cohesion: 0.09
+Nodes (29): web-push, data, data, DELETE(), GET(), POST(), runtime, authState (+21 more)
 
-### Community 180 - "email-assinatura.ts"
-Cohesion: 0.15
-Nodes (19): applyTemplate(), buildClientConfirmation(), ConfirmationArgs, ConfirmationEvent, COPY, firstName(), assinanteDoEmail(), ASSINATURA_CARGO (+11 more)
+### Community 180 - "importar.test.ts"
+Cohesion: 0.10
+Nodes (27): sdk, tecto, POST, escolher(), escolherOTotal(), preparar(), DocumentoCompleto, docx() (+19 more)
 
-### Community 181 - "theme-picker-cache.ts"
-Cohesion: 0.11
-Nodes (19): aquecerFotosEmSegundoPlano(), buscarPrimeiraPagina(), buscarTemas(), emVooPaginas, emVooTemas, fresco(), Guardado, guardarPagina() (+11 more)
+### Community 181 - "DossierClient.tsx"
+Cohesion: 0.10
+Nodes (21): DADOS, desenhar(), QUOTE, DossierClient(), Props, montar(), fmtDate(), Props (+13 more)
 
-### Community 182 - "portugal.ts"
-Cohesion: 0.15
-Nodes (20): BASE_OMISSAO, chave(), distanciaKm(), EVORA, kmDeEvora(), kmEntre(), kmPorEstrada(), Localizacao (+12 more)
+### Community 182 - "migracao.ts"
+Cohesion: 0.06
+Nodes (66): Corpo, dynamic, maxDuration, POST, POST_semMedida(), resposta(), runtime, H (+58 more)
 
 ### Community 183 - "horario-pdf.ts"
-Cohesion: 0.12
-Nodes (20): BlocoDeHora, BRANCO, CABECALHO, cabecalhoDaPrimeira(), CONTORNO, desenharBloco(), emLinhas(), FAIXA (+12 more)
+Cohesion: 0.08
+Nodes (32): Colisao, FolhaDaTimeline(), FolhaDaTimelineProps, BlocoDaFolha, blocosDaFolha(), horaDaFolha(), Buraco, Cruzamento (+24 more)
 
 ### Community 184 - "piscar-subida.mjs"
 Cohesion: 0.08
@@ -1341,16 +1358,16 @@ Cohesion: 0.09
 Nodes (18): A, args, B, corridas, CPU, CSS_B, DESKTOP, dif (+10 more)
 
 ### Community 186 - "(admin)/layout.tsx"
-Cohesion: 0.15
-Nodes (15): guiaoDaMarca(), AdminLayout(), geist, copiarAparencia(), MarcaDoBackOffice(), PARAMS, RAIZES, EscolherAparencia() (+7 more)
+Cohesion: 0.14
+Nodes (16): guiaoDaMarca(), AdminLayout(), geist, copiarAparencia(), MarcaDoBackOffice(), PARAMS, RAIZES, EscolherAparencia() (+8 more)
 
 ### Community 187 - "CuradoriaDeFotos"
-Cohesion: 0.13
-Nodes (19): CuradoriaDeFotos(), anular(), decidir(), largar(), pararMola(), pousar(), teclado(), voltarAoSitio() (+11 more)
+Cohesion: 0.10
+Nodes (27): CuradoriaDeFotos(), anular(), decidir(), largar(), pararMola(), pousar(), teclado(), voltarAoSitio() (+19 more)
 
-### Community 188 - "EmailTemplatesBilingue"
-Cohesion: 0.13
-Nodes (19): insertMerge(), assunto(), ehModelo(), EmailTemplatesBilingue(), enviarTeste(), gravar(), guardar(), inserir() (+11 more)
+### Community 188 - "EmailTemplatesBilingue.falha.test.tsx"
+Cohesion: 0.31
+Nodes (8): abrirHistorico(), editarEPublicar(), espia, MODELOS, montar(), resposta(), Rota, servidor()
 
 ### Community 189 - "Reconstruir o ecrã «Fazer proposta» segundo o sistema da Apple"
 Cohesion: 0.09
@@ -1365,8 +1382,8 @@ Cohesion: 0.09
 Nodes (22): 0.1 Já existe um inventário — mas é de OUTRA coisa *(decidido)*, 0.2 Já existe um `EventChecklist` — e não é este, 0.3 O service worker exclui o back office de propósito, 0. Três coisas que encontrei antes de desenhar, 10. Ordem de construção, 1. Catálogo de material, 2. Listas base, 3.1 É uma cópia, e é por isso que tem colunas a mais (+14 more)
 
 ### Community 192 - "Miniaturas"
-Cohesion: 0.11
-Nodes (13): avisos, contarEGerar(), FALHAS, fotografias(), contagem(), contarEExpandir(), LINHAS, respostaDe() (+5 more)
+Cohesion: 0.16
+Nodes (12): avisos, contarEGerar(), FALHAS, fotografias(), contagem(), contarEExpandir(), LINHAS, respostaDe() (+4 more)
 
 ### Community 193 - "PainelGeracaoAoGanhar.tsx"
 Cohesion: 0.15
@@ -1381,36 +1398,36 @@ Cohesion: 0.09
 Nodes (21): A SEGUIR (1 a 3 meses), AGORA (2 a 4 semanas), DEPOIS (3 a 12 meses), O que está bem (e não se pode estragar), O que se vê de errado, por ordem de gravidade, Parte 0 · O essencial, Parte 10 · Segurança e fiabilidade, Parte 11 · Áreas que ainda não existem (+13 more)
 
 ### Community 196 - "PDF-BEFORE — autópsia do PDF de proposta"
-Cohesion: 0.09
-Nodes (21): 1. Peso, 2. As imagens, uma a uma, 3. Duplicados: não há, 4. PNG em fotografias: não há, 5. ⚠️ Transparência: o logótipo, em todas as páginas, 6. ⚠️ Fontes: embebidas, mas NÃO em subconjunto, 7. Espaço de cor: limpo, 8. ⚠️ Estrutura: não linearizado (+13 more)
+Cohesion: 0.11
+Nodes (18): 1. Peso, 2. As imagens, uma a uma, 3. Duplicados: não há, 4. PNG em fotografias: não há, 5. ⚠️ Transparência: o logótipo, em todas as páginas, 6. ⚠️ Fontes: embebidas, mas NÃO em subconjunto, 7. Espaço de cor: limpo, 8. ⚠️ Estrutura: não linearizado (+10 more)
 
 ### Community 197 - "alvos-de-toque-do-sitio.test.tsx"
 Cohesion: 0.15
 Nodes (12): alvosDaArvore(), descer(), texto(), classesDe(), declaraAlturaDeToque(), descrever(), ehPalavraNumaFrase(), ehSoParaLeitorDeEcra() (+4 more)
 
-### Community 198 - "pricing.ts"
-Cohesion: 0.17
-Nodes (13): Agente 1 — Caminhos infelizes, Avisos para quem corrigir, Já conhecido e escrito no código, O que NÃO foi coberto, calculatePrice(), formatPrice(), isWeekend(), PriceBreakdown (+5 more)
+### Community 198 - "sharp"
+Cohesion: 0.06
+Nodes (27): Agente 1 — Caminhos infelizes, Avisos para quem corrigir, Já conhecido e escrito no código, O que NÃO foi coberto, sharp, guardadas, guardar, ler (+19 more)
 
-### Community 199 - "MoodBoardIndice.tsx"
-Cohesion: 0.15
-Nodes (16): Índices e listas laterais, @dnd-kit/core@^6.3.1, @dnd-kit/utilities@^3.2.2, @dnd-kit/core, @dnd-kit/sortable, @dnd-kit/utilities, EntradaDoIndice(), MoodBoardIndice() (+8 more)
+### Community 199 - "janela-a-pedido.tsx"
+Cohesion: 0.09
+Nodes (22): Props, GLOSSARY, GlossaryEntry, LIFECYCLE, LifecycleStep, AjudaGlossario, AVISO_SEM_LIGACAO, chaves (+14 more)
 
-### Community 200 - "contract-terms.ts"
-Cohesion: 0.18
-Nodes (12): accepted(), contrato(), CP1252_ALTO, acceptedContract(), DEFAULT_TERMS, DEFAULT_TERMS_EN, termosPara(), TERMS_VERSION (+4 more)
+### Community 200 - "cobrancas.ts"
+Cohesion: 0.13
+Nodes (22): aceiteDe(), cobrancaDoPedido(), comORecebido(), comPagamentoRecebido(), diaDoSinalDe(), diasDesdeOLembrete(), diasEntre(), MesDaPrevisao (+14 more)
 
 ### Community 201 - "TEMAS — Parte A: o esquema novo e o plano de migração"
 Cohesion: 0.10
 Nodes (20): 10. Decidido, 11. Duas consequências boas que caem de graça, 1. A mudança, numa frase, 2. A semântica: **«e» quer dizer «e»**, 3. O que **não** muda (e é de propósito), 4.1 O vocabulário — `biblioteca_etiquetas`, 4.2 As fotos — `biblioteca_fotos`, 4.3 A ligação — `biblioteca_foto_etiquetas` (+12 more)
 
 ### Community 202 - "Desempenho — o que medimos, e o que está mesmo a atrasar"
-Cohesion: 0.10
-Nodes (19): 1. Primeiro carregamento de `/orcamento/admin`, 2. Mudar de vista, 3. Onde a thread principal bloqueia mais de 50 ms, 4. Com volume a sério — 300 pedidos, 194 propostas, 159 faturas, 5. O site público, 6. O PDF da proposta, A cascata, Como isto foi medido (e em que confiar) (+11 more)
+Cohesion: 0.08
+Nodes (21): 1. Primeiro carregamento de `/orcamento/admin`, 2. Mudar de vista, 3. Onde a thread principal bloqueia mais de 50 ms, 4. Com volume a sério — 300 pedidos, 194 propostas, 159 faturas, 5. O site público, 6. O PDF da proposta, A cascata, Como isto foi medido (e em que confiar) (+13 more)
 
 ### Community 203 - "Inventário do site público da Líquen Events"
-Cohesion: 0.10
-Nodes (19): 10. Desempenho, 11. Acessibilidade, 12. Testes e CI, 13. Documentos sobre o sítio público, 14. O back office (resumo), 15. O que o sítio NÃO tem (verificado), 1. Pilha, versões e alojamento, 2.1 Como funciona o i18n (+11 more)
+Cohesion: 0.07
+Nodes (27): 10. Desempenho, 11. Acessibilidade, 12. Testes e CI, 13. Documentos sobre o sítio público, 14. O back office (resumo), 15. O que o sítio NÃO tem (verificado), 1. Pilha, versões e alojamento, 2.1 Como funciona o i18n (+19 more)
 
 ### Community 204 - "Meta Ads — relatório final e plano de arranque"
 Cohesion: 0.10
@@ -1421,32 +1438,32 @@ Cohesion: 0.10
 Nodes (19): 4:5 — feed, 9:16 — Reels e Stories, Antes de tudo: o que decide se um anúncio funciona, As peças que já existem, prontas a publicar, C01 — "A mesa antes de alguém se sentar" [foto], C02 — "A montagem em três horas" [filmar], C03 — "Espaço a mais, sombra a menos" [foto], C04 — "Sessenta ou trezentos" [foto] (+11 more)
 
 ### Community 206 - "contacto-do-pedido.ts"
-Cohesion: 0.16
-Nodes (15): libphonenumber-js@1.13.15, libphonenumber-js, compactar(), indicativoDe(), Pais, PAIS_POR_OMISSAO, paisDoNumero(), paisOuOmissao() (+7 more)
+Cohesion: 0.19
+Nodes (14): compactar(), indicativoDe(), normalizarTelefone(), Pais, PAIS_POR_OMISSAO, paisDoNumero(), paisOuOmissao(), paisPrincipalDe() (+6 more)
 
 ### Community 207 - "medir-entrada-admin.mjs"
 Cohesion: 0.17
 Nodes (18): args, BASE, CAMINHO, canalLinear(), capturar(), confirmarQueEAEntrada(), contrasteComBranco(), ETIQUETA (+10 more)
 
-### Community 208 - "ThemeImage"
-Cohesion: 0.13
-Nodes (14): BulkProgress, downloadMany(), downloadName(), downloadOne(), PhotoLightboxProps, FOTOS, montar(), PaginaDeTema (+6 more)
+### Community 208 - "balde.ts"
+Cohesion: 0.11
+Nodes (33): emBytes(), erro(), esquecerJuncoes(), guardarNoBlob(), hex(), indiceOuVazio(), metodosComBlob(), cacheDoSupabase() (+25 more)
 
 ### Community 209 - "proposal-preview-cache.ts"
 Cohesion: 0.15
-Nodes (11): CachePorBytes, criarCachePorBytes(), nova(), DocTruncation, aDesenhar, chaveDaVersao(), estadoDosPdfsFinais(), esvaziarPdfsFinais() (+3 more)
+Nodes (11): CachePorBytes, criarCachePorBytes(), nova(), aDesenhar, chaveDaVersao(), estadoDosPdfsFinais(), esvaziarPdfsFinais(), faltasPassageiras() (+3 more)
 
 ### Community 210 - "proposal-pdf.ts"
-Cohesion: 0.12
-Nodes (11): CP1252_ALTO, A4, INK, LINE, Meta, MOSS, MUTED, CP1252_ALTO (+3 more)
+Cohesion: 0.09
+Nodes (17): CP1252_ALTO, Proposal, nomeDoPedido(), ultimaEnviadaPorPedido(), ValorDivergente, valoresDiferentesDoEnviado(), A4, INK (+9 more)
 
-### Community 211 - "tipos.ts"
-Cohesion: 0.15
-Nodes (16): impresso(), proposta(), idaEVolta(), arrumarFotos(), lerPropostaDePdf(), Aviso, compactar(), documentoDeCampos() (+8 more)
+### Community 211 - "hero-image-loader.ts"
+Cohesion: 0.18
+Nodes (11): browserTemAvif(), HERO_BY_ROUTE, HeroWarm(), prepararHeroiDe(), prontas, rotaDoHref(), aquecer(), FalsaImagem (+3 more)
 
-### Community 213 - "MaterialListas"
-Cohesion: 0.23
-Nodes (18): Agente 9 — Erros silenciosos, Onde NÃO há defeito (para não voltarem lá), apagarMesmo(), applyBulkStatus(), contarMaisUmNoLote(), esquecerDaSeleccao(), MaterialListas(), acrescentarLinha() (+10 more)
+### Community 213 - "Notas da Líquen — o júri independente de 17/11"
+Cohesion: 0.06
+Nodes (35): 10. Fiabilidade e testes — 7/10, 11. Estrutura do código — 5/10, 1. Site público — 7/10, 2. Desempenho — 8/10, 3. Acessibilidade — 8/10, 4. Back office — 7/10, 5. «Fazer proposta» — 7/10, 7. Segurança — 8/10 (+27 more)
 
 ### Community 214 - "Melhorias ao fluxo «Fazer proposta» do back office da Líquen Events"
 Cohesion: 0.11
@@ -1457,7 +1474,7 @@ Cohesion: 0.11
 Nodes (18): GITHUB_TOKEN, name, runs-on, steps, timeout-minutes, jobs, gitleaks, name (+10 more)
 
 ### Community 216 - "remotion"
-Cohesion: 0.23
+Cohesion: 0.22
 Nodes (14): remotion, GoldParticles(), mod(), Props, pseudoRandom(), Intro(), LogoLockup(), Props (+6 more)
 
 ### Community 217 - "gen-nomes-genero.mjs"
@@ -1465,24 +1482,24 @@ Cohesion: 0.12
 Nodes (15): algum(), destino, doRegisto, emPortugal, emTodoOLado, EXCLUIR, FEM, femininos (+7 more)
 
 ### Community 218 - "GrelhaDoDia.tsx"
-Cohesion: 0.22
-Nodes (15): BlocoLi(), fraseDoBloco(), GrelhaDoDia(), GrelhaDoDiaProps, Losango(), desenhar(), PainelDeHoje(), AnaliseDoDia (+7 more)
+Cohesion: 0.28
+Nodes (11): fraseDoBloco(), GrelhaDoDia(), GrelhaDoDiaProps, Losango(), desenhar(), AnaliseDoDia, ColunaDeResponsavel, horasDaJanela() (+3 more)
 
-### Community 219 - "Sala"
+### Community 219 - "Sala.tsx"
 Cohesion: 0.12
-Nodes (10): encaixar(), Sala(), aoBaixar(), aoMover(), desenhar(), vista(), alargarSala(), alinhar() (+2 more)
+Nodes (20): ICONE_DO_ELEMENTO, Caixa, DesenhoDaMesa(), encaixar(), Margens, Sala(), aoMover(), Seleccao (+12 more)
 
 ### Community 220 - "Preparador"
-Cohesion: 0.18
-Nodes (6): corpoDe(), FalhaTemporaria, guardar(), impressao(), paginasAPreparar(), Preparador
+Cohesion: 0.20
+Nodes (3): paginasAPreparar(), Preparador, preparadorDe()
 
 ### Community 221 - "GaleriaClient.visualizador.test.tsx"
-Cohesion: 0.12
+Cohesion: 0.11
 Nodes (7): abrir(), camada(), CORES, deslizar(), dialogo(), fotoAberta(), photos
 
-### Community 222 - "email-template-format.ts"
-Cohesion: 0.18
-Nodes (15): get, modelo(), so(), buildSimpleEmailHtml(), codigoParaTexto(), construirCorpoDeModelo(), desencostarBlocos(), EXAMPLE_VARS (+7 more)
+### Community 222 - "mapeamento-e-schema.test.ts"
+Cohesion: 0.13
+Nodes (20): DIVERGENCIAS_CONHECIDAS, analisar(), colunasPorTabela(), esquema(), MapperQualquer, MAPPERS, NAO_TOCADAS, tiposPorTabela() (+12 more)
 
 ### Community 223 - "compilerOptions"
 Cohesion: 0.11
@@ -1493,7 +1510,7 @@ Cohesion: 0.11
 Nodes (17): 1. O que se passa hoje, em duas linhas, 2. SPF, DKIM e DMARC — em português, 3. As opções, com o que custam e o que exigem em DNS, 4. O que se ganha, 5. O que se arrisca — e isto é o parágrafo importante, 6. A ordem segura, 7. Como se verifica que ficou bem — antes de mandar correio a sério, 8. O que ficou por apurar (+9 more)
 
 ### Community 225 - "gestos-em-simultaneo.mjs"
-Cohesion: 0.15
+Cohesion: 0.16
 Nodes (12): analisar(), comEcra(), entrar(), ESTADO, FINGIR_APAGAR_OK(), GRAVADOR(), irParaPedidos(), medir() (+4 more)
 
 ### Community 226 - "jobs"
@@ -1509,28 +1526,28 @@ Cohesion: 0.11
 Nodes (17): image, jobs, semgrep, name, on, push, permissions, contents (+9 more)
 
 ### Community 229 - "email-devolvido.ts"
-Cohesion: 0.16
-Nodes (16): imapflow@2.9.1, imapflow, Envio, esquecerVerificacoes(), EstadoDaEntrega, estadoDaEntrega(), guardados, JANELA_DIAS (+8 more)
+Cohesion: 0.19
+Nodes (14): Envio, esquecerVerificacoes(), EstadoDaEntrega, estadoDaEntrega(), guardados, JANELA_DIAS, pesquisaDoGmail(), Procurar (+6 more)
 
 ### Community 230 - "auditar-percursos-movel.mjs"
 Cohesion: 0.22
 Nodes (16): achado(), achados, APARELHOS, capturar(), CAPTURAS, ehGaveta(), entrar(), irPara() (+8 more)
 
 ### Community 231 - "orcamento/route.test.ts"
-Cohesion: 0.16
-Nodes (16): GET, POST, authed, confirmacaoAoCliente(), correrDepois(), depois, dominio, enviarTudo() (+8 more)
+Cohesion: 0.09
+Nodes (32): dynamic, GET(), CONFIANCA, DE_INSPIRACAO, deConfianca(), dominioDe(), DOMINIOS_DE_CONFIANCA, eDeConfianca() (+24 more)
 
 ### Community 232 - "Fluidez.contrato.test.ts"
 Cohesion: 0.12
 Nodes (9): BARRAS, CROMAGEM_PUBLICA, css, eLayout(), LAYOUT, PERDOADAS_NA_CROMAGEM, PERDOADAS_NO_CSS, RAIZ (+1 more)
 
-### Community 233 - "deslocacao.ts"
-Cohesion: 0.21
-Nodes (16): DefinicoesDaProposta, Parametros, cent(), custoPorKm(), eur(), explicarCustoKm(), KM_PARA_DORMIR_FORA, kmEscritos() (+8 more)
-
-### Community 234 - "contract-pdf.ts"
+### Community 233 - "proposta-definicoes-store.ts"
 Cohesion: 0.14
-Nodes (15): A4, fmtDateTime(), GOLD, INK, LINE, MOSS, MUTED, PALAVRAS_EN (+7 more)
+Nodes (18): DefinicoesDaProposta, OMISSAO, Parametros, ParametrosDeslocacao, MARGEM_MINIMA_OMISSAO, combustivelDesactualizado(), Definicao, DefinicaoId (+10 more)
+
+### Community 234 - "verificar.ts"
+Cohesion: 0.14
+Nodes (27): analisarIva(), AnaliseDoIva, Candidato, curto(), E_DESCONTO, E_HORA, formatoDoDocumento(), MarcaDoIva (+19 more)
 
 ### Community 235 - "Sistema de design do back office — o software da Apple, replicado"
 Cohesion: 0.12
@@ -1552,17 +1569,17 @@ Nodes (14): amostras, boards, caminhos, clienteVivo, dir, dirMini, email, inicio
 Cohesion: 0.18
 Nodes (15): analisarConcorrencia(), analisarDesfoque(), calcularAntecipacao(), EH_IMAGEM(), ESPERA_MS, JSON_OUT, kb(), medirPerfil() (+7 more)
 
-### Community 240 - "espera.ts"
-Cohesion: 0.23
-Nodes (14): QuoteCard, A_ESPERAR_RESPOSTA, Contexto, contextoDeLocal(), diasDeEspera(), esperaEmPalavras(), mesesDeEvento(), plannersDe() (+6 more)
+### Community 240 - "mapa-de-mesas.ts"
+Cohesion: 0.11
+Nodes (40): aEscrever(), agrupar(), Anel(), Gesto, Props, ResumoDoEvento, Vista, IconePartilhar() (+32 more)
 
 ### Community 241 - "NavEstudio.test.tsx"
 Cohesion: 0.18
 Nodes (16): fraseDasTraducoes(), NavEstudio(), saltarPara(), aparece(), CORTES_DA_CASA, desenharEm(), efectivas(), faltas (+8 more)
 
-### Community 242 - "guardado.ts"
-Cohesion: 0.22
-Nodes (14): bytesDeImagemPorEndereco(), chaveDoGuardado(), esquecerGuardados(), guardadoOuCalculado(), memoria, estado, VERSAO_DO_GUARDADO, conteudoGuardado() (+6 more)
+### Community 242 - "Agente 4 — Templates e variáveis"
+Cohesion: 0.16
+Nodes (23): Agente 4 — Templates e variáveis, Como reproduzir, O que foi testado e não deu nada, MARCADOR_DA_LIGACAO, resolverLigacaoDaProposta(), temLigacaoDaProposta(), VALOR_DA_LIGACAO_NO_RASCUNHO, corpoEnviavel() (+15 more)
 
 ### Community 243 - "As decisões, com as razões"
 Cohesion: 0.12
@@ -1576,9 +1593,9 @@ Nodes (15): A. Barra de topo e identidade, B. A grelha — o essencial, C. O pai
 Cohesion: 0.12
 Nodes (15): A. Barra de topo, A fase 11, ponto a ponto (Parte 6), B. Criar uma tarefa, C. A lista, D. Comportamento e espaço, O QUE JÁ ESTÁ FEITO, PARTE 1 — AUDITORIA, PARTE 2 — A ARQUITETURA NOVA (+7 more)
 
-### Community 246 - "PROMPT — Reconstruir o ecrã "Temas" segundo o sistema da Apple"
-Cohesion: 0.12
-Nodes (15): A. Identidade e barra de topo, B. A coleção, C. O detalhe do tema, ISTO ESTÁ PROMETIDO, E A PROMESSA ESTÁ AQUI E NÃO NUMA CONVERSA, O QUE JÁ ESTÁ FEITO, PARTE 1 — AUDITORIA, PARTE 2 — A ARQUITETURA NOVA, PARTE 3 — COMPONENTES (+7 more)
+### Community 246 - "CLAUDE.md"
+Cohesion: 0.06
+Nodes (33): Como trabalhar comigo, E a proposta online também, E as melhorias desse ecrã também, E as propostas e os temas, todos juntos, também têm o seu, E há três ecrãs com documento próprio à espera, E o arquivo dos PDFs também, E o design NOVO do PDF, de 23/10, E o ecrã de entrada tem outro (+25 more)
 
 ### Community 247 - "O estado da Líquen — para quem vem avaliar a qualidade"
 Cohesion: 0.12
@@ -1586,7 +1603,7 @@ Nodes (15): 0. O que é a Líquen, em três linhas, 1. Como está construído, 2
 
 ### Community 248 - "Camada a camada"
 Cohesion: 0.12
-Nodes (15): As três dependências novas, Camada 10 — Portões no CI · **6 DOS 7**, Camada 1 — Testes de propriedade · **NÃO EXISTE**, Camada 2 — Fuzzing de entradas · **PARCIAL**, Camada 3 — Ponta a ponta · **PARCIAL, e o buraco é grande**, Camada 4 — Regressão visual · **NÃO EXISTE**, Camada 7 — Privacidade e exposição · **A MAIS BEM FEITA DAS DEZ**, Camada 8 — Resiliência · **PARCIAL** (+7 more)
+Nodes (16): As três dependências novas, Camada 10 — Portões no CI · **6 DOS 7**, Camada 1 — Testes de propriedade · **NÃO EXISTE**, Camada 2 — Fuzzing de entradas · **PARCIAL**, Camada 3 — Ponta a ponta · **PARCIAL, e o buraco é grande**, Camada 4 — Regressão visual · **NÃO EXISTE**, Camada 5 — Verificação de conteúdo · **METADE, e a metade que falta é a do CI**, Camada 7 — Privacidade e exposição · **A MAIS BEM FEITA DAS DEZ** (+8 more)
 
 ### Community 249 - "Reconstruir o ecrã de início de sessão da Líquen segundo o sistema da Apple"
 Cohesion: 0.12
@@ -1600,53 +1617,53 @@ Nodes (10): args, dormir(), encherAPilha(), ESPALHADO, falhas, quantosAvisos(), 
 Cohesion: 0.12
 Nodes (15): Como foi medido, E uma terceira, a maior de todas, Estrutura, secção a secção, Formulário, LP-AUDIT — o que existe hoje e o que tem de mudar para a Meta, O achado: o pré-aquecimento de capas dispara nas páginas pagas, O banner de cookies manda no LCP (01/08/2026), O que estas páginas assumem sobre quem chega (+7 more)
 
-### Community 252 - "reminders/route.test.ts"
+### Community 252 - "calendario/route.ts"
 Cohesion: 0.12
-Nodes (5): data, H, data, GET, data
+Nodes (15): 2. A Fase 3 (alternativas) ficou de fora de cinco inventários, 3. Uma regra escrita num sítio e não noutro, 4. A página do casal é a superfície menos protegida, 5. O erro silencioso de fronteira, 6. Os gestos destrutivos não foram revistos desde que o modelo mudou, Padrões — o que estes 131 têm em comum, dynamic, KINDS (+7 more)
 
-### Community 253 - "EventTimeline"
-Cohesion: 0.25
-Nodes (16): EventTimeline(), add(), aplicarMomentos(), commitDuracao(), commitEdit(), desistirDoCampo(), editKeys(), escreverNoCampo() (+8 more)
+### Community 253 - "Guioes.tsx"
+Cohesion: 0.03
+Nodes (111): O QUE SE MOVEU (convergência, não duplicação), BlocoLi(), montar(), EditableField, EventTimeline(), add(), aplicarMomentos(), commitDuracao() (+103 more)
 
 ### Community 254 - "renderStudio"
-Cohesion: 0.16
-Nodes (16): comDeslocacaoDe140(), comUmaCelulaAEsperar(), contentorDe(), fila(), grelha(), irAoPasso(), jaSincronizado(), pecas() (+8 more)
+Cohesion: 0.19
+Nodes (14): comUmaCelulaAEsperar(), contentorDe(), fila(), grelha(), irAoPasso(), jaSincronizado(), pecas(), ramosDaBarra() (+6 more)
 
-### Community 255 - "escala.ts"
-Cohesion: 0.26
-Nodes (13): definirEscala(), definirUnitario(), CONVIDADOS_POR_MESA_OMISSAO, convidadosDoDoc(), Escala, escalasDe(), eur(), formulaDaLinha() (+5 more)
+### Community 255 - "EntradaComFotografia.tsx"
+Cohesion: 0.13
+Nodes (21): O QUE JÁ ESTÁ FEITO, DIA_EM_LISBOA, EntradaComFotografia(), ESCADA_FAIXA, ESCADA_PAINEL, fotografiaDoDia(), HORA_EM_LISBOA, PeriodoDoDia (+13 more)
 
 ### Community 256 - "Segmented.marca.test.tsx"
 Cohesion: 0.15
 Nodes (7): avisados, ligarAsMedidas(), OPCOES, fingirDisposicao(), OFFSETS, originais, reporDisposicao()
 
 ### Community 257 - "usePaginaReal.ts"
-Cohesion: 0.17
-Nodes (15): enderecoNoArmazem(), escreverNoNavegador(), Guardada, guardadas, GUARDADAS_MAX, guardarUltima(), lerDoNavegador(), PaginaReal (+7 more)
+Cohesion: 0.12
+Nodes (19): corpoDe(), enderecoNoArmazem(), escreverNoNavegador(), esperaDoServidor(), FalhaTemporaria, geracaoDasFotos, geracaoRecente(), Guardada (+11 more)
 
 ### Community 258 - "conversoes-offline.ts"
 Cohesion: 0.18
-Nodes (11): ParametroClique, construirConversoes(), Excluido, formatarInstante(), FUSO, instanteDoFecho(), LinhaConversao, MotivoExclusao (+3 more)
+Nodes (12): desserializar(), ParametroClique, construirConversoes(), Excluido, formatarInstante(), FUSO, instanteDoFecho(), LinhaConversao (+4 more)
 
-### Community 259 - "temas-filtros.test.ts"
-Cohesion: 0.22
-Nodes (12): Ambito, ambitoResponde(), AMBITOS, ambitosDisponiveis(), contarPorAmbito(), DadosDeUso, eAmbito(), filtrarPorAmbito() (+4 more)
+### Community 259 - "ref_react"
+Cohesion: 0.02
+Nodes (113): AdminLogin(), entrarPorDispositivo(), submit(), AvisoDeRecusa(), lerDestinoDoUrl(), OlhoAberto(), OlhoFechado(), Foco (+105 more)
 
 ### Community 260 - "totp.ts"
 Cohesion: 0.23
 Nodes (13): base32Decode(), generateTotpSecret(), hotp(), idDoSegredo(), limparGastos(), matchStep(), passosGastos, resetTotpUsage() (+5 more)
 
 ### Community 261 - "nada-fica-por-montar.test.ts"
-Cohesion: 0.15
+Cohesion: 0.16
 Nodes (12): ADMIN, alcancaveis(), ALCANCAVEIS, conteudo, ECRAS, ENTRADAS, ficheiros(), POR_MONTAR (+4 more)
 
 ### Community 262 - "Fase 1 — Mercado"
 Cohesion: 0.13
 Nodes (14): (a) Intenção alta e local — já tem data e zona, (b) Espaços — a montante, ainda não escolheu decoração, (c) Estilos — decide a estética, muitas vezes sem data marcada, Concorrência: o que encontrei, (d) Wedding planners — público-alvo, não concorrente, (e) Internacional em inglês, Fase 1 — Mercado, Keywords, agrupadas por intenção (+6 more)
 
-### Community 263 - "3. Sistema de design do sítio público"
-Cohesion: 0.13
-Nodes (14): 3. Sistema de design do sítio público, Durações e curvas, Espaço, raio, tipo, Ficheiros de estilo, Modo escuro, Selecção, foco, scrollbar, Tipos de letra (`src/app/[lang]/layout.tsx`), Tokens de cor (+6 more)
+### Community 263 - "marcar/route.ts"
+Cohesion: 0.11
+Nodes (20): ACCOES, carimboNaLinha(), dynamic, Eixo, eixoDe(), maxDuration, POST(), runtime (+12 more)
 
 ### Community 264 - "Registo da adaptação a mobile"
 Cohesion: 0.13
@@ -1676,29 +1693,29 @@ Nodes (12): FilmGrain(), jitter(), Vignette(), FootageInterlude(), pr(), Props, 
 Cohesion: 0.19
 Nodes (12): FOOTAGE_FILE, FPS, INTRO_SECONDS, MUSIC_FILE, OUTRO_SECONDS, PAGE_SCENES, SceneDef, SCENES (+4 more)
 
-### Community 271 - "memoria-de-precos.ts"
-Cohesion: 0.19
-Nodes (14): MemoriaResposta, chaveDoServico(), Historico, historicoDe(), LIMIAR_DE_HABITO, Linha, linhasCobradas(), mediana() (+6 more)
+### Community 271 - "quotes-store.ts"
+Cohesion: 0.03
+Nodes (79): dynamic, GET(), runtime, dynamic, GET(), lerDivergentes(), maxDuration, POST() (+71 more)
 
-### Community 272 - "AvisoDeArmazenamento.test.tsx"
-Cohesion: 0.19
-Nodes (11): AvisoDeArmazenamento(), BASE, COPIA_PARADA, esquecerEstadoDoArmazenamento(), EstadoDoArmazenamentoLido, perguntar(), pedidos, respostaDe() (+3 more)
+### Community 272 - "proposta-de-pdf/tipos.ts"
+Cohesion: 0.12
+Nodes (19): Colheita, folhaAMao(), lida(), p(), pagina(), PedacoDeTexto, CampoPorLer, CampoProposto (+11 more)
 
 ### Community 273 - "Temas.split.test.tsx"
-Cohesion: 0.16
+Cohesion: 0.15
 Nodes (9): abrir(), arrastarPara(), cartao(), chave(), corpos(), desenhar(), Res, TEMAS (+1 more)
 
-### Community 274 - "movimento-da-proposta.test.tsx"
-Cohesion: 0.16
-Nodes (7): LayoutPrivado(), metadata, PLAYFAIR_DA_PROPOSTA, BLOCO, CSS, GUIAO_DO_MOVIMENTO, MovimentoDaProposta()
+### Community 274 - "SmoothScroll.tsx"
+Cohesion: 0.09
+Nodes (21): O movimento de estúdio (31/10), LayoutPrivado(), metadata, PLAYFAIR_DA_PROPOSTA, BLOCO, CSS, GUIAO_DO_MOVIMENTO, MovimentoDaProposta() (+13 more)
 
 ### Community 275 - "GaleriaClient.scroll-restore.test.tsx"
 Cohesion: 0.14
 Nodes (6): filaRaf, flushRaf(), photos, renderGaleria(), saltos, scrollAte()
 
-### Community 276 - "SupabaseBackend"
-Cohesion: 0.23
-Nodes (4): criarSupabaseFalso(), repoSempreEmConflito(), comEstadoHttp(), SupabaseBackend
+### Community 276 - "repository.ts"
+Cohesion: 0.06
+Nodes (29): @supabase/supabase-js, avariaConhecida(), mapper, Caso, CASOS, criarSupabaseFalso(), MapperQualquer, repoSempreEmConflito() (+21 more)
 
 ### Community 277 - "RegistoDoVideo"
 Cohesion: 0.21
@@ -1712,9 +1729,9 @@ Nodes (13): A ordem que proponho, ADAPTIVE-PLAN — que forma cada ecrã do back
 Cohesion: 0.14
 Nodes (13): A regra que decide se se usa alguma coisa disto, ADAPTIVE-PRIMITIVES — as peças que mudam de forma, `CampoData`, `FolhaOuDialogo`, `MenuDeAccoes`, `montado` — a parte que se esquece e estraga tudo, O que ainda não é primitivo, e devia, Os dois eixos, que não são o mesmo (+5 more)
 
-### Community 280 - "CLAUDE.md"
-Cohesion: 0.14
-Nodes (13): E a proposta online também, E as melhorias desse ecrã também, E as propostas e os temas, todos juntos, também têm o seu, E o design NOVO do PDF, de 23/10, E o ecrã de entrada tem outro, E o ecrã «Fazer proposta» tem um documento só dele, E o guião do dia também, E o mapa de mesas tem o seu (+5 more)
+### Community 280 - "arquivo.test.ts"
+Cohesion: 0.06
+Nodes (58): 1. O fluxo exacto, do clique à escrita final, 2. Copia bytes? Quantos e para onde?, 3. Reprocessa a imagem?, 4. Quantas idas ao servidor por foto?, 5. Porque é que a barra fica presa em 0%?, 6. O "Parar" cancela mesmo alguma coisa?, 7. Medições com Playwright, A resposta curta (+50 more)
 
 ### Community 281 - "Redesenho do PDF de proposta da Líquen Events"
 Cohesion: 0.14
@@ -1729,8 +1746,8 @@ Cohesion: 0.14
 Nodes (13): Comandos úteis, Como trabalhar com esta dona, Decisões pendentes (à espera da dona), Estado de acessibilidade (já tratado), Ficheiros-chave, Galeria — como adicionar fotos (fluxo de UM comando), Git / PRs, Passagem de testemunho — Projeto Líquen Events (+5 more)
 
 ### Community 284 - "PageSlide.tsx"
-Cohesion: 0.25
-Nodes (9): Cursor(), Props, PageSlide(), Props, PhoneSlide(), Props, SITE_DOMAIN, easeInOutCubic() (+1 more)
+Cohesion: 0.27
+Nodes (9): Cursor(), Props, PageSlide(), Props, PhoneSlide(), Props, COLORS, easeInOutCubic() (+1 more)
 
 ### Community 285 - "compilerOptions"
 Cohesion: 0.14
@@ -1748,33 +1765,33 @@ Nodes (13): bloquearArmazenamento(), bloquearServiceWorker(), ECRA, JSON_OUT, ma
 Cohesion: 0.24
 Nodes (13): APLICAR, bytesDe(), ficheiros(), gravar(), gravarMicro(), jaTem(), jaTemMicro(), lqipDe() (+5 more)
 
-### Community 289 - "FileBackend"
-Cohesion: 0.31
-Nodes (3): B14 · Escrita de ficheiros não atómica · `lib/repository.ts:274-285`, duplicateKeyError(), FileBackend
+### Community 289 - "repository.test.ts"
+Cohesion: 0.09
+Nodes (12): B14 · Escrita de ficheiros não atómica · `lib/repository.ts:274-285`, duplicateKeyError(), FileBackend, Repository, crudSuite(), Ficheiro, ficheiroMapper, Widget (+4 more)
 
 ### Community 290 - "email-templates/route.ts"
 Cohesion: 0.20
 Nodes (11): dynamic, GET(), POST, PUT, runtime, authed, store, valid (+3 more)
 
-### Community 291 - "analise-de-propostas.ts"
-Cohesion: 0.24
-Nodes (11): analisar(), analisarExtras(), AnaliseDeExtras, AnaliseDePropostas, Contagem, diasEntre(), media(), mediana() (+3 more)
+### Community 291 - "envios-de-proposta.ts"
+Cohesion: 0.12
+Nodes (20): dynamic, GET(), runtime, auth, AnexoEnviado, chaveDosEnvios(), comoEnvio(), ehChaveDeEnvios() (+12 more)
 
 ### Community 292 - "pedidos-duplicados.ts"
 Cohesion: 0.29
 Nodes (12): diaDoEvento(), emailComparavel(), limpo(), MotivoDoDuplicado, motivoDoDuplicado(), nomeComparavel(), possiveisDuplicados(), PossivelDuplicado (+4 more)
 
-### Community 293 - "linhas.ts"
-Cohesion: 0.21
-Nodes (9): rotuloEValorNaMesmaCorrida(), caixaDe(), Corrida, eRotulo(), inicioDeColuna(), linhaComRotulo(), linhasDaPagina(), seguimentoAbaixo() (+1 more)
+### Community 293 - "2. Problemas, com prova"
+Cohesion: 0.06
+Nodes (31): 0. Em resumo, 1.1 Tamanhos, 1.2 As tabelas, 1.3 Os espaços de nomes do `app_state`, 1. Mapa, 2. Problemas, com prova, 3. A nota, 4. O plano (+23 more)
 
 ### Community 294 - "proposta-web/mosaico.ts"
 Cohesion: 0.25
 Nodes (11): arranjo(), buracos(), Celula, CelulaDoMosaico, falta(), grelha(), LADO_DA_GRANDE, mosaicoDoCapitulo() (+3 more)
 
-### Community 295 - "Resposta às 7 perguntas"
-Cohesion: 0.15
-Nodes (12): 1. O fluxo exacto, do clique à escrita final, 2. Copia bytes? Quantos e para onde?, 3. Reprocessa a imagem?, 4. Quantas idas ao servidor por foto?, 5. Porque é que a barra fica presa em 0%?, 6. O "Parar" cancela mesmo alguma coisa?, 7. Medições com Playwright, A resposta curta (+4 more)
+### Community 295 - "fase-do-pedido.test.ts"
+Cohesion: 0.12
+Nodes (20): EventoDossierPage(), CheckIcon(), STAGE_STEP, StageId, StageState, STATE_HINT, STEPS, faseDoPedido() (+12 more)
 
 ### Community 296 - "7. O QUE FALTA E FARIA DIFERENÇA"
 Cohesion: 0.15
@@ -1789,44 +1806,44 @@ Cohesion: 0.15
 Nodes (12): 1. `event_generation` — o registo do que já foi gerado, 2. Material — **nenhuma tabela nova**, 3. Plano de montagem — **nenhuma tabela nova**, 4. Datas-chave — **nenhuma tabela nova**, 5. Pagamentos — **nenhuma tabela nova**, A decisão de fundo: gerar UMA VEZ, e depois largar, As três perguntas que preciso que respondas, Bloco 6 — da proposta aceite para a operação (+4 more)
 
 ### Community 299 - "sw.js"
-Cohesion: 0.19
-Nodes (6): aparar(), buscarEGuardar(), isBypassed(), isCarregamento(), PRECACHE, vaiParaODisco()
-
-### Community 300 - "exportar-instagram.mjs"
-Cohesion: 0.24
-Nodes (12): esc(), folha(), legendas(), lerCampanhas(), lerConceitos(), lerVariantes(), linkDoAnuncio(), main() (+4 more)
-
-### Community 301 - "orcamento/[id]/route.test.ts"
-Cohesion: 0.15
-Nodes (8): apagamento, authed, contratos, propostas, reciclagem, rl, semeador, store
-
-### Community 302 - "Propostas.test.tsx"
 Cohesion: 0.17
-Nodes (8): authed, enviada(), store, TRES, aceitar(), desenharTabela(), proposals, simularAparelho()
+Nodes (8): aparar(), buscarEGuardar(), ehDoBackOffice(), isBypassed(), isCarregamento(), limparCachesDoBackOffice(), PRECACHE, vaiParaODisco()
+
+### Community 300 - "o-iphone-com-barras.spec.ts"
+Cohesion: 0.11
+Nodes (11): abrirOEstudioComTotal(), garantirMarcacaoDeHoje(), hojeISO(), IGNORAR, IPHONE_COM_BARRAS, pontoAoCentro(), RASCUNHO_COM_TOTAL, tocar() (+3 more)
+
+### Community 301 - "escolhas-leem-se.test.ts"
+Cohesion: 0.10
+Nodes (16): canal(), COMPONENTE, CSS, escolhasClaro, escolhasEscuro, GLOBAL, lum(), PAPEL (+8 more)
+
+### Community 302 - "orcamento/route.test.ts"
+Cohesion: 0.14
+Nodes (16): GET, POST, authed, confirmacaoAoCliente(), correrDepois(), depois, dominio, enviarTudo() (+8 more)
 
 ### Community 303 - "contraste-dos-rotulos.test.ts"
-Cohesion: 0.22
-Nodes (10): alfasDosCrachas(), blocosDeEstilo(), BRANCO, canal(), coresDosMapas(), FICHEIROS_DO_BACK_OFFICE(), lum(), racio() (+2 more)
+Cohesion: 0.24
+Nodes (9): alfasDosCrachas(), blocosDeEstilo(), BRANCO, canal(), coresDosMapas(), FICHEIROS_DO_BACK_OFFICE(), lum(), racio() (+1 more)
 
 ### Community 304 - "prefetch-de-tema.ts"
-Cohesion: 0.27
-Nodes (11): adiantarTema(), endereco(), esquecerAdiantadas(), guardadas, Guardado, paginaDaResposta(), PREFETCH_LIMITE, PREFETCH_VALIDADE_MS (+3 more)
+Cohesion: 0.11
+Nodes (23): BulkProgress, downloadMany(), downloadName(), downloadOne(), PhotoLightboxProps, adiantarTema(), endereco(), esquecerAdiantadas() (+15 more)
 
-### Community 305 - "GaleriaClient.precarga.test.tsx"
-Cohesion: 0.17
-Nodes (3): abrirEcarregar(), heroi(), photos
+### Community 305 - "image-worker.ts"
+Cohesion: 0.19
+Nodes (16): codificarDerivada(), comoDataUri(), COR_EDGE, corDe(), drawTo(), LQIP_EDGE, LQIP_MAX_CHARS, LQIP_QUALITY (+8 more)
 
 ### Community 306 - "SafeImage.test.tsx"
 Cohesion: 0.18
 Nodes (5): currentSrc(), FakeIO, falhar(), img(), renderTile()
 
-### Community 307 - "paleta-das-fotos.ts"
-Cohesion: 0.27
-Nodes (9): croma(), distancia(), escolher(), luz(), paletaDasFotos(), pesoDoPixel(), pesoDoSitio(), Pixel (+1 more)
+### Community 307 - "paleta-cores.ts"
+Cohesion: 0.06
+Nodes (61): ContaGotas(), CoresDaPaleta(), por(), tirar(), corNoSitio(), esquecerSugestoes(), Foto, jaLidas (+53 more)
 
-### Community 308 - "pdf-text.ts"
-Cohesion: 0.26
-Nodes (10): arrumar(), BASE_SEM_DECOMPOSICAO, coberturaDaFonte(), COBERTURAS, semAcento(), LATINA, textoParaFonte(), TRACOS (+2 more)
+### Community 308 - "proposal-templates.ts"
+Cohesion: 0.19
+Nodes (19): DELETE(), dynamic, GET(), POST(), runtime, TIPOS, Props, ServiceGroup (+11 more)
 
 ### Community 309 - "Redesenho do «Fazer proposta» — pedido dela de 9/11/2026"
 Cohesion: 0.17
@@ -1853,32 +1870,32 @@ Cohesion: 0.17
 Nodes (11): 1.º — Retargeting de quem já visitou (a jogada mais rentável), 2.º — Semelhantes a partir de quem já fechou, 3.º — Prospecção fria, por zona, 4.º — Wedding planners, como público próprio, 5.º — Internacional (adiar), A ordem por que se abre, Cobertura nacional, por conjunto de anúncios, Exclusões — o que nunca deve ver os anúncios (+3 more)
 
 ### Community 315 - "Auditoria de cabeçalhos de segurança — Líquen Events"
-Cohesion: 0.17
-Nodes (12): §2 — Achados por risco, §3 — Source maps e segredos no bundle, §4 — Cabeçalhos em respostas autenticadas, §5 — Falsos positivos descartados, e porquê, §6 — O que fica por fazer (por ordem de valor), Achado 1 — Permissions-Policy (Alto, CORRIGIDO), Achado 2 — `'unsafe-inline'` em `script-src` (Médio, documentado), Achado 3 — `connect-src` sem o Supabase (Médio, documentado) (+4 more)
+Cohesion: 0.29
+Nodes (7): §3 — Source maps e segredos no bundle, §4 — Cabeçalhos em respostas autenticadas, §5 — Falsos positivos descartados, e porquê, §6 — O que fica por fazer (por ordem de valor), Auditoria de cabeçalhos de segurança — Líquen Events, Como é que isto foi medido, Tabela — medido neste sítio
 
-### Community 316 - "Clientes.telemovel.test.tsx"
-Cohesion: 0.20
-Nodes (9): abrir(), COMPUTADOR, GANHO, HA_DIAS, IPAD_RETRATO, pedido(), porTexto(), semEspacos() (+1 more)
+### Community 316 - "admin/page.tsx"
+Cohesion: 0.16
+Nodes (16): Os dez piores, e porquê, VIEW_COOKIE, caminho(), Culpado, MedidorDeTransbordo(), medir(), vistaValida(), AdminPage() (+8 more)
 
-### Community 317 - "MapaDeMesas.test.tsx"
-Cohesion: 0.21
-Nodes (8): abrir(), COM_UMA_MESA, CONVIDADOS, EVENTOS, gravados, ligar(), pedido(), respostaAoPatch()
+### Community 317 - "restore/route.test.ts"
+Cohesion: 0.12
+Nodes (12): authed, backup, dryRun(), FICHEIRO, lib, req(), carregarFicheiro(), cliques (+4 more)
 
 ### Community 318 - "resposta-ao-toque.test.ts"
 Cohesion: 0.21
 Nodes (10): ARMADILHA_COM_DONO, DIVIDA, ficheiros(), RAIZ, SEM_AFUNDAR, semComentarios(), tagCompleta(), TAGS_TOCAVEIS (+2 more)
 
-### Community 319 - "ok"
-Cohesion: 0.27
-Nodes (12): comUso(), many(), ok(), pastaCom(), photo(), renderTemas(), route(), routeKey() (+4 more)
+### Community 319 - "hojeNoEstudio"
+Cohesion: 0.28
+Nodes (11): POST_semMedida(), acertarImportacaoComIa(), chaveDoMes(), lerLinha(), Linha, MAX_DOLARES_POR_MES, MAX_IMPORTACOES_COM_IA_POR_MES, Reserva (+3 more)
 
-### Community 320 - "logger.rgpd.test.ts"
-Cohesion: 0.26
-Nodes (10): a(), alertWebhook(), emit(), prenderAoPedido(), redactContext(), redactError(), redactString(), redactValue() (+2 more)
+### Community 320 - "derivadas/route.ts"
+Cohesion: 0.24
+Nodes (10): GET, GET_semMedida(), maxDuration, POST, POST_semMedida(), runtime, nomeDeReserva(), nomeDoPedido() (+2 more)
 
 ### Community 321 - "grupos.ts"
-Cohesion: 0.33
-Nodes (10): agrupar(), Capitulo, capitulos(), DAS_MESAS_SEMPRE, eAPalavra(), eDasMesas(), grupoDoTema(), ORDEM_DOS_GRUPOS (+2 more)
+Cohesion: 0.10
+Nodes (35): agrupar(), Capitulo, capitulos(), DA_CERIMONIA_MESMO, DA_MESA, DAS_MESAS_SEMPRE, DO_COCKTAIL_MESMO, DO_SEATING (+27 more)
 
 ### Community 322 - "Auditoria do back office — Fase 1: o mapa do sistema"
 Cohesion: 0.18
@@ -1896,9 +1913,9 @@ Nodes (11): 3.10 A armadilha do Safari 26, 3.1 O que o material realmente é, 3.
 Cohesion: 0.18
 Nodes (11): 9.10 Tabelas, 9.1 Botões, 9.2 Toggles, 9.3 Sliders, 9.4 Steppers, 9.5 Segmented controls, 9.6 Pickers de data, 9.7 Selects e menus de ações (+3 more)
 
-### Community 326 - "Guiões do dia — a vista de topo"
-Cohesion: 0.18
-Nodes (10): A cor nunca é o único portador, A DECISÃO, ANTES DE TUDO: REUTILIZAR, A NAVEGAÇÃO, A régua deitada é o objecto central, Guiões do dia — a vista de topo, O DESENHO, O QUE FICOU POR FAZER, O QUE SE MOVEU (convergência, não duplicação) (+2 more)
+### Community 326 - "MoodBoardFotos.tsx"
+Cohesion: 0.06
+Nodes (50): Índices e listas laterais, @dnd-kit/sortable, alvosValidosPara(), ArrastoDosMoodBoards(), aoLargar(), ArrastoProps, CartaoDeBoard(), coordenadasDeTeclado() (+42 more)
 
 ### Community 327 - "O texto dela"
 Cohesion: 0.18
@@ -1937,24 +1954,24 @@ Cohesion: 0.31
 Nodes (10): COPIA, DATA, dia(), ESTADOS, instante(), LOCAIS, LONGO, main() (+2 more)
 
 ### Community 336 - "Auditoria de segurança — Julho de 2026"
-Cohesion: 0.18
+Cohesion: 0.25
 Nodes (8): Altos — todos corrigidos, Auditoria de segurança — Julho de 2026, Dependências, Falsos positivos descartados, O achado que mais expõe legalmente, O que precisa de decisão da dona, Os três resultados negativos, Sumário executivo
 
 ### Community 337 - "rules"
 Cohesion: 0.18
 Nodes (10): pattern, pattern-either, pattern-not-inside, pattern-regex, rules, id, languages, message (+2 more)
 
-### Community 338 - "Guioes.test.tsx"
-Cohesion: 0.20
-Nodes (6): gravados, GUIOES, HOJE, ligarOServidor(), montar(), resposta()
+### Community 338 - "EnviarModelo.test.tsx"
+Cohesion: 0.14
+Nodes (12): EnviarModelo(), EnvioDoModelo, MODELOS, Previsao, Props, confirmar(), envioPendurado(), escolherAgradecimento() (+4 more)
 
 ### Community 339 - "moldura-alvos-de-toque.test.ts"
 Cohesion: 0.18
 Nodes (8): CABECALHO, FOLHA, GUARDAR, LATERAL, PASSKEYS, RAIZ, REPOR, SINO
 
 ### Community 340 - "PainelDoEstudio.test.tsx"
-Cohesion: 0.24
-Nodes (8): desenhar(), desenharMedido(), fingirObservadorDeTamanho(), medirAsAbas(), paginas, EM_PARALELO, ESPERA_MS, esquecerPaginasGuardadas()
+Cohesion: 0.17
+Nodes (12): PaginaParaOPainel, aJanelaTem(), desenhar(), desenharMedido(), fingirObservadorDeTamanho(), largura(), medirAsAbas(), paginas (+4 more)
 
 ### Community 341 - "useMarcaQueAnda"
 Cohesion: 0.25
@@ -1964,13 +1981,13 @@ Nodes (8): igual(), Marca, COLUNA, Destino, Lista(), ListaQueChegaTarde(), TIRA,
 Cohesion: 0.22
 Nodes (6): BRANCO, canal(), FICHEIROS, lum(), racio(), RAIZ
 
-### Community 343 - "load-queue.ts"
-Cohesion: 0.25
-Nodes (7): createLoadQueue(), pump(), release(), GALLERY_MAX_INFLIGHT, galleryLoadQueue, LoadQueue, Slot
+### Community 343 - "temas-filtros.test.ts"
+Cohesion: 0.22
+Nodes (12): Ambito, ambitoResponde(), AMBITOS, ambitosDisponiveis(), contarPorAmbito(), DadosDeUso, eAmbito(), filtrarPorAmbito() (+4 more)
 
 ### Community 344 - "env.ts"
 Cohesion: 0.22
-Nodes (6): onRequestError(), register(), CHECKS, EnvCheck, freshValidate(), VARS
+Nodes (8): avisarNaConstrucao(), variaveisEmFalta(), VERIFICACOES, onRequestError(), register(), freshValidate(), VARS, validateEnv()
 
 ### Community 345 - "tratamento.ts"
 Cohesion: 0.29
@@ -2005,20 +2022,20 @@ Cohesion: 0.27
 Nodes (7): BACK_OFFICE, casa(), DOCUMENTOS, main(), oQueCorrer(), SITIO, TUDO
 
 ### Community 353 - "gen-ads.mjs"
-Cohesion: 0.29
-Nodes (8): campo(), carregar(), CORRESPONDENCIA, csv(), jiti, main(), RAIZ, SAIDA
+Cohesion: 0.17
+Nodes (11): hoje, jiti, raiz, campo(), carregar(), CORRESPONDENCIA, csv(), jiti (+3 more)
 
-### Community 354 - "exportar-lps.mjs"
-Cohesion: 0.33
-Nodes (9): ECRAS, fotografar(), indice(), main(), nomeDeFicheiro(), paginasDoGoogle(), paginasSociais(), RAIZ (+1 more)
+### Community 354 - "AvisoDeQualidade.tsx"
+Cohesion: 0.21
+Nodes (10): AvisoDeQualidade(), FotoEmDuvida, medirFicheiro(), Pergunta, Banco(), medidas, TITULO, useAvisoDeQualidade() (+2 more)
 
 ### Community 355 - "medir-imagens-admin.mjs"
 Cohesion: 0.29
 Nodes (8): aquecer(), FOTOS, main(), MEDIA_ORIGINAL, medirSemNada(), observarRede(), picoDeParalelismo(), rede
 
 ### Community 356 - "Backlog de segurança — Médios e Baixos"
-Cohesion: 0.20
-Nodes (10): B1 · A política promete um expurgo que não existe · `legal-content.ts:64`, B21 · `brace-expansion` (GHSA-mh99-v99m-4gvg), B2 · Subcontratantes não declarados · `legal-content.ts:71`, B3 · O direito ao apagamento é parcial, B4 · Descrição inexacta do que a Google recebe · `legal-content.ts:47`, B5 · Consentimento retirado não apaga os cookies já postos, Backlog de segurança — Médios e Baixos, Dependências (+2 more)
+Cohesion: 0.33
+Nodes (6): B1 · A política promete um expurgo que não existe · `legal-content.ts:64`, B2 · Subcontratantes não declarados · `legal-content.ts:71`, B3 · O direito ao apagamento é parcial, B4 · Descrição inexacta do que a Google recebe · `legal-content.ts:47`, B5 · Consentimento retirado não apaga os cookies já postos, Primeiro, os que expõem legalmente
 
 ### Community 357 - "[...rota]/route.ts"
 Cohesion: 0.36
@@ -2028,9 +2045,9 @@ Nodes (7): DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT
 Cohesion: 0.22
 Nodes (3): cabecalhos(), gravacoes, montar()
 
-### Community 359 - "contraste-das-cores-escritas.test.ts"
-Cohesion: 0.24
-Nodes (7): compor(), contraste(), luminancia(), resolver(), SOBRE, SUPERFICIES, TOKENS
+### Community 359 - "PorqueNaoDaParaEnviar.tsx"
+Cohesion: 0.23
+Nodes (7): PorqueNaoDaParaEnviar(), PorqueTrava(), DA_CASA, Destinatario, destinatarioDoEnvio(), eEnderecoDaCasa(), Impedimento
 
 ### Community 360 - "cores-que-existem.test.ts"
 Cohesion: 0.20
@@ -2044,9 +2061,9 @@ Nodes (8): cortesProibidos(), infraccoes(), literais(), PROIBIDOS, RAIZ, semCome
 Cohesion: 0.27
 Nodes (8): corridasDeClasses(), desculpado, EXCEPCOES, FICHEIROS, RAIZ, seca(), semComentarios(), transicoesASeca()
 
-### Community 363 - "FechosMeta.tsx"
-Cohesion: 0.27
-Nodes (9): contarPorMotivo(), diasQueFaltam(), Enviado, EXPLICACAO, FechosMeta(), PorEnviar, Relatorio, Excluido (+1 more)
+### Community 363 - "conversoes-fecho.ts"
+Cohesion: 0.10
+Nodes (28): dynamic, emJson(), GET(), POST(), reunir(), runtime, st, contarPorMotivo() (+20 more)
 
 ### Community 364 - "fila-de-imagens.ts"
 Cohesion: 0.33
@@ -2056,17 +2073,17 @@ Nodes (8): aEsperar, despachar(), emVoo, ESPERA_MAXIMA_MS, largarVez(), limparFi
 Cohesion: 0.27
 Nodes (8): APELIDOS, apelidosDoPrecoDoPedido(), argumentosDe(), CODIGO, CONVERSOES, ESCOADOUROS, linhaDe(), travessiasSemConversao()
 
-### Community 366 - "proposal-titulos-parecidos.ts"
-Cohesion: 0.36
-Nodes (6): essenciaDoNome(), VAZIAS, avisoDeTituloParecido(), BASE, TitulosParecidos, titulosParecidos()
+### Community 366 - "tema-nome.ts"
+Cohesion: 0.22
+Nodes (14): SugestaoDeNome(), CampoComoODeRenomear(), PALAVRAS_CERTAS, arrumarNomeDeTema(), arrumarPontuacao(), arrumarZeroPorO(), arrumosDeNomes(), comMaiusculaInicial() (+6 more)
 
 ### Community 367 - "fronteira-servidor-cliente.test.ts"
 Cohesion: 0.27
 Nodes (8): caminhoAteServidor(), conteudo, ehDeServidor(), ficheiros(), importados(), RAIZ, resolver(), TODOS
 
-### Community 368 - "paleta-das-mesas.test.ts"
-Cohesion: 0.24
-Nodes (7): b64, cerimonia, documento(), jantar, medidas, ref(), usadas
+### Community 368 - "deslocacao.ts"
+Cohesion: 0.31
+Nodes (12): cent(), custoPorKm(), eur(), explicarCustoKm(), KM_PARA_DORMIR_FORA, kmEscritos(), kmSugerido(), PARAMETROS_OMISSAO (+4 more)
 
 ### Community 369 - "Fase 0 — Diagnóstico"
 Cohesion: 0.22
@@ -2096,13 +2113,13 @@ Nodes (9): 6.1 Abrir um pedido monta os três separadores de uma vez · alto · 
 Cohesion: 0.22
 Nodes (8): Caça de bugs ao back office — estado, Como correr, Falsos positivos descartados, e porquê, O que ficou construído e a funcionar, O que foi efectivamente medido, O que NÃO foi feito, e é preciso dizê-lo, Por onde continuar, Resultado: nenhum defeito de layout confirmado
 
-### Community 376 - "Diagnóstico — biblioteca lenta, mood boards lentos, PDF com fotos a menos"
-Cohesion: 0.22
-Nodes (8): A conclusão, dita como ela é, Antes das onze respostas: o que consegui medir e o que não consegui, As onze respostas, Diagnóstico — biblioteca lenta, mood boards lentos, PDF com fotos a menos, O bucket público, que tu pediste que eu avaliasse, O que fazer a seguir — por ordem de quanto responde por quanto custa, Sobre os ficheiros, Sobre os mood boards
+### Community 376 - "GaleriaClient.layout.test.tsx"
+Cohesion: 0.13
+Nodes (14): ECRAS, FOTOS, columns(), gridTiles(), photos, ESCADA_ECRA_GRANDE, ESCADA_TELEMOVEL, FormatoDaGaleria (+6 more)
 
 ### Community 377 - "PARTE 2 — A FÍSICA DO MOVIMENTO"
-Cohesion: 0.22
-Nodes (9): 2.1 As fórmulas oficiais, 2.2 Os presets da Apple, com os valores reais, 2.4 Quando usar qual, 2.5 Interruptibilidade e transferência de velocidade, 2.6 Projeção — o que faz o snap parecer que adivinha, 2.7 Rubber banding, 2.8 Estados de pressão, 2.9 Reduce Motion — o mapeamento correto (+1 more)
+Cohesion: 0.20
+Nodes (10): 2.1 As fórmulas oficiais, 2.2 Os presets da Apple, com os valores reais, 2.3 As mesmas molas, resolvidas para CSS, 2.4 Quando usar qual, 2.5 Interruptibilidade e transferência de velocidade, 2.6 Projeção — o que faz o snap parecer que adivinha, 2.7 Rubber banding, 2.8 Estados de pressão (+2 more)
 
 ### Community 378 - "Entrar sem palavra-passe (passkeys)"
 Cohesion: 0.22
@@ -2136,45 +2153,49 @@ Nodes (8): CAPTURAS, COMPLETA, construirPropostaReal(), CORES, ECRAS, entrar(), 
 Cohesion: 0.28
 Nodes (7): chaveDaVersao(), ficheirosDeCodigo(), ORIGINAIS, originaisCitados(), RAIZ, todosOsOriginais(), VERSOES
 
-### Community 386 - "warm-image-cache.mjs"
-Cohesion: 0.22
-Nodes (7): EXT, files, host, jobs, queue, SRC_DIR, WIDTHS
+### Community 386 - "ReguaDoDia.tsx"
+Cohesion: 0.23
+Nodes (12): BlocoProps, ALTURA_DO_CARRIL, estiloDoBloco(), FOLGA_ENTRE_CARRIS, marcasDeHora(), ReguaDoDia(), ReguaDoDiaProps, TamanhoDaRegua (+4 more)
 
 ### Community 387 - "a-saida-sai-da-arvore.test.ts"
 Cohesion: 0.31
 Nodes (7): DIVIDA, etiquetasDeAbertura(), Falta, ficheiros(), RAIZ, semComentarios(), varrer()
 
-### Community 388 - "AdminClient.barra-que-fica.test.tsx"
-Cohesion: 0.25
-Nodes (4): barra(), foraDoEcra(), montar(), servidor
+### Community 388 - "proxy.ts"
+Cohesion: 0.14
+Nodes (14): CABECALHO_DA_LINGUA, deveRegistar(), MESES, MUDA, registarAcao(), RUIDO, TABELA, comLingua() (+6 more)
 
 ### Community 389 - "AdminClient.menu-sem-dobra.test.tsx"
-Cohesion: 0.25
-Nodes (4): CODIGO, FONTE, montar(), pedido()
+Cohesion: 0.06
+Nodes (31): cabecalhos(), montar(), PRICE, CODIGO, FONTE, montar(), pedido(), aEscrever() (+23 more)
+
+### Community 390 - "image-prep.tamanho.test.ts"
+Cohesion: 0.26
+Nodes (8): FOTOS, THUMB_EDGE, MID_EDGE, MID_QUALITY, CAPA_WEB_LADO, LADO_DA_FOTO_DE_PROPOSTA, MEDIA_LADO, MEDIA_QUALIDADE
 
 ### Community 391 - "escala-do-espaco.test.ts"
 Cohesion: 0.22
 Nodes (4): CSS, ESCALA, ficheirosDoBackOffice(), RAIZ
 
-### Community 392 - "EventCosts.colisao.test.tsx"
-Cohesion: 0.28
-Nodes (6): DELE, estadoDe(), FORNECEDORES, linhaDe(), montar(), quoteCom()
+### Community 392 - "preferencias/route.ts"
+Cohesion: 0.27
+Nodes (10): dynamic, GET(), PUT(), runtime, gravarPreferencias(), lerPreferencias(), MAX_DIAS, PREFERENCIAS_POR_OMISSAO (+2 more)
 
 ### Community 393 - "EventMaterial.perguntas.test.tsx"
 Cohesion: 0.31
 Nodes (8): abrirAPergunta(), base, chamadas, COM_MARCACOES, montar(), QUOTE, reply(), servidor()
 
-### Community 394 - "EnviarModelo.test.tsx"
-Cohesion: 0.28
-Nodes (7): confirmar(), envioPendurado(), escolherAgradecimento(), fetchMock, PREVISTO, QUOTE, respostaDe()
+### Community 394 - "onItemKeyDown"
+Cohesion: 0.20
+Nodes (12): emptyItem(), isBlank(), addItem(), duplicateItem(), focusNow(), insertItems(), moveGroup(), moveItem() (+4 more)
 
-### Community 395 - "NotificationBell.test.tsx"
-Cohesion: 0.25
-Nodes (4): ativar(), espia, json(), servidorPush()
+### Community 395 - "pricing.ts"
+Cohesion: 0.29
+Nodes (7): LOCATION_SURCHARGES, PACKAGES, calculatePrice(), isWeekend(), PriceBreakdown, QuoteFormData, isHighSeason()
 
-### Community 396 - "RestoreDialog.test.tsx"
-Cohesion: 0.25
-Nodes (6): carregarFicheiro(), cliques, fetchMock, FICHEIRO, ficheiroJson(), RESTORE_CONFIRM_PHRASE
+### Community 396 - "ocupacao-do-armazenamento-regras.ts"
+Cohesion: 0.22
+Nodes (13): BUCKETS_QUE_CRESCEM, bucketsAMedir(), BYTES_POR_FOTO_NOVA, espacoQueSobra(), FOLGA_DO_SERVIDOR_BYTES, IDADE_MAXIMA_DA_MEDICAO_MS, LIMITE_DO_PLANO_BYTES, MARGEM_DAS_DERIVADAS (+5 more)
 
 ### Community 397 - "Temas.reversao.test.tsx"
 Cohesion: 0.31
@@ -2188,21 +2209,21 @@ Nodes (7): classes(), problemas(), semComentarios(), semTexto(), vezes(), vezesD
 Cohesion: 0.53
 Nodes (5): passoDoEnvio(), avancoDaEspera(), esperaDemorada(), NO_ESTIMADO, TECTO_DA_BARRA
 
-### Community 400 - "mola.ts"
-Cohesion: 0.44
-Nodes (7): assentar(), avancar(), duracaoMs(), emRepouso(), percurso(), Ponto, MOLA
+### Community 400 - "sitemap.ts"
+Cohesion: 0.19
+Nodes (12): abs(), galleryImages, imagemDoSitemap(), img(), LARGURA_DO_SITEMAP, lastModifiedFor(), RawEntry, entradas (+4 more)
 
-### Community 401 - "tamanhos.ts"
-Cohesion: 0.39
-Nodes (7): EspacoDoEcra, fatorParaCobrir(), larguraDaDerivada(), n(), razao(), sizesParaCobrir(), srcSetComLarguras()
+### Community 401 - "ref_react_dom"
+Cohesion: 0.05
+Nodes (37): base, FotoDaLupa, Fotografia(), LupaDoMosaico(), reduzMovimento(), lista, t, CSS (+29 more)
 
 ### Community 402 - "sw-fotos.test.ts"
 Cohesion: 0.22
 Nodes (5): chaveSemToken, ehFotoDaBiblioteca, ehOriginalDaBiblioteca, FONTE, vaiParaODisco
 
-### Community 403 - "Google Ads da Líquen Events"
+### Community 403 - "enviar-foto-da-proposta.ts"
 Cohesion: 0.25
-Nodes (7): Google Ads da Líquen Events, O que falta, e é dela, O que já está feito no site, O resumo, em oito linhas, Por onde começar, pela ordem, Porque é que é só uma campanha, Porquê o Alentejo, e não o Reino Unido
+Nodes (9): ArmazenamentoNoTravao, enviarFotoDaProposta(), formularioDaFoto(), FotoEnviada, FotoParaEnviar, PreparedImage, lane(), uploadOne() (+1 more)
 
 ### Community 404 - "Fase 6 — Arranque"
 Cohesion: 0.25
@@ -2224,6 +2245,10 @@ Nodes (7): A medição que decide: com a rede travada A SÉRIO (31/10), E o mesm
 Cohesion: 0.25
 Nodes (7): Adaptação a mobile — auditoria, Cobertura, ecrã a ecrã, Larguras, O formato de cada entrada, O princípio que governa tudo, Porque é que são dez ficheiros e não um, Severidades
 
+### Community 409 - "porque-nao-leu.ts"
+Cohesion: 0.31
+Nodes (8): ErroDaPagina, loadMore(), CorpoDeErro, fraseDoServidor(), pontuar(), porqueNaoLeu(), porqueNaoLeuDoErro(), RazaoDeLeitura
+
 ### Community 410 - "o-toque-passa-por-baixo.mjs"
 Cohesion: 0.29
 Nodes (6): BO_SAIDA, CSS, falhas, KEYFRAMES, medir(), PAGINA()
@@ -2241,20 +2266,20 @@ Cohesion: 0.25
 Nodes (7): A proposta completa (a da Catarina Martins), Fazer proposta — o depois, medido, O caso comum: criar a partir de outra proposta, O estúdio recém-aberto, O que a medição apanhou e nenhum teste via, O que estes números dizem, incluindo o que não é bom, O que ficou por fazer, e porquê
 
 ### Community 414 - "Alinhar o gerador com a proposta feita à mão — plano e decisões"
-Cohesion: 0.25
-Nodes (7): Alinhar o gerador com a proposta feita à mão — plano e decisões, Bloco A — orçamento, condições e serviços, Bloco B — o layout das imagens, Bloco C — os erros que não se copiam, Decisões já tomadas, O que está mesmo por fazer, Validação
+Cohesion: 0.20
+Nodes (9): Alinhar o gerador com a proposta feita à mão — plano e decisões, Bloco A — orçamento, condições e serviços, Bloco B — o layout das imagens, Bloco C — os erros que não se copiam, Decisões já tomadas, O que está mesmo por fazer, O que já existe e não precisa de ser construído, Validação (+1 more)
 
-### Community 415 - "capture.ts"
-Cohesion: 0.36
-Nodes (7): autoScroll(), captureVariant(), main(), PAGES, SCREENSHOTS_DIR, VARIANTS, waitForImages()
+### Community 415 - "renumber"
+Cohesion: 0.27
+Nodes (10): autoLetter(), cleanPastedLine(), emptyGroup(), newId(), renumber(), addGroup(), closeGroupAndStartNext(), duplicateGroup() (+2 more)
 
 ### Community 416 - "folhas-que-existem.mjs"
 Cohesion: 0.29
 Nodes (7): caminhos, comTokens, folhas, folhasEm(), FORA, regrasQuePintam(), vazias
 
-### Community 417 - "gen-blur.mjs"
+### Community 417 - "resposta-ao-toque.spec.ts"
 Cohesion: 0.25
-Nodes (6): EXT, files, kb, map, OUT_FILE, SRC_DIR
+Nodes (5): AMOSTRAS, ESCALA_DO_TOQUE, escalaComputada(), medirOToque(), RAIZ_UI
 
 ### Community 418 - "Configuração — pequenos, e alguns são de um minuto"
 Cohesion: 0.25
@@ -2272,37 +2297,37 @@ Nodes (8): §1 — A CSP com nonce: medida, e NÃO aplicada, O detalhe que torna
 Cohesion: 0.25
 Nodes (4): ADMIN, authed, BODY, H
 
-### Community 422 - "teste/route.test.ts"
-Cohesion: 0.25
-Nodes (5): authed, correio, dados, Enviado, modelo
+### Community 422 - "gen-criativos.mjs"
+Cohesion: 0.31
+Nodes (8): desenhar(), FORMATOS, lerVariantes(), logoRecortado(), main(), RAIZ, SAIDA, SEGURA
 
 ### Community 423 - "enviar/route.test.ts"
 Cohesion: 0.25
 Nodes (6): Anexo, corpo, correio, Enviado, estado, historico
 
-### Community 424 - "Acompanhamento.test.tsx"
+### Community 424 - "Acompanhamento.tsx"
+Cohesion: 0.09
+Nodes (26): Acompanhamento(), CartaoProps, dataCurta(), emDias(), ESTADOS, eur(), eurOuSemValor(), hojeISO() (+18 more)
+
+### Community 425 - "Auditoria externa (outubro de 2026) — o que foi feito"
+Cohesion: 0.25
+Nodes (7): A tua lista, à mão, As migrações (para reveres e aplicares tu), Auditoria externa (outubro de 2026) — o que foi feito, Números (Lighthouse, telemóvel, mediana de 3), Perguntas para ti (a tua regra: «se a causa for diferente, diz-me antes»), Problemas novos que encontrei, Segredos no histórico (gitleaks, 1 526 commits)
+
+### Community 427 - "espacos.test.ts"
 Cohesion: 0.32
-Nodes (4): enviados, montar(), montarComTravao(), response()
-
-### Community 425 - "AdminClient.menu-do-destino-activo.test.tsx"
-Cohesion: 0.29
-Nodes (4): CODIGO, FONTE, montar(), pedido()
-
-### Community 426 - "MaterialListas.perguntas.test.tsx"
-Cohesion: 0.29
-Nodes (7): avisos, CATALOGO, escritas, LISTAS, removerOEscadote(), reply(), servidor()
-
-### Community 427 - "MaterialRegras.perguntas.test.tsx"
-Cohesion: 0.29
-Nodes (7): abrirAPergunta(), avisos, escritas, LISTAS, REGRA, reply(), servidor()
+Nodes (5): ficheirosDe(), NAO_SAO_CHAVES, chavesDoFicheiro(), FUNCOES_DO_APP_STATE, inicioDoLiteral()
 
 ### Community 428 - "numero-heroi-da-visao-geral.test.ts"
 Cohesion: 0.32
 Nodes (5): CODIGO, degraus(), FONTE, grupoDoDinheiro(), tamanhosDoDinheiro()
 
-### Community 429 - "PaymentsPanel.corrida.test.tsx"
-Cohesion: 0.32
-Nodes (5): falha(), okResponse(), primeiraEmEspera(), renderPanel(), SINAL
+### Community 429 - "teste/route.test.ts"
+Cohesion: 0.25
+Nodes (5): authed, correio, dados, Enviado, modelo
+
+### Community 430 - "limpar-caches-ao-sair.ts"
+Cohesion: 0.18
+Nodes (8): AmbienteDaLimpeza, ambienteDoBrowser(), CacheMinima, CacheStorageMinima, ehCaminhoDoBackOffice(), GAVETAS_DAS_FOTOS, limparCachesAoSair(), limparDirectamente()
 
 ### Community 431 - "portao-do-avif.test.ts"
 Cohesion: 0.32
@@ -2344,13 +2369,13 @@ Nodes (6): A lista B19, ponto a ponto (31/10/2026), Detalhe, Imagem, Movimento, 
 Cohesion: 0.29
 Nodes (6): A tabela que decide, E a medição da Fase 0 (o site publicado), Fase 3, num relance, «Nível estúdio» — o antes e o depois (31/10/2026), O que mudou, por ordem de peso, O que não chegou ao B12
 
-### Community 441 - "Agente 5 — Navegação e orientação"
-Cohesion: 0.29
-Nodes (5): Agente 5 — Navegação e orientação, Custo em toques, Estado da vista, Onde estou, o que falta, Profundidade de navegação
+### Community 441 - "AdminClient.abrir-nao-suja.test.tsx"
+Cohesion: 0.09
+Nodes (31): Agente 5 — Navegação e orientação, Custo em toques, Estado da vista, Profundidade de navegação, abrir(), COM_ESPACOS, escritas, r() (+23 more)
 
-### Community 442 - "Moloni — artigos nas propostas e rascunhos de fatura"
-Cohesion: 0.29
-Nodes (6): As regras que não se negoceiam, Custo (regra 7), Moloni — artigos nas propostas e rascunhos de fatura, O pedido, nas palavras dela, O que fica por verificar, Para ligar (é ela que o faz — as chaves nunca passam pelo código)
+### Community 442 - "CommsZone.tsx"
+Cohesion: 0.43
+Nodes (5): resumoDoEnvio(), CommsZone(), montar(), ClientMessenger, ProposalStudio
 
 ### Community 443 - "A rapidez do site público — o que foi medido, e o que não vale a pena repetir"
 Cohesion: 0.29
@@ -2360,81 +2385,89 @@ Nodes (6): A rapidez do site público — o que foi medido, e o que não vale a 
 Cohesion: 0.29
 Nodes (7): on, pull_request, push, schedule, workflow_dispatch, branches, cron
 
-### Community 445 - "Os mood boards do estúdio — o que mudou, contado"
-Cohesion: 0.29
-Nodes (6): As quatro tarefas medidas, O que fica por fazer, O que passou a estar feito, O que passou a existir, O que se mede sozinho, e continua a ser verdade, Os mood boards do estúdio — o que mudou, contado
+### Community 445 - "bo4-procura-lotes-atalhos.spec.ts"
+Cohesion: 0.14
+Nodes (6): abrir(), MARCA, semeado, ESTADO_ADMIN, abrir(), esperarQueACortinaSaia()
 
 ### Community 446 - "Líquen Events — Filme do site (Remotion)"
 Cohesion: 0.29
 Nodes (6): Banda sonora (opcional), Estrutura do filme (~70s), Footage real, Líquen Events — Filme do site (Remotion), Notas, Workflow
 
-### Community 447 - "peso-das-rotas.mjs"
-Cohesion: 0.29
-Nodes (4): FORASTEIRAS, rastreios(), ROTAS, traços
+### Community 447 - "dominio-parecido.ts"
+Cohesion: 0.50
+Nodes (6): distancia(), dominioDe(), DOMINIOS_COMUNS, dominiosConhecidos(), sugerirEmail(), tolerancia()
 
 ### Community 448 - "sharp-fora-do-arranque.test.ts"
-Cohesion: 0.33
+Cohesion: 0.40
 Nodes (5): PORTAS_DO_CASAL, quemCarregaOSharpAoArrancar(), anda(), RAIZ, resolver()
 
 ### Community 449 - "CamadasCss.contrato.test.ts"
 Cohesion: 0.29
 Nodes (4): CSS, CSS_DO_BACK_OFFICE, ficheirosTsx(), RAIZ
 
-### Community 450 - "AdminClient.hierarquia.test.tsx"
-Cohesion: 0.33
-Nodes (5): DEGRAUS, PEDIDO, renderAdmin(), tamanhoDe(), tamanhoPedido()
+### Community 450 - "barras-que-encolhem.test.ts"
+Cohesion: 0.28
+Nodes (9): ATRIBUTO, EstadoDasBarras, focoSeguraAsBarras(), HISTERESE, ONDE_ENCOLHEM, proximoEstado(), passar(), TOPO (+1 more)
 
-### Community 451 - "ArrastarParaEnquadrar"
-Cohesion: 0.38
-Nodes (6): ArrastarParaEnquadrar(), aoCarregar(), aoMexer(), aoTeclar(), sobra(), entre0e1()
+### Community 451 - "proposta-versao.ts"
+Cohesion: 0.28
+Nodes (11): canonizar(), ConteudoSelavel, docVisivel(), EstadoDaVersao, estadoDaVersao(), NUNCA_VISTO_PELO_CASAL, proximaVersao(), seloDoConteudo() (+3 more)
 
 ### Community 452 - "dicas-que-cabem.test.ts"
 Cohesion: 0.43
 Nodes (6): Dica, dicasDosControlos(), etiqueta(), ficheiros(), ROOT, semComentarios()
 
-### Community 453 - "EventTasks.perguntas.test.tsx"
-Cohesion: 0.33
-Nodes (6): abrirAPergunta(), chamadas, QUOTE, reply(), servidor(), TAREFAS
+### Community 453 - "barra-de-destinos.ts"
+Cohesion: 0.43
+Nodes (6): alturaQueSobraParaODetalhe(), barraDeveSumir(), CHAO_DA_COLUNA_DE_DETALHE_PX, ENGOLIDO_PELO_TECLADO_PX, EstadoDoEcra, tecladoAberto()
 
-### Community 454 - "Fornecedores.concorrencia.test.tsx"
-Cohesion: 0.33
-Nodes (5): ehPreferido(), fichaDe(), FLORES, montar(), QUINTA
+### Community 454 - "quandoGravado"
+Cohesion: 0.32
+Nodes (5): DIA, HORA, mesmoDia(), quandoGravado(), AGORA
 
-### Community 455 - "Inventario.perguntas.test.tsx"
+### Community 455 - "gerar-miniaturas-propostas.mjs"
 Cohesion: 0.38
-Nodes (6): abrirAPergunta(), ARCO, chamadas, removerDoArco(), reply(), servidor()
+Nodes (6): APLICAR, ficheiros(), main(), pastas(), sb, SO_PEDIDO
 
 ### Community 456 - "marcador-nao-e-rotulo.test.ts"
 Cohesion: 0.43
 Nodes (6): Campo, camposComMarcador(), etiqueta(), ficheiros(), ROOT, semComentarios()
 
-### Community 457 - "PaginaEmConstrucao.test.tsx"
-Cohesion: 0.29
-Nodes (4): FotoDaPagina, guardada(), PaginaEmConstrucao(), Props
+### Community 457 - "next-font-google.ts"
+Cohesion: 0.15
+Nodes (9): Archivo, Bodoni_Moda, Geist, Geist_Mono, Inter, Jost, Letra, Opcoes (+1 more)
 
 ### Community 458 - "separar"
 Cohesion: 0.33
 Nodes (7): ascendentes(), efectivas(), ligada(), rotuloVisivel(), separar(), seVe(), varianteDe()
 
-### Community 459 - "Tarefas.concorrencia.test.tsx"
-Cohesion: 0.33
-Nodes (4): A, abrirEditorDe(), abrirMenuDe(), B
-
-### Community 460 - "imgs"
+### Community 459 - "peso-das-rotas.mjs"
 Cohesion: 0.29
-Nodes (7): chooseFiles(), dropFiles(), dropZone(), fileInput(), imgs(), photos(), settleScreening()
+Nodes (4): FORASTEIRAS, rastreios(), ROTAS, traços
 
-### Community 461 - "Toast.saida.test.tsx"
-Cohesion: 0.38
-Nodes (3): avancar(), Disparador(), dispararUm()
+### Community 460 - "Design nível premium"
+Cohesion: 0.17
+Nodes (11): A liga de referência (Portugal), Antes de desenhar, Cor, Critérios Awwwards (antes de entregar), Design nível premium, Detalhes que ganham prémios, Espaço e composição, Imagem e vídeo (+3 more)
+
+### Community 461 - "Backlog de segurança — Médios e Baixos"
+Cohesion: 0.29
+Nodes (4): B21 · `brace-expansion` (GHSA-mh99-v99m-4gvg), Backlog de segurança — Médios e Baixos, Dependências, Descartado com razão, para não voltar a ser investigado
+
+### Community 462 - "Temas.saida.test.tsx"
+Cohesion: 0.21
+Nodes (9): abrirAFusao(), abrirAPasta(), assentar(), DOIS, FOTO, ok(), Res, servidor() (+1 more)
 
 ### Community 463 - "frases-que-nao-dizem-nada.test.ts"
 Cohesion: 0.29
 Nodes (5): ARVORES, FICHEIROS, ficheirosDaArvore(), PROIBIDAS, ROOT
 
-### Community 464 - "data-em-falta.ts"
+### Community 464 - "ArrastarParaEnquadrar"
 Cohesion: 0.38
-Nodes (4): AVISO_SEM_DATA, ESTADOS_QUE_EXIGEM_DATA, faltaADataDoEvento(), PORQUE_FALTA_A_DATA
+Nodes (6): ArrastarParaEnquadrar(), aoCarregar(), aoMexer(), aoTeclar(), sobra(), entre0e1()
+
+### Community 465 - "stage-derivation.adversarial.test.ts"
+Cohesion: 0.38
+Nodes (4): data(), makeQuote(), pastEvent(), TODAY
 
 ### Community 466 - "Tom de voz"
 Cohesion: 0.29
@@ -2448,6 +2481,10 @@ Nodes (5): O back office, auditado — o que corrigir, o que melhorar, o que nã
 Cohesion: 0.33
 Nodes (6): 1.1 A fatura sai 23 % abaixo do devido · **RESOLVIDO (removido)** · pequeno, 1.2 «Faturado total» e «Recebido» não olham para as faturas · alto · médio, 1.3 «Ganho este mês» dá números diferentes em dois ecrãs · médio · médio, 1.4 O contrato diz 30 % e a fatura pode cobrar 40 % · alto · pequeno, 1.5 As faturas podem sair com a data de ontem · médio · pequeno, 1. DINHEIRO — o que está errado nas contas
 
+### Community 469 - "vitest.setup.ts"
+Cohesion: 0.25
+Nodes (3): RFC-2606, @testing-library/jest-dom@^6.9.1, @testing-library/jest-dom
+
 ### Community 470 - "Adicionar fotos à galeria"
 Cohesion: 0.33
 Nodes (5): A forma mais fácil (recomendada), Adicionar fotos à galeria, Notas importantes, O que acontece nos bastidores, Opções do comando
@@ -2460,9 +2497,9 @@ Nodes (6): 12.1 Ponteiro, 12.2 Foco e seleção, 12.3 Atalhos, 12.4 Arrastar e l
 Cohesion: 0.33
 Nodes (6): 4.1 Anatomia da janela, 4.2 Materiais do macOS, mapeados, 4.3 Cores de rótulo por alfa, 4.4 Densidade, 4.5 Tamanhos de controlo, PARTE 4 — A SHELL DE DESKTOP
 
-### Community 473 - "admin-smoke.spec.ts"
-Cohesion: 0.40
-Nodes (5): collectErrors(), IGNORED_CONSOLE, isIgnored(), login(), VIEWS
+### Community 473 - "sw-sair.test.ts"
+Cohesion: 0.29
+Nodes (3): CONTEUDO, ESPERADO, fonte
 
 ### Community 474 - "admin-views.spec.ts"
 Cohesion: 0.40
@@ -2488,33 +2525,37 @@ Nodes (6): quality, if, name, needs, runs-on, timeout-minutes
 Cohesion: 0.33
 Nodes (6): unitarios, if, name, needs, runs-on, timeout-minutes
 
+### Community 481 - "o-back-office-nao-viaja-na-proposta.test.ts"
+Cohesion: 0.25
+Nodes (3): @tailwindcss/postcss@^4, @tailwindcss/postcss, gerar()
+
 ### Community 482 - ".prettierrc.json"
 Cohesion: 0.33
 Nodes (5): printWidth, semi, singleQuote, tabWidth, trailingComma
 
-### Community 483 - "probe.mjs"
-Cohesion: 0.40
-Nodes (5): fd, findBox(), moov, mvhd, readBox()
+### Community 483 - "entrada/route.test.ts"
+Cohesion: 0.33
+Nodes (3): contas, store, wa
 
-### Community 484 - "AdminClient.espera.test.tsx"
+### Community 484 - "AdminClient.proposta-em-pagina.test.tsx"
 Cohesion: 0.40
-Nodes (3): ecraDeComputador(), HA_30_DIAS, montar()
+Nodes (4): avisos, PEDIDO, resposta(), servidor()
 
-### Community 485 - "AdminClient.sem-data.test.tsx"
-Cohesion: 0.40
-Nodes (3): ecraDeComputador(), HA_30_DIAS, montar()
+### Community 485 - "balde.test.ts"
+Cohesion: 0.18
+Nodes (7): esquecerTodasAsJuncoes(), baldesFalsos, BlobAvariado, BlobRecusado, estado, JPG, sb
 
-### Community 486 - "AdminClient.separadores.test.tsx"
-Cohesion: 0.40
-Nodes (3): cabecalhos(), montar(), PRICE
+### Community 486 - "DefinicoesProposta.test.tsx"
+Cohesion: 0.47
+Nodes (4): enviados, escrever(), escreverEGuardar(), montar()
 
-### Community 487 - "assinatura.ts"
-Cohesion: 0.60
-Nodes (3): assinaturaExpirada(), cargaDoToken(), urlAindaBom()
+### Community 487 - "relatar-falha.ts"
+Cohesion: 0.24
+Nodes (12): assinaturaExpirada(), cargaDoToken(), haAssinaturaMorta(), semAssinaturasJaMortas(), semAssinaturasMortas(), urlAindaBom(), esquecerRelatos(), estadoDe() (+4 more)
 
-### Community 488 - "EmailDoEnvio.movel.test.tsx"
-Cohesion: 0.40
-Nodes (5): doc, Estudio(), fetchMock, montar(), RASCUNHO
+### Community 488 - "derivadas-em-falta.mjs"
+Cohesion: 0.29
+Nodes (9): APLICAR, ehFoto(), FAMILIAS, ficheiros(), gerar(), main(), pastas(), sb (+1 more)
 
 ### Community 489 - "Guest"
 Cohesion: 0.40
@@ -2524,37 +2565,33 @@ Nodes (6): Props, Props, MapaDeMesas, MapaParaPdf, Pessoa, Guest
 Cohesion: 0.40
 Nodes (4): bloco(), CODIGO, degraus(), FONTE
 
-### Community 491 - "Overview.entrada.test.tsx"
-Cohesion: 0.47
-Nodes (5): desenhar(), gaveta(), HOJE, pedido(), tituloNaGaveta()
-
 ### Community 492 - "corpos"
-Cohesion: 0.33
-Nodes (6): corpos(), envio(), idiomaEnviado(), precosGravados(), precosNoPedido(), proximaGravacao()
+Cohesion: 0.25
+Nodes (8): comDeslocacaoDe140(), corpos(), envio(), idiomaEnviado(), precosGravados(), precosGravadosNoPedido(), precosNoPedido(), proximaGravacao()
 
-### Community 493 - "Escolha.teclado.test.tsx"
-Cohesion: 0.40
-Nodes (5): botao(), Campo(), lista(), OPCOES, sobOCursor()
+### Community 493 - "gen-favicons.mjs"
+Cohesion: 0.27
+Nodes (9): empacotarIco(), FUNDO, icone(), main(), OCUPACAO, ONDE_SO_EMBLEMA, ORIGEM, RAIZ (+1 more)
 
 ### Community 494 - "Paineis.contrato.test.ts"
 Cohesion: 0.33
 Nodes (4): css, ficheirosTsx(), paginas, RAIZ
 
-### Community 495 - "no-dashes-source.test.ts"
-Cohesion: 0.33
-Nodes (4): ROOT, ROOTS, SKIP, sourceFiles()
-
-### Community 496 - "decoracao.ts"
-Cohesion: 0.60
-Nodes (4): linhasDeOrcamento(), PontoDecoracao, PONTOS_DECORACAO, pontosConhecidos()
-
-### Community 497 - "proposal-doc-pdf.imagens.test.ts"
+### Community 495 - "§2 — Achados por risco"
 Cohesion: 0.40
-Nodes (4): fotos(), ImagemNoPdf, propostaDeAmostra(), MAX_IMAGE_EDGE_PX
+Nodes (5): §2 — Achados por risco, Achado 1 — Permissions-Policy (Alto, CORRIGIDO), Achado 2 — `'unsafe-inline'` em `script-src` (Médio, documentado), Achado 3 — `connect-src` sem o Supabase (Médio, documentado), Achado 5 — `Set-Cookie` com `s-maxage` longo
 
-### Community 498 - "proposal-storage.redireccao.test.ts"
-Cohesion: 0.33
-Nodes (4): buscar(), FOTO, registos, respostas
+### Community 496 - "recuperar/route.ts"
+Cohesion: 0.09
+Nodes (28): dynamic, esperarAtePiso(), POST(), runtime, chaveDaConta(), contaDaConta(), correio, depois (+20 more)
+
+### Community 497 - "equipa/route.ts"
+Cohesion: 0.50
+Nodes (4): dynamic, GET(), runtime, nomesDaEquipa()
+
+### Community 498 - "Agente 9 — Erros silenciosos"
+Cohesion: 0.13
+Nodes (14): Agente 9 — Erros silenciosos, Onde NÃO há defeito (para não voltarem lá), apagarMesmo(), applyBulkArchive(), applyBulkStatus(), contarMaisUmNoLote(), esquecerDaSeleccao(), pedirParaArquivar() (+6 more)
 
 ### Community 500 - "Caça exaustiva a bugs — registo"
 Cohesion: 0.40
@@ -2564,41 +2601,41 @@ Nodes (4): Caça exaustiva a bugs — registo, O formato de cada entrada, Porque
 Cohesion: 0.40
 Nodes (5): 6.1 A escala do macOS, oficial, 6.2 Tracking oficial da San Francisco, 6.3 A escala do back office, 6.4 Regras, PARTE 6 — TIPOGRAFIA
 
-### Community 502 - "Mapa de mesas"
-Cohesion: 0.40
-Nodes (4): As decisões dela, Mapa de mesas, O que está feito, e o que falta, Onde vive
+### Community 502 - "useCamadaDeHistoria"
+Cohesion: 0.18
+Nodes (14): As decisões dela, Mapa de mesas, O que está feito, e o que falta, Onde vive, camadaActual(), MARCA_DA_CAMADA, saidasAdiadas, assentar() (+6 more)
 
-### Community 504 - "dupla-compressao.mjs"
-Cohesion: 0.40
-Nodes (3): CELULA, DIR, nomes
+### Community 505 - "Líquen Events: o texto legal do formulário, do rodapé e dos e-mails"
+Cohesion: 0.22
+Nodes (8): 1. Por baixo do formulário: a nota de proteção de dados, 2. No rodapé de TODAS as páginas (404 e proposta online incluídas), 3. Nos e-mails automáticos, 4. O filtro anti-spam do formulário (o mesmo da Palumen), 5. Falta a dona dar, 6. Lista de verificação, Líquen Events: o texto legal do formulário, do rodapé e dos e-mails, Parte −1: onde a execução se afasta deste texto (17/11)
 
-### Community 505 - "limites-de-tempo.test.ts"
-Cohesion: 0.50
-Nodes (4): fonte(), PESADAS, tempoDeclarado(), rota()
-
-### Community 506 - "escala-e-densidade.test.ts"
+### Community 506 - "icones.contrato.test.ts"
 Cohesion: 0.40
-Nodes (3): BOTAO, CAMPO, TABELA
+Nodes (3): Icone, ICONES, RAIZ
 
 ### Community 508 - "reply"
 Cohesion: 0.60
 Nodes (5): fetchMock, gravacaoDoRascunho(), gravacaoQueSobrepos(), reply(), traducaoResponde()
 
-### Community 509 - "acharCartaoDoTema"
-Cohesion: 0.40
-Nodes (5): acharCartaoDoTema(), cartaoDoTema(), openFolder(), settlePhotos(), soCartoes()
+### Community 509 - "NotaDaProposta.test.tsx"
+Cohesion: 0.50
+Nodes (3): NotaDaProposta(), fetchMock, resposta
 
-### Community 510 - "colunasEm"
+### Community 510 - "telemovel-propostas.test.ts"
 Cohesion: 0.40
-Nodes (5): colunasDoAutoFill(), colunasEm(), emPixeis(), ligada(), separar()
+Nodes (3): CONTRATOS, PAGAMENTOS, RAIZ
 
-### Community 511 - "a-abertura-nao-chega-atrasada.test.ts"
+### Community 511 - "AnelSoDoTeclado.test.tsx"
+Cohesion: 0.70
+Nodes (3): AnelSoDoTeclado(), MARCA, montar()
+
+### Community 512 - "proposta-link-curto.tentativas.test.ts"
 Cohesion: 0.40
-Nodes (3): CSS, LAYOUT, PAGINA
+Nodes (3): contados, gaveta, st
 
-### Community 513 - "feitas-a-mao.test.ts"
-Cohesion: 0.80
-Nodes (4): folhaAMao(), lida(), p(), pagina()
+### Community 513 - "cascata-dos-pedidos.test.ts"
+Cohesion: 0.67
+Nodes (3): FONTE, semComentarios(), vezes()
 
 ### Community 514 - "PARTE 5 — COR"
 Cohesion: 0.50
@@ -2624,53 +2661,53 @@ Nodes (3): Medições — depois da Fase 2 (31/10/2026), O que custou chegar aqu
 Cohesion: 0.50
 Nodes (3): Agente 6 — Densidade e legibilidade, Resumo, Tabela de contraste
 
-### Community 520 - "Agente 7 — Desempenho em rede fraca"
-Cohesion: 0.50
-Nodes (3): Agente 7 — Desempenho em rede fraca, As três contas que resumem tudo, Custo por ecrã
-
 ### Community 521 - "estatico"
 Cohesion: 0.50
 Nodes (4): name, runs-on, timeout-minutes, estatico
 
 ### Community 522 - "overrides"
-Cohesion: 0.50
-Nodes (4): overrides, deepmerge-ts, postcss, sharp
+Cohesion: 0.33
+Nodes (6): overrides, deepmerge-ts, postcss, sharp, @vercel/cli-config, zod
 
 ### Community 523 - "barra-inferior.test.tsx"
 Cohesion: 0.50
 Nodes (3): ADMIN, ficheirosDoBackOffice(), RAIZ
 
-### Community 524 - "cascata-dos-pedidos.test.ts"
-Cohesion: 0.67
-Nodes (3): FONTE, semComentarios(), vezes()
+### Community 524 - "Anúncios que convertem"
+Cohesion: 0.25
+Nodes (7): 1. Antes de escrever, 2. Google Ads (Pesquisa), 3. Meta Ads, 4. Landing page, 5. Medir, Anúncios que convertem, Nunca
 
-### Community 525 - "chao-com-prefixo.test.ts"
-Cohesion: 0.50
-Nodes (3): CSS, ficheirosDoBackOffice(), RAIZ
+### Community 525 - "Aprender com o Francisco"
+Cohesion: 0.25
+Nodes (7): Aprender com o Francisco, Depois de gravar, Formato de cada regra, No início de cada tarefa, Onde gravar, Quando aprender, Revisão
 
-### Community 527 - "letra-da-previa.test.ts"
+### Community 526 - "splitView"
 Cohesion: 0.50
-Nodes (3): ficheirosDeEcra(), PERDOADOS, RAIZ
+Nodes (3): splitView(), adiar(), ViewLoading()
+
+### Community 527 - "Padrão Líquen"
+Cohesion: 0.29
+Nodes (6): Back office (liquen-events.com/orcamento/admin), Checklist final, Copy e redes sociais, Marca e estética, Materiais para noivos, Padrão Líquen
 
 ### Community 528 - "enviar"
 Cohesion: 0.67
 Nodes (4): confirmarEnvio(), enviar(), enviarEAbrirOFim(), verEConfirmar()
 
-### Community 529 - "Temas.perguntas.test.tsx"
-Cohesion: 0.67
-Nodes (3): FONTE, removeTheme(), semComentarios()
+### Community 529 - "Líquen Events: rodapé legal dos e-mails de confirmação"
+Cohesion: 0.29
+Nodes (6): 1. Porque é obrigatório, 2. Texto a usar (PT), formal, 3. Como implementar (instruções para o Claude), 4. Lista de verificação final, Líquen Events: rodapé legal dos e-mails de confirmação, Versão em inglês (para os e-mails em EN)
 
-### Community 533 - "aperto-de-mao-com-o-storage.test.ts"
-Cohesion: 0.67
-Nodes (3): LAYOUT, preconnectsDoStorage(), semComentarios()
+### Community 532 - "upload-medicao.spec.ts"
+Cohesion: 0.29
+Nodes (3): login(), Medicao, REDE
 
-### Community 534 - "page.versao-revista.test.tsx"
+### Community 533 - "letra-da-previa.test.ts"
 Cohesion: 0.50
-Nodes (3): db, estado, proposta
+Nodes (3): ficheirosDeEcra(), PERDOADOS, RAIZ
 
-### Community 535 - "scroll-no-iphone.contrato.test.ts"
-Cohesion: 0.67
-Nodes (3): blocos(), corpo(), css
+### Community 534 - "useSeccaoAVista.ts"
+Cohesion: 0.48
+Nodes (5): Caixa, caixaNaLinha(), caixasDe(), linhaDeLeitura(), useSeccaoAVista()
 
 ### Community 540 - "PARTE 8 — ÍCONES E SÍMBOLOS ANIMADOS"
 Cohesion: 0.67
@@ -2680,25 +2717,49 @@ Nodes (3): 8.1 O sistema de ícones, 8.2 Symbol effects, reproduzidos, PARTE 8 �
 Cohesion: 0.67
 Nodes (3): desenhar(), umaVisita(), valorEscrito()
 
+### Community 554 - "quem-pede.ts"
+Cohesion: 0.62
+Nodes (5): achatar(), eUmDosNoivos(), nomesDoCasal(), QuemPedeEOCasal, quemPedeEOCasal()
+
+### Community 560 - "Entrega impecável"
+Cohesion: 0.33
+Nodes (5): 1. Código, 2. Visual (sempre que mexeste em UI), 3. Fluxo real, 4. Relatório final (curto), Entrega impecável
+
+### Community 566 - "Auditoria extrema"
+Cohesion: 0.40
+Nodes (4): 1. Mapear, 2. Auditar cada área, 3. Entregar, Auditoria extrema
+
+### Community 570 - "campo-da-paleta-sem-anel.test.ts"
+Cohesion: 0.40
+Nodes (3): css, paleta, RAIZ
+
+### Community 571 - "entrada-dos-fundos.test.ts"
+Cohesion: 0.50
+Nodes (4): ficheirosDoBackOffice(), NAO_SAO_VEUS, Veu, veusEscuros()
+
+### Community 573 - "Field.contrato.test.ts"
+Cohesion: 0.50
+Nodes (4): controlosDentroDeField(), ficheiros(), fimDaEtiqueta(), RAIZ
+
 ## Knowledge Gaps
-- **17 isolated node(s):** `RFC-5545`, `RFC-5545`, `RFC-5545`, `RFC-5545`, `RFC-6238` (+12 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 6669 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **39 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **17 isolated node(s):** `RFC-5545`, `RFC-5322`, `RFC-6238`, `RFC-5321`, `RFC-7505` (+12 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 7624 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **44 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `vitest` connect `vitest` to `folha-limpa.test.ts`, `ref_react`, `Button`, `reciclagem.ts`, `AdminClient.tsx`, `logger.ts`, `repository.ts`, `next`, `proposal-doc.ts`, `ref_server_only`, `ToastProvider`, `setState`, `admin-auth.ts`, `i18n/index.ts`, `barra-inferior.test.tsx`, `types.ts`, `proposta-doc/route.ts`, `Temas.tsx`, `cascata-dos-pedidos.test.ts`, `useCachedList.ts`, `chao-com-prefixo.test.ts`, `Overview.tsx`, `proposal-doc-textos.ts`, `escala-movel.test.ts`, `backup-restore.ts`, `ProposalStudio.tsx`, `Guioes.tsx`, `Pagamentos.tsx`, `proposal-ortografia.ts`, `aperto-de-mao-com-o-storage.test.ts`, `ref_node_path`, `page.versao-revista.test.tsx`, `ref_node_fs`, `imagens/route.ts`, `[token]/page.tsx`, `aquecimento-de-pdf.ts`, `site.ts`, `StatsDashboard.tsx`, `dossier.ts`, `[lang]/layout.tsx`, `proposal-doc-pdf.ts`, `@testing-library/user-event`, `@testing-library/react`, `artigos-de-faturacao.ts`, `registo-de-gravacoes.tsx`, `CromadoDoSitio.tsx`, `EntradaEmVideo.tsx`, `proposta-doc/route.test.ts`, `Proposal`, `ProposalDoc`, `biblioteca/fotos/route.ts`, `plano.ts`, `Tarefas.tsx`, `ProposalStudio.casos.test.tsx`, `gaveta.anular.test.tsx`, `[id]/moloni/route.ts`, `Navbar.tsx`, `CalendarEvent`, `image-prep.ts`, `Contratos.tsx`, `proposal-progress.ts`, `ref_node_child_process`, `GaleriaClient.layout.test.tsx`, `linguagem-natural.ts`, `DefinicoesProposta.tsx`, `GaleriaClient.tsx`, `liquid-glass.ts`, `proposal-geometria.ts`, `package.json`, `AdminLogin.tsx`, `material-do-que-aparece-por-cima.test.ts`, `next.config.ts`, `tokens.ts`, `paginas-da-proposta.ts`, `capi.ts`, `sharp`, `Material.recarregar.test.tsx`, `EmailTemplates.tsx`, `pdf-editorial/mosaico.ts`, `ClientMarquee.tsx`, `proposal-doc-render.ts`, `email-templates-store.ts`, `email-modelos.ts`, `getDictionary`, `letra-da-previa.test.ts`, `montar.ts`, `inventory-store.ts`, `guioes.ts`, `proposal-traducao-deepl.ts`, `GaleriaClient.a11y.test.tsx`, `supabase.ts`, `gallery-srcset.ts`, `ref_node_url`, `diagnostico-video.ts`, `moloni.ts`, `qualidade-da-foto.ts`, `Temas.perguntas.test.tsx`, `Escolha.nome.test.ts`, `Cortes.movel.test.tsx`, `data.ts`, `s/[slug]/page.tsx`, `esc`, `esconder-no-hover.test.ts`, `email-template-vars.ts`, `ThemePicker.test.tsx`, `mapa-de-mesas.ts`, `OrcamentoForm.tsx`, `EventTimeline.tsx`, `EntradaEmVideo.test.tsx`, `pdf-editorial/imagens.ts`, `feitas-a-mao.test.ts`, `montar.casos.test.ts`, `retrato.ts`, `export.ts`, `ThemePicker`, `pt.ts`, `harness.ts`, `visao-geral/route.ts`, `desfecho.ts`, `site-image-loader.ts`, `scroll-no-iphone.contrato.test.ts`, `proposta-de-pdf/imagens.ts`, `BibliotecaRevisao.test.tsx`, `material-offline.ts`, `proposal-copy.ts`, `Temas.test.tsx`, `cor-dominante.ts`, `round2`, `validation.ts`, `em-partes.ts`, `orcamento/route.ts`, `VistasDeHoras.tsx`, `theme-storage.ts`, `ano-do-calendario.ts`, `GaleriaDoServico.tsx`, `proposal-doc-render.tamanhos.test.ts`, `Agente 4 — Templates e variáveis`, `EntradaComFotografia.tsx`, `modelo.ts`, `contract-types.ts`, `guiao-modelos.ts`, `calendar-store.ts`, `QuoteStatus`, `varrer-aquecimento.ts`, `Foto`, `proposta-de-pdf/index.ts`, `push.ts`, `email-assinatura.ts`, `theme-picker-cache.ts`, `portugal.ts`, `horario-pdf.ts`, `(admin)/layout.tsx`, `CuradoriaDeFotos`, `EmailTemplatesBilingue`, `Miniaturas`, `PainelGeracaoAoGanhar.tsx`, `CalendarioDaData.tsx`, `alvos-de-toque-do-sitio.test.tsx`, `pricing.ts`, `MoodBoardIndice.tsx`, `contract-terms.ts`, `contacto-do-pedido.ts`, `ThemeImage`, `proposal-preview-cache.ts`, `proposal-pdf.ts`, `tipos.ts`, `GrelhaDoDia.tsx`, `Sala`, `GaleriaClient.visualizador.test.tsx`, `email-template-format.ts`, `email-devolvido.ts`, `orcamento/route.test.ts`, `Fluidez.contrato.test.ts`, `deslocacao.ts`, `contract-pdf.ts`, `espera.ts`, `NavEstudio.test.tsx`, `guardado.ts`, `reminders/route.test.ts`, `escala.ts`, `Segmented.marca.test.tsx`, `conversoes-offline.ts`, `temas-filtros.test.ts`, `totp.ts`, `nada-fica-por-montar.test.ts`, `AvisoDeArmazenamento.test.tsx`, `Temas.split.test.tsx`, `movimento-da-proposta.test.tsx`, `GaleriaClient.scroll-restore.test.tsx`, `email-templates/route.ts`, `analise-de-propostas.ts`, `pedidos-duplicados.ts`, `linhas.ts`, `proposta-web/mosaico.ts`, `orcamento/[id]/route.test.ts`, `Propostas.test.tsx`, `contraste-dos-rotulos.test.ts`, `prefetch-de-tema.ts`, `GaleriaClient.precarga.test.tsx`, `SafeImage.test.tsx`, `paleta-das-fotos.ts`, `pdf-text.ts`, `Clientes.telemovel.test.tsx`, `MapaDeMesas.test.tsx`, `resposta-ao-toque.test.ts`, `logger.rgpd.test.ts`, `grupos.ts`, `Guioes.test.tsx`, `moldura-alvos-de-toque.test.ts`, `PainelDoEstudio.test.tsx`, `useMarcaQueAnda`, `tons-do-documento.test.ts`, `load-queue.ts`, `env.ts`, `tratamento.ts`, `o-que-correr.mjs`, `[...rota]/route.ts`, `AdminClient.convidados.test.tsx`, `contraste-das-cores-escritas.test.ts`, `cores-que-existem.test.ts`, `Cortes.contrato.test.ts`, `duracoes-da-casa.test.ts`, `fila-de-imagens.ts`, `o-valor-que-ela-poe-e-o-valor-que-fica.test.ts`, `proposal-titulos-parecidos.ts`, `fronteira-servidor-cliente.test.ts`, `paleta-das-mesas.test.ts`, `so-originais-precisos.mjs`, `a-saida-sai-da-arvore.test.ts`, `AdminClient.barra-que-fica.test.tsx`, `AdminClient.menu-sem-dobra.test.tsx`, `AdminClient.saida-da-gaveta.test.tsx`, `escala-do-espaco.test.ts`, `EventCosts.colisao.test.tsx`, `EventMaterial.perguntas.test.tsx`, `EnviarModelo.test.tsx`, `NotificationBell.test.tsx`, `RestoreDialog.test.tsx`, `Temas.reversao.test.tsx`, `vistas-que-se-compoem.test.ts`, `espera-em-curso.ts`, `mola.ts`, `tamanhos.ts`, `sw-fotos.test.ts`, `auth-guard-audit.test.ts`, `teste/route.test.ts`, `enviar/route.test.ts`, `Acompanhamento.test.tsx`, `AdminClient.menu-do-destino-activo.test.tsx`, `MaterialListas.perguntas.test.tsx`, `MaterialRegras.perguntas.test.tsx`, `numero-heroi-da-visao-geral.test.ts`, `PaymentsPanel.corrida.test.tsx`, `RestoreDialog.saida.test.tsx`, `portao-do-avif.test.ts`, `molas-da-apple.test.ts`, `sw-navegacao.test.ts`, `sharp-fora-do-arranque.test.ts`, `CamadasCss.contrato.test.ts`, `AdminClient.hierarquia.test.tsx`, `dicas-que-cabem.test.ts`, `EventTasks.perguntas.test.tsx`, `Fornecedores.concorrencia.test.tsx`, `Inventario.perguntas.test.tsx`, `marcador-nao-e-rotulo.test.ts`, `PaginaEmConstrucao.test.tsx`, `Tarefas.concorrencia.test.tsx`, `Toast.saida.test.tsx`, `frases-que-nao-dizem-nada.test.ts`, `data-em-falta.ts`, `vitest.setup.ts`, `o-back-office-nao-viaja-na-proposta.test.ts`, `ProposalStudio`, `AdminClient.espera.test.tsx`, `AdminClient.sem-data.test.tsx`, `AdminClient.separadores.test.tsx`, `assinatura.ts`, `EmailDoEnvio.movel.test.tsx`, `heroi-das-propostas.test.ts`, `Overview.entrada.test.tsx`, `Escolha.teclado.test.tsx`, `Paineis.contrato.test.ts`, `no-dashes-source.test.ts`, `decoracao.ts`, `proposal-doc-pdf.imagens.test.ts`, `proposal-storage.redireccao.test.ts`, `limites-de-tempo.test.ts`, `escala-e-densidade.test.ts`, `a-abertura-nao-chega-atrasada.test.ts`?**
-  _High betweenness centrality (0.361) - this node is a cross-community bridge._
-- **Are the 5 inferred relationships involving `ProposalStudio()` (e.g. with `O que se assume como «4G fraco»` and `O que passou a estar feito`) actually correct?**
-  _`ProposalStudio()` has 5 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `RFC-5545`, `RFC-5545`, `RFC-5545` to the rest of the system?**
+- **Why does `vitest` connect `vitest` to `theme-storage.ts`, `saida.ts`, `cascata-dos-pedidos.test.ts`, `reciclagem.ts`, `Button`, `log`, `theme-types.ts`, `isAuthed`, `duracao-com-guarda.test.ts`, `contracts-store.ts`, `proposal-doc.ts`, `barra-inferior.test.tsx`, `admin-auth.ts`, `i18n/index.ts`, `Temas.tsx`, `types.ts`, `supabase.ts`, `proposal-doc-textos.ts`, `Escolha.nome.test.ts`, `juntar-fotos-duplicadas.ts`, `ProposalStudio.tsx`, `StatsDashboard.tsx`, `letra-da-previa.test.ts`, `linhas-ao-toque.test.ts`, `backup-restore.ts`, `PaymentsPanel.tsx`, `Propostas.tsx`, `AdminClient.tsx`, `proposal-ortografia.ts`, `useSeccaoAVista.ts`, `escala-nos-titulos.test.ts`, `proposal-doc.ts`, `ref_node_fs`, `imagens/route.ts`, `campanhas.ts`, `isDatabaseConfigured`, `site.ts`, `useCachedList.ts`, `[lang]/layout.tsx`, `s/[slug]/page.tsx`, `proposal-doc-pdf.ts`, `AvisoDeArmazenamento.tsx`, `api/backup/route.ts`, `artigos-de-faturacao.ts`, `registo-de-gravacoes.tsx`, `ProposalDoc`, `app-state.ts`, `proposta-doc/route.test.ts`, `EntradaEmVideo.tsx`, `Tarefas.tsx`, `biblioteca/fotos/route.ts`, `plano.ts`, `getDictionary`, `ProposalStudio.casos.test.tsx`, `fornecedores/[id]/route.ts`, `proposta-estado.ts`, `Navbar.tsx`, `useCachedList.ts`, `campo-da-paleta-sem-anel.test.ts`, `ui/index.ts`, `entrada-dos-fundos.test.ts`, `Field.contrato.test.ts`, `ref_node_child_process`, `interleave.ts`, `linguagem-natural.ts`, `DefinicoesProposta.tsx`, `GaleriaClient.tsx`, `liquid-glass.ts`, `proposal-geometria.ts`, `material-lists-store.ts`, `sw-videos.test.ts`, `material-do-que-aparece-por-cima.test.ts`, `next.config.ts`, `tokens.ts`, `[token]/page.tsx`, `capi.ts`, `proposta-doc/route.ts`, `pdf-editorial/mosaico.ts`, `EmailTemplates.tsx`, `sessoes-revogadas.ts`, `ThemePicker.tsx`, `proposta-link-curto.tentativas.test.ts`, `ClientMarquee.tsx`, `proposal-doc-render.ts`, `email-templates-store.ts`, `email-modelos.ts`, `getDictionary`, `montar.ts`, `pregen-gallery.mjs`, `manual/route.ts`, `guioes.ts`, `proposal-traducao-deepl.ts`, `GaleriaClient.a11y.test.tsx`, `supabase.ts`, `gallery-srcset.ts`, `ref_node_url`, `diagnostico-video.ts`, `dossier.ts`, `qualidade-da-foto.ts`, `mapa-de-mesas-pdf.test.ts`, `material-store.ts`, `data.ts`, `limpeza-da-noite.ts`, `email-assinatura.ts`, `esconder-no-hover.test.ts`, `email-template-vars.ts`, `ThemePicker.test.tsx`, `pdf-editorial/imagens.ts`, `OrcamentoForm.tsx`, `ImportarProposta.tsx`, `EntradaEmVideo.test.tsx`, `guiao-do-dia.ts`, `ref_node_crypto`, `montar.casos.test.ts`, `admin-recuperacao.ts`, `pt.ts`, `harness.ts`, `ListaDeTemas.tsx`, `desfecho.ts`, `nenhum-ficheiro-em-falta.test.tsx`, `dependencies`, `registo/route.ts`, `BibliotecaRevisao.test.tsx`, `material-offline.ts`, `Temas.test.tsx`, `cor-dominante.ts`, `round2`, `impressao-visual.ts`, `documento-completo.ts`, `orcamento/route.ts`, `em-partes.ts`, `proposta-fotos-verificacao.ts`, `VistasDeHoras.tsx`, `zip.ts`, `heuristicas.ts`, `GaleriaDoServico.tsx`, `ref_server_only`, `FundirTemas.test.tsx`, `validation.ts`, `[...caminho]/route.ts`, `api/backup/route.ts`, `orcamento/[id]/route.ts`, `varrer-aquecimento.ts`, `uso.ts`, `proposta-de-pdf/tipos.ts`, `espera.ts`, `push.ts`, `importar.test.ts`, `DossierClient.tsx`, `migracao.ts`, `horario-pdf.ts`, `(admin)/layout.tsx`, `CuradoriaDeFotos`, `EmailTemplatesBilingue.falha.test.tsx`, `Miniaturas`, `PainelGeracaoAoGanhar.tsx`, `CalendarioDaData.tsx`, `alvos-de-toque-do-sitio.test.tsx`, `sharp`, `janela-a-pedido.tsx`, `cobrancas.ts`, `Desempenho — o que medimos, e o que está mesmo a atrasar`, `contacto-do-pedido.ts`, `balde.ts`, `proposal-preview-cache.ts`, `proposal-pdf.ts`, `hero-image-loader.ts`, `GaleriaClient.visualizador.test.tsx`, `mapeamento-e-schema.test.ts`, `quem-pede.ts`, `email-devolvido.ts`, `orcamento/route.test.ts`, `Fluidez.contrato.test.ts`, `proposta-definicoes-store.ts`, `mapa-de-mesas.ts`, `NavEstudio.test.tsx`, `Agente 4 — Templates e variáveis`, `CLAUDE.md`, `calendario/route.ts`, `Guioes.tsx`, `EntradaComFotografia.tsx`, `Segmented.marca.test.tsx`, `conversoes-offline.ts`, `ref_react`, `totp.ts`, `nada-fica-por-montar.test.ts`, `marcar/route.ts`, `quotes-store.ts`, `proposta-de-pdf/tipos.ts`, `Temas.split.test.tsx`, `SmoothScroll.tsx`, `GaleriaClient.scroll-restore.test.tsx`, `repository.ts`, `Mapper`, `arquivo.test.ts`, `repository.test.ts`, `email-templates/route.ts`, `envios-de-proposta.ts`, `pedidos-duplicados.ts`, `image-prep.ts`, `proposta-web/mosaico.ts`, `fase-do-pedido.test.ts`, `escolhas-leem-se.test.ts`, `orcamento/route.test.ts`, `contraste-dos-rotulos.test.ts`, `prefetch-de-tema.ts`, `image-worker.ts`, `SafeImage.test.tsx`, `paleta-cores.ts`, `admin/page.tsx`, `restore/route.test.ts`, `resposta-ao-toque.test.ts`, `hojeNoEstudio`, `derivadas/route.ts`, `grupos.ts`, `MoodBoardFotos.tsx`, `EnviarModelo.test.tsx`, `moldura-alvos-de-toque.test.ts`, `PainelDoEstudio.test.tsx`, `useMarcaQueAnda`, `tons-do-documento.test.ts`, `temas-filtros.test.ts`, `env.ts`, `tratamento.ts`, `o-que-correr.mjs`, `AvisoDeQualidade.tsx`, `[...rota]/route.ts`, `AdminClient.convidados.test.tsx`, `PorqueNaoDaParaEnviar.tsx`, `cores-que-existem.test.ts`, `Cortes.contrato.test.ts`, `duracoes-da-casa.test.ts`, `conversoes-fecho.ts`, `fila-de-imagens.ts`, `o-valor-que-ela-poe-e-o-valor-que-fica.test.ts`, `tema-nome.ts`, `fronteira-servidor-cliente.test.ts`, `deslocacao.ts`, `GaleriaClient.layout.test.tsx`, `so-originais-precisos.mjs`, `a-saida-sai-da-arvore.test.ts`, `proxy.ts`, `AdminClient.menu-sem-dobra.test.tsx`, `image-prep.tamanho.test.ts`, `escala-do-espaco.test.ts`, `EventMaterial.perguntas.test.tsx`, `pricing.ts`, `ocupacao-do-armazenamento-regras.ts`, `Temas.reversao.test.tsx`, `vistas-que-se-compoem.test.ts`, `espera-em-curso.ts`, `sitemap.ts`, `ref_react_dom`, `sw-fotos.test.ts`, `porque-nao-leu.ts`, `auth-guard-audit.test.ts`, `enviar/route.test.ts`, `Acompanhamento.tsx`, `espacos.test.ts`, `numero-heroi-da-visao-geral.test.ts`, `teste/route.test.ts`, `portao-do-avif.test.ts`, `molas-da-apple.test.ts`, `sw-navegacao.test.ts`, `AdminClient.abrir-nao-suja.test.tsx`, `CommsZone.tsx`, `dominio-parecido.ts`, `sharp-fora-do-arranque.test.ts`, `CamadasCss.contrato.test.ts`, `barras-que-encolhem.test.ts`, `proposta-versao.ts`, `dicas-que-cabem.test.ts`, `barra-de-destinos.ts`, `quandoGravado`, `marcador-nao-e-rotulo.test.ts`, `next-font-google.ts`, `Temas.saida.test.tsx`, `frases-que-nao-dizem-nada.test.ts`, `stage-derivation.adversarial.test.ts`, `vitest.setup.ts`, `sw-sair.test.ts`, `o-back-office-nao-viaja-na-proposta.test.ts`, `entrada/route.test.ts`, `AdminClient.proposta-em-pagina.test.tsx`, `balde.test.ts`, `DefinicoesProposta.test.tsx`, `relatar-falha.ts`, `heroi-das-propostas.test.ts`, `app-state.prefixo.test.ts`, `Paineis.contrato.test.ts`, `recuperar/route.ts`, `Agente 9 — Erros silenciosos`, `useCamadaDeHistoria`, `[token]/fotos/route.test.ts`, `icones.contrato.test.ts`, `NotaDaProposta.test.tsx`, `telemovel-propostas.test.ts`, `AnelSoDoTeclado.test.tsx`?**
+  _High betweenness centrality (0.342) - this node is a cross-community bridge._
+- **Are the 7 inferred relationships involving `ProposalStudio()` (e.g. with `O que se assume como «4G fraco»` and `O que passou a estar feito`) actually correct?**
+  _`ProposalStudio()` has 7 INFERRED edges - model-reasoned connections that need verification._
+- **What connects `RFC-5545`, `RFC-5322`, `RFC-6238` to the rest of the system?**
   _17 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `theme-storage.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.018197262859839546 - nodes in this community are weakly interconnected._
-- **Why does `next` connect `next` to `theme-storage.ts`, `visao-geral/route.ts`, `ref_react`, `reciclagem.ts`, `AdminClient.tsx`, `logger.ts`, `dependencies`, `repository.ts`, `Button`, `ref_server_only`, `site-image-loader.ts`, `setState`, `admin-auth.ts`, `i18n/index.ts`, `proposta-doc/route.ts`, `movimento-da-proposta.test.tsx`, `getDictionary`, `orcamento/route.ts`, `OrcamentoForm.tsx`, `backup-restore.ts`, `site.ts`, `imagens/route.ts`, `email-templates/route.ts`, `aquecimento-de-pdf.ts`, `[lang]/layout.tsx`, `auth-guard-audit.test.ts`, `contract-types.ts`, `teste/route.test.ts`, `guiao-modelos.ts`, `calendar-store.ts`, `enviar/route.test.ts`, `artigos-de-faturacao.ts`, `dossier.ts`, `orcamento/[id]/route.test.ts`, `Propostas.test.tsx`, `proposta-doc/route.test.ts`, `[token]/page.tsx`, `Tarefas.tsx`, `biblioteca/fotos/route.ts`, `push.ts`, `vitest`, `[id]/moloni/route.ts`, `Navbar.tsx`, `(admin)/layout.tsx`, `GaleriaClient.tsx`, `package.json`, `AdminLogin.tsx`, `CromadoDoSitio.tsx`, `next.config.ts`, `paginas-da-proposta.ts`, `capi.ts`, `ClientMarquee.tsx`, `email-templates-store.ts`, `email-modelos.ts`, `inventory-store.ts`, `proposal-traducao-deepl.ts`, `supabase.ts`, `[...rota]/route.ts`, `diagnostico-video.ts`, `moloni.ts`, `orcamento/route.test.ts`, `s/[slug]/page.tsx`, `pdf-editorial/imagens.ts`, `EventTimeline.tsx`, `email-rascunho/route.ts`, `retrato.ts`, `reminders/route.test.ts`?**
-  _High betweenness centrality (0.045) - this node is a cross-community bridge._
-- **Should `ref_react` be split into smaller, more focused modules?**
-  _Cohesion score 0.017359924026590694 - nodes in this community are weakly interconnected._
-- **Why does `sharp` connect `sharp` to `theme-storage.ts`, `logger.ts`, `dependencies`, `repository.ts`, `gallery-sync.mjs`, `proposta-de-pdf/imagens.ts`, `proposal-doc.ts`, `bench-fotos.mjs`, `proposal-ortografia.ts`, `proposal-doc-render.tamanhos.test.ts`, `ref_node_path`, `ref_node_fs`, `gen-blur.mjs`, `migrar-lqip.mjs`, `imagens/route.ts`, `EntradaComFotografia.tsx`, `proposal-doc-pdf.ts`, `Foto`, `proposta-de-pdf/index.ts`, `comparar-qualidade.mjs`, `paleta-das-fotos.ts`, `plano.ts`, `piscar-subida.mjs`, `image-prep.ts`, `package.json`, `migrar-formas.mjs`, `medir-entrada-admin.mjs`, `tipos.ts`, `proposal-doc-render.ts`, `pregen-gallery.mjs`, `supabase.ts`, `ref_node_url`, `pregen-logos.mjs`, `medir-fotos-do-estudio.mjs`, `pdf-editorial/imagens.ts`, `paleta-das-mesas.test.ts`, `guardado.ts`, `dupla-compressao.mjs`, `montar.casos.test.ts`?**
-  _High betweenness centrality (0.039) - this node is a cross-community bridge._
+  _Cohesion score 0.02277992277992278 - nodes in this community are weakly interconnected._
+- **Why does `next` connect `log` to `theme-storage.ts`, `reciclagem.ts`, `AdminClient.tsx`, `theme-types.ts`, `isAuthed`, `contracts-store.ts`, `admin-auth.ts`, `i18n/index.ts`, `proposta-doc/route.ts`, `getDictionary`, `juntar-fotos-duplicadas.ts`, `OrcamentoForm.tsx`, `campanhas.ts`, `imagens/route.ts`, `site.ts`, `isDatabaseConfigured`, `[lang]/layout.tsx`, `s/[slug]/page.tsx`, `api/backup/route.ts`, `artigos-de-faturacao.ts`, `proposta-doc/route.test.ts`, `Tarefas.tsx`, `biblioteca/fotos/route.ts`, `getDictionary`, `fornecedores/[id]/route.ts`, `Mapper`, `ui/index.ts`, `GaleriaClient.tsx`, `material-lists-store.ts`, `next.config.ts`, `[token]/page.tsx`, `capi.ts`, `sessoes-revogadas.ts`, `ClientMarquee.tsx`, `email-templates-store.ts`, `email-modelos.ts`, `manual/route.ts`, `proposal-traducao-deepl.ts`, `diagnostico-video.ts`, `material-store.ts`, `ref_node_crypto`, `admin-recuperacao.ts`, `desfecho.ts`, `nenhum-ficheiro-em-falta.test.tsx`, `dependencies`, `registo/route.ts`, `orcamento/route.ts`, `proposta-fotos-verificacao.ts`, `zip.ts`, `ref_server_only`, `guioes/modelos/route.ts`, `api/backup/route.ts`, `orcamento/[id]/route.ts`, `uso.ts`, `push.ts`, `importar.test.ts`, `DossierClient.tsx`, `migracao.ts`, `horario-pdf.ts`, `(admin)/layout.tsx`, `orcamento/route.test.ts`, `calendario/route.ts`, `ref_react`, `marcar/route.ts`, `quotes-store.ts`, `SmoothScroll.tsx`, `email-templates/route.ts`, `envios-de-proposta.ts`, `orcamento/route.test.ts`, `proposal-templates.ts`, `admin/page.tsx`, `restore/route.test.ts`, `derivadas/route.ts`, `[...rota]/route.ts`, `conversoes-fecho.ts`, `proxy.ts`, `preferencias/route.ts`, `sitemap.ts`, `auth-guard-audit.test.ts`, `enviar/route.test.ts`, `teste/route.test.ts`, `entrada/route.test.ts`, `recuperar/route.ts`, `equipa/route.ts`?**
+  _High betweenness centrality (0.049) - this node is a cross-community bridge._
+- **Are the 2 inferred relationships involving `Quote` (e.g. with `1.2 As tabelas` and `Parte −1 — o estado, e o que ela decidiu`) actually correct?**
+  _`Quote` has 2 INFERRED edges - model-reasoned connections that need verification._
+- **Should `saida.ts` be split into smaller, more focused modules?**
+  _Cohesion score 0.02211318725635166 - nodes in this community are weakly interconnected._
