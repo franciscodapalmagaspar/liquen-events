@@ -1,4 +1,5 @@
 "use client";
+import type { LeituraDaAbertura } from "@/lib/orcamento/estudio/leitura-da-abertura";
 import { useEstadoDaGravacao } from "./useEstadoDaGravacao";
 import { useCallback, useRef, useState } from "react";
 import { useToast } from "../../Toast";
@@ -125,6 +126,12 @@ export function useEstadoDoRascunho({
    */
   const aAbrirRef = useRef(false);
   const marcaDaAberturaRef = useRef<string | null>(null);
+  /** A leitura do rascunho do servidor, e se ela já fez algum gesto no ecrã:
+   *  as duas metades de `esperaPorElaParaGravar` (`leitura-da-abertura.ts`). */
+  const leituraDaAberturaRef = useRef<LeituraDaAbertura>("a-caminho");
+  const houveGestoRef = useRef(false);
+  /** A marca de cima foi tirada por essa espera, e não pela abertura virgem. */
+  const marcaPelaLeituraRef = useRef(false);
   const jaGravouRef = useRef(false);
   /** O que se compara com a abertura: só o que é TRABALHO DELA. Os mapas de
    *  apoio (`assetUrls`, `themeOrigins`) ficam de fora de propósito — são
@@ -148,6 +155,9 @@ export function useEstadoDoRascunho({
 
   return {
     aAbrirRef,
+    houveGestoRef,
+    leituraDaAberturaRef,
+    marcaPelaLeituraRef,
     aGravarNoServidor,
     aberturaAssente,
     avisoDoSoLocalPorDar,

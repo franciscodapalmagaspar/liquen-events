@@ -31,6 +31,7 @@ export function useRascunhoGuardaSozinho({
 >) {
   const {
     aGravarNoServidor,
+    aberturaAssente,
     avisoDoSoLocalPorDar,
     avisouJuncaoRef,
     flushDraftRef,
@@ -233,6 +234,9 @@ export function useRascunhoGuardaSozinho({
     toast,
     enviarParaServidor,
     nadaPorGravar,
+    // Quando a leitura do servidor responde, a gravação retida pela espera
+    // (`leitura-da-abertura.ts`) agenda-se — o `useEcraEmDia` corre antes.
+    aberturaAssente,
     hydratedRef,
     flushDraftRef,
     historicoRef,

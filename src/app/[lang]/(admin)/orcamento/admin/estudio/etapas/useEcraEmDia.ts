@@ -5,6 +5,7 @@ import { haAssinaturaMorta, semAssinaturasJaMortas } from "../../assinatura";
 import { estadoDaTraducao } from "@/lib/proposal-traducao";
 import { lerPartilhado } from "@/lib/leitura-partilhada";
 import { buildRef } from "@/lib/orcamento/estudio/documento-inicial";
+import { esperaPorElaParaGravar } from "@/lib/orcamento/estudio/leitura-da-abertura";
 import type { useNucleoDoEstudio } from "./useNucleoDoEstudio";
 
 export function useEcraEmDia({
@@ -33,6 +34,10 @@ export function useEcraEmDia({
   const { doc, docAssenteRef, historicoRef, setDoc, setPodeDesfazer } = documento;
   const {
     aAbrirRef,
+    aberturaAssente,
+    houveGestoRef,
+    leituraDaAberturaRef,
+    marcaPelaLeituraRef,
     hydratedRef,
     marcaDaAberturaRef,
     marcaDoTrabalho,
@@ -145,6 +150,7 @@ export function useEcraEmDia({
   useEffect(() => {
     const fechar = () => {
       aAbrirRef.current = false;
+      houveGestoRef.current = true;
     };
     // `input` e `change` estão aqui por uma razão que não é teórica: nem toda a
     // escrita passa por uma tecla. O preenchimento automático do browser, um
@@ -156,7 +162,7 @@ export function useEcraEmDia({
     return () => {
       for (const g of gestos) window.removeEventListener(g, fechar, true);
     };
-  }, [aAbrirRef]);
+  }, [aAbrirRef, houveGestoRef]);
 
   useEffect(() => {
     if (!hydratedRef.current) return;
@@ -175,6 +181,20 @@ export function useEcraEmDia({
       marcaDaAberturaRef.current = marcaDoTrabalho();
       docAssenteRef.current = doc;
       return;
+    }
+    // Sem o rascunho do servidor lido, o que muda sem um gesto dela também é
+    // abertura — gravá-lo seria escrever às cegas (`leitura-da-abertura.ts`).
+    if (esperaPorElaParaGravar(leituraDaAberturaRef.current, houveGestoRef.current)) {
+      marcaDaAberturaRef.current = marcaDoTrabalho();
+      marcaPelaLeituraRef.current = true;
+      docAssenteRef.current = doc;
+      return;
+    }
+    // A espera acabou (a leitura respondeu, ou ela fez um gesto): o que ficou
+    // retido grava-se agora, como se grava qualquer restauro.
+    if (marcaPelaLeituraRef.current) {
+      marcaPelaLeituraRef.current = false;
+      marcaDaAberturaRef.current = null;
     }
     if (nadaPorGravar()) return;
     /**
@@ -231,5 +251,11 @@ export function useEcraEmDia({
     docAssenteRef,
     setPodeDesfazer,
     marcaDaAberturaRef,
+    // A leitura do servidor a responder reabre a gravação retida, mesmo sem o
+    // documento mudar. Ver `leitura-da-abertura.ts`.
+    aberturaAssente,
+    houveGestoRef,
+    leituraDaAberturaRef,
+    marcaPelaLeituraRef,
   ]);
 }

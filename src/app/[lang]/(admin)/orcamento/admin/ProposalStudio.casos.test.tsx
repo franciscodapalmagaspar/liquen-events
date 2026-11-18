@@ -3840,16 +3840,22 @@ describe("a proposta enviada e o que está no aparelho", () => {
     jaSeguiuPor13257();
     abrirDesalinhado();
     // Abre a 12.268,74 (o número avariado) e assenta no 9.883,74 do envio.
+    //
+    // 10 s e não 3: a cadeia (abertura → lista das versões → documento da
+    // versão → repor) leva ~2,4 s sozinha no jsdom, e com a máquina carregada
+    // passava dos 3 s com o valor ainda a caminho (18/11: 16,6 s com seis
+    // núcleos ocupados, e o valor certo no fim). Um valor ERRADO nunca assenta
+    // no 9.883,74, portanto o tempo a mais não esconde esse defeito.
     await waitFor(
       () =>
         expect((screen.getByLabelText(/Valor \(sem IVA\)/) as HTMLInputElement).value).toBe(
           "9883,74",
         ),
-      { timeout: 3000 },
+      { timeout: 10_000 },
     );
     // E o «Preço final» do pedido volta com ele: 9.883,74 + 895,00 de deslocação.
-    await waitFor(() => expect(precosNoPedido()).toContain(10778.74), { timeout: 3000 });
-  }, 20_000);
+    await waitFor(() => expect(precosNoPedido()).toContain(10778.74), { timeout: 10_000 });
+  }, 30_000);
 
   it("e não lhe pergunta nada — não há aviso a pedir para escolher", async () => {
     jaSeguiuPor13257();
@@ -3859,11 +3865,11 @@ describe("a proposta enviada e o que está no aparelho", () => {
         expect((screen.getByLabelText(/Valor \(sem IVA\)/) as HTMLInputElement).value).toBe(
           "9883,74",
         ),
-      { timeout: 3000 },
+      { timeout: 10_000 },
     );
     expect(screen.queryByRole("alert", { name: /não é o que seguiu para o cliente/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /Repor os valores que seguiram/ })).toBeNull();
-  }, 20_000);
+  }, 30_000);
 
   /**
    * Mas não é silencioso: a regra da casa é que ela nunca fica sem saber que
@@ -5168,8 +5174,61 @@ describe("o rascunho preso neste navegador é reenviado ao abrir", () => {
     renderStudio();
     await screen.findByDisplayValue("Beatriz e Nuno");
     // Sem tecla nenhuma não há gravação — e portanto nenhum reenvio cego.
-    await new Promise((r) => setTimeout(r, 300));
+    //
+    // MAIS do que os 800 ms da gravação sozinha, e não 300: o restauro corrige
+    // o rascunho (identificadores, a referência), e essas correções agendavam a
+    // gravação dos 800 ms — com o carimbo `null`, por cima do que estivesse no
+    // servidor. Com 300 ms o teste passava antes de ela sair, e só ficava
+    // vermelho com a máquina carregada (18/11). Ver `leitura-da-abertura.ts`.
+    await new Promise((r) => setTimeout(r, 1_500));
     expect(corpos("proposta-rascunho")).toEqual([]);
+  });
+
+  it("mas o que ela escrever grava-se, mesmo sem ter lido o servidor", async () => {
+    rascunhoOrfaoLocal("Beatriz e Nuno");
+    leituraDoRascunhoFalha = true;
+    renderStudio();
+    const campo = await screen.findByDisplayValue("Beatriz e Nuno");
+    fireEvent.keyDown(campo, { key: "s" });
+    fireEvent.change(campo, { target: { value: "Beatriz e Nuno Silva" } });
+    await waitFor(
+      () => expect(corpos("proposta-rascunho").join("")).toContain("Beatriz e Nuno Silva"),
+      { timeout: 3000 },
+    );
+  });
+
+  /**
+   * A MESMA corrida com a leitura LENTA, e não falhada: o portão segura a
+   * resposta do servidor, de modo que a gravação dos 800 ms tem todo o tempo
+   * para sair antes dela. Não pode sair — o carimbo ainda é `null`. Quando a
+   * leitura chega, as correções do restauro gravam-se, e já com o carimbo da
+   * versão que o servidor tem.
+   */
+  it("com a leitura a caminho não grava sozinho, e grava com o carimbo quando ela chega", async () => {
+    rascunhoOrfaoLocal("Beatriz e Nuno");
+    // O do servidor é mais recente: é o caso em que escrever às cegas apagava
+    // trabalho de outro dispositivo.
+    const carimbo = new Date(Date.now() + 60_000).toISOString();
+    rascunhoServidor = {
+      updatedAt: carimbo,
+      doc: { template: "decoracao", ref: "PO", clientNames: "Feito no tablet" },
+    };
+    portaoDoRascunho = new Promise<void>((resolver) => {
+      abrirPortaoDoRascunho = resolver;
+    });
+    renderStudio();
+    await screen.findByDisplayValue("Beatriz e Nuno");
+    await new Promise((r) => setTimeout(r, 1_500));
+    expect(corpos("proposta-rascunho")).toEqual([]);
+
+    abrirPortaoDoRascunho?.();
+    await screen.findByDisplayValue("Feito no tablet");
+    await waitFor(() => expect(corpos("proposta-rascunho").length).toBeGreaterThan(0), {
+      timeout: 3000,
+    });
+    for (const corpo of corpos("proposta-rascunho")) {
+      expect(JSON.parse(corpo).baseUpdatedAt).toBe(carimbo);
+    }
   });
 });
 

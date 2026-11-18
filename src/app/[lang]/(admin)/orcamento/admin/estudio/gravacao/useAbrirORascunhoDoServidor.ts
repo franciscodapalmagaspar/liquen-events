@@ -26,7 +26,8 @@ export function useAbrirORascunhoDoServidor({
   const { setPorConfirmar } = camposPorConfirmar;
   const { camposTocadosRef, docAssenteRef, historicoRef, setDoc } = documento;
 
-  const { aAbrirRef, docDoServidorRef, serverStampRef, setAberturaAssente } = rascunho;
+  const { aAbrirRef, docDoServidorRef, leituraDaAberturaRef, serverStampRef, setAberturaAssente } =
+    rascunho;
   const { enviarParaServidor } = servidor;
   const { setTotalInput } = total;
   const { setBilingue } = traducoes;
@@ -70,6 +71,7 @@ export function useAbrirORascunhoDoServidor({
         /* sem rede: continua-se com a cópia local, como antes */
       }
       if (!active) return;
+      leituraDaAberturaRef.current = leituraOk ? "lida" : "falhou";
       if (draft) {
         serverStampRef.current = typeof draft.updatedAt === "string" ? draft.updatedAt : null;
         docDoServidorRef.current = ehObjecto(draft.doc) ? draft.doc : null;
