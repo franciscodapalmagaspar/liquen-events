@@ -52,12 +52,14 @@ export function AvisosDoBoard({
                                     a duas páginas, e a segunda diz «Mais
                                     ideias…». Não é um erro — diz-se em voz
                                     baixa, para ela decidir se a quer. */}
-      {paginasDesteTema > 1 && (
+      {paginasDesteTema > 1 &&
+        // Os nós de texto do original: um {" "} à parte não é um espaço dentro do
+        // texto, e mede-se diferente (1/64 px). Ver scripts/capturas/estudio-ao-pixel.mjs.
+        // prettier-ignore
         <p className={`${AVISO_DO_BOARD} text-[var(--bo-text-muted)]`}>
-          {fotosDoTema} fotos: no PDF este tema ocupa {paginasDesteTema} páginas (a segunda diz
-          «Mais ideias…»).
-        </p>
-      )}
+          {fotosDoTema} fotos: no PDF este tema ocupa{" "}
+          {paginasDesteTema} páginas (a segunda diz «Mais ideias…»).
+        </p>}
       {/* ── A FOTO QUE DESTOA DA PALETA ────────────
                                     Não é um erro, e por isso não é vermelho:
                                     uma fotografia de cor diferente pode ser
@@ -70,12 +72,16 @@ export function AvisosDoBoard({
                                     Cala-se sozinho quando não há cores que
                                     cheguem: as fotos carregadas antes de a
                                     cor existir não entram na conta. */}
-      {destoam && (
+      {destoam &&
+        // Os nós de texto do original: um {" "} à parte não é um espaço dentro do
+        // texto, e mede-se diferente (1/64 px). Ver scripts/capturas/estudio-ao-pixel.mjs.
+        // prettier-ignore
         <p className="mb-2 text-xs leading-relaxed text-[var(--bo-text-muted)]">
           <span aria-hidden="true">◐ </span>
-          {destoam} Pode ser de propósito — se não for, troca-a ou arruma a página por cor.
-        </p>
-      )}
+          {destoam}{" "}
+          Pode ser de propósito — se não for, troca-a ou arruma a
+          página por cor.
+        </p>}
     </>
   );
 }

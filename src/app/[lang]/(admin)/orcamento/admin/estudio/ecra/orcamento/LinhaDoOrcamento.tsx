@@ -150,14 +150,17 @@ export function LinhaDoOrcamento({
 
                             Fora do `<label>`: um botão lá dentro carregaria a
                             quadrícula ao ser carregado. */}
-      {ordemDoOrcamento[0] === i && (
+      {ordemDoOrcamento[0] === i &&
+        // Os nós de texto do original: um {" "} à parte não é um espaço dentro do
+        // texto, e mede-se diferente (1/64 px). Ver scripts/capturas/estudio-ao-pixel.mjs.
+        // prettier-ignore
         <Ajuda className="@min-[36rem]:hidden" sobre="o que faz a caixa Extra">
-          <strong className="font-semibold text-[var(--bo-text)]">Extra</strong> marca uma linha
-          como opcional: ela sai assinalada no quadro do PDF e, por baixo do total, a proposta passa
-          a mostrar também o valor <em>sem</em> essa linha. Uma proposta só, com as duas versões lá
+          <strong className="font-semibold text-[var(--bo-text)]">Extra</strong>{" "}
+          marca uma linha como opcional: ela sai assinalada no quadro do PDF e,
+          por baixo do total, a proposta passa a mostrar também o valor{" "}
+          <em>sem</em> essa linha. Uma proposta só, com as duas versões lá
           dentro — em vez de dois documentos a divergir.
-        </Ajuda>
-      )}
+        </Ajuda>}
       <button
         type="button"
         className={`${REMOVE_BTN} ${ESTADO} ${PRESSAO}`}

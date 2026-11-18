@@ -925,6 +925,15 @@ acerto medido aqui.
     50 variáveis do componente não se tira com 50 propriedades: tiram-se primeiro
     os ganchos que juntam essas variáveis por domínio, e a secção sai depois com
     meia dúzia.
+18. **Mover JSX muda os nós de texto, e isso vê-se.** Com menos indentação, o
+    Prettier junta `ocupa{" "}` + `{x}` numa linha só e escreve `ocupa {x}`: o
+    que era o texto «ocupa» mais um nó « » passa a um nó «ocupa ». O Chromium
+    mede os dois de maneira diferente (1/64 px), e a barra do estúdio ficou
+    1/64 px mais estreita — dois glifos com outro antialiasing, apanhados pelas
+    capturas ao píxel (18/11, nove sítios no estúdio). Onde o original tinha
+    `{" "}`, a peça nova guarda-o com `prettier-ignore` e o comentário do
+    porquê; e o passo 5 só se fotografa depois de o email deixar de dizer «A
+    preparar o texto…», senão os dois lados assentam em momentos diferentes.
 
 ---
 

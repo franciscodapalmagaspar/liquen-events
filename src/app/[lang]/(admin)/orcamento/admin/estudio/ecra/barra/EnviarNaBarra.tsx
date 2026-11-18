@@ -41,7 +41,12 @@ export function EnviarNaBarra() {
           data-total-da-barra
           className="shrink-0 whitespace-nowrap text-xs tabular-nums text-[var(--bo-text-muted)]"
         >
-          <span className={barraCompacta ? "sr-only" : "text-foreground/45"}>A pagar </span>
+          {/* Os nós de texto do original: um {" "} à parte não é um espaço dentro do
+              texto, e mede-se diferente (1/64 px). Ver scripts/capturas/estudio-ao-pixel.mjs. */}
+          {/* prettier-ignore */}
+          <span className={barraCompacta ? "sr-only" : "text-foreground/45"}>
+            A pagar{" "}
+          </span>
           <strong className="font-semibold text-[var(--bo-text)]">{eur(totais.aPagar)}</strong>
         </p>
       )}

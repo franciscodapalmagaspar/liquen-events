@@ -71,11 +71,15 @@ export function LinhasDoOrcamento() {
                         coluna, atrás de um «?». */}
         <span className="flex w-16 shrink-0 items-center justify-center gap-1">
           Extra
+          {/* Os nós de texto do original: um {" "} à parte não é um espaço dentro do
+              texto, e mede-se diferente (1/64 px). Ver scripts/capturas/estudio-ao-pixel.mjs. */}
+          {/* prettier-ignore */}
           <Ajuda sobre="o que faz a caixa Extra">
-            <strong className="font-semibold text-[var(--bo-text)]">Extra</strong> marca uma linha
-            como opcional: ela sai assinalada no quadro do PDF e, por baixo do total, a proposta
-            passa a mostrar também o valor <em>sem</em> essa linha. Uma proposta só, com as duas
-            versões lá dentro — em vez de dois documentos a divergir.
+            <strong className="font-semibold text-[var(--bo-text)]">Extra</strong>{" "}
+            marca uma linha como opcional: ela sai assinalada no quadro do PDF e, por
+            baixo do total, a proposta passa a mostrar também o valor <em>sem</em>{" "}
+            essa linha. Uma proposta só, com as duas versões lá dentro — em vez de
+            dois documentos a divergir.
           </Ajuda>
         </span>
         <span className="w-5 shrink-0" />

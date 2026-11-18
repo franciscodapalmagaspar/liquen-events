@@ -69,7 +69,7 @@ function payload() {
 }
 
 async function entrar(page, base) {
-  await page.goto(`${base}/orcamento/admin`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${base}/orcamento/admin`, { waitUntil: "domcontentloaded", timeout: 240_000 });
   const painel = page.getByRole("navigation", { name: /Navegação do back office/i });
   if (
     await painel.waitFor({ state: "visible", timeout: 8_000 }).then(
@@ -110,20 +110,45 @@ async function semear(base) {
   await browser.close();
 }
 
-/** Espera que a página pare de mudar: duas fotografias seguidas iguais. */
+/**
+ * Espera que a página assente, e só então fotografa.
+ *
+ * Primeiro o que se sabe que ainda está a meio — o texto do email «A preparar
+ * o texto…», uma gravação por fazer («Guardar tudo (1)») —, porque com a
+ * máquina carregada isso pode ficar parado mais de um segundo e passar por
+ * ecrã assente. Depois, três fotografias seguidas iguais, com um segundo entre
+ * elas.
+ */
 async function capturaParada(page) {
-  let anterior = null;
-  for (let i = 0; i < 12; i++) {
-    await page.waitForTimeout(700);
+  await page
+    .waitForFunction(
+      () => {
+        const texto = document.body.innerText;
+        if (/A preparar o texto/.test(texto)) return false;
+        return ![...document.querySelectorAll("button")].some((b) =>
+          /^Guardar tudo \(\d+\)/.test(b.getAttribute("aria-label") ?? b.textContent ?? ""),
+        );
+      },
+      null,
+      { timeout: 60_000, polling: 250 },
+    )
+    .catch(() => {});
+  const iguais = [];
+  for (let i = 0; i < 20; i++) {
+    await page.waitForTimeout(1000);
     const agora = await page.screenshot({ fullPage: true, animations: "disabled", caret: "hide" });
-    if (anterior && agora.equals(anterior)) return agora;
-    anterior = agora;
+    if (iguais.length && !agora.equals(iguais[0])) iguais.length = 0;
+    iguais.push(agora);
+    if (iguais.length >= 3) return agora;
   }
-  return anterior;
+  return iguais.at(-1);
 }
 
 async function abrirOEstudio(page, base) {
-  await page.goto(`${base}/orcamento/admin?v=fazer-proposta`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${base}/orcamento/admin?v=fazer-proposta`, {
+    waitUntil: "domcontentloaded",
+    timeout: 240_000,
+  });
   await page.waitForFunction(() => document.body.classList.contains("admin-mode"), null, {
     timeout: 90_000,
   });
@@ -153,6 +178,8 @@ async function passagem(base, largura, tema, estado) {
   const erros = [];
   page.on("console", (m) => m.type() === "error" && erros.push(m.text()));
   page.on("pageerror", (e) => erros.push(String(e)));
+  // A consola diz «404» sem dizer de quê; isto diz qual foi.
+  page.on("response", (r) => r.status() >= 400 && erros.push(`${r.status()} ${r.url()}`));
 
   await entrar(page, base);
   const id = await idDoPedido(page, base);

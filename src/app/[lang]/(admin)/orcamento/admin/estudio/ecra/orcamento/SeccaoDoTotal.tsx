@@ -35,8 +35,12 @@ export function SeccaoDoTotal() {
                 um gesto: voltar a contar os dias a partir de hoje. */}
       {doc.validUntil && doc.validUntil < hojeNoEstudio() && (
         <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-[var(--bo-perigo)]/35 bg-[var(--bo-perigo)]/[0.06] px-3 py-2 text-xs leading-relaxed text-[var(--bo-tinta-72)]">
+          {/* Os nós de texto do original: um {" "} à parte não é um espaço dentro do
+              texto, e mede-se diferente (1/64 px). Ver scripts/capturas/estudio-ao-pixel.mjs. */}
+          {/* prettier-ignore */}
           <span>
-            A validade desta proposta terminou a {doc.validUntil.split("-").reverse().join("/")}.
+            A validade desta proposta terminou a{" "}
+            {doc.validUntil.split("-").reverse().join("/")}.
           </span>
           <button
             type="button"

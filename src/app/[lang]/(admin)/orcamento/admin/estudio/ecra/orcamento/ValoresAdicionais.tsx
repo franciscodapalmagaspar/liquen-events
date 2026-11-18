@@ -93,9 +93,13 @@ export function ValoresAdicionais() {
               {eur(totais.aPagar)} a pagar.
             </>
           ) : (
+            // Os nós de texto do original: um {" "} à parte não é um espaço dentro do
+            // texto, e mede-se diferente (1/64 px). Ver scripts/capturas/estudio-ao-pixel.mjs.
+            // prettier-ignore
             <>
-              O valor que escreveste em «Valor (sem IVA)» já inclui estas linhas: o subtotal dos
-              serviços fica <strong className="font-semibold">{eur(totais.servicos)}</strong> e o
+              O valor que escreveste em «Valor (sem IVA)» já inclui estas linhas: o
+              subtotal dos serviços fica{" "}
+              <strong className="font-semibold">{eur(totais.servicos)}</strong> e o
               total sem IVA continua {eur(totais.total)}.
             </>
           )}
