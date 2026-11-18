@@ -6,7 +6,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
  * «Rascunho demasiado grande.» (413), «Rascunho em falta.» (400) — vêm em
  * `error`. Ficava «não foi possível guardar», sem dizer porquê.
  */
-const { gravarRascunhoNoServidor } = await import("./ProposalStudio");
+const { gravarRascunhoNoServidor } = await import("@/lib/orcamento/estudio/gravar");
 
 afterEach(() => vi.unstubAllGlobals());
 

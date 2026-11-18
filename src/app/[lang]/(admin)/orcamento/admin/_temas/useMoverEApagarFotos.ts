@@ -2,7 +2,6 @@ import { type Dispatch, type RefObject, type SetStateAction } from "react";
 import type { ThemeImage, ThemeSummary } from "@/lib/theme-types";
 import { type ThemeCopyOutcome } from "../ThemeCopyDialog";
 import { THEME_COPY_CHUNK } from "@/lib/theme-types";
-import { type AccaoDoAviso } from "../Toast";
 import { porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
 import { bibliotecaAlterada } from "../biblioteca-alterada";
 import { fraseDeMovimentoFalhado, fraseDoMovimento, fraseDoRegresso } from "@/lib/temas-arrasto";
@@ -10,6 +9,8 @@ import { pool } from "@/lib/concorrencia";
 import { reinsertAt } from "@/lib/temas/listas-de-fotos";
 import { plural } from "@/lib/plural";
 import { DELETE_CONCURRENCY } from "./tectos-da-pasta";
+import { type Avisar } from "../Toast";
+import { type Anular } from "../ui/anular";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -27,8 +28,8 @@ import { DELETE_CONCURRENCY } from "./tectos-da-pasta";
 export interface EntradasMoverEApagarFotos {
   theme: ThemeSummary;
   onCopiedTo: (destId: string, added: number) => void;
-  toast: (message: string, kind?: "success" | "error" | "info", accao?: AccaoDoAviso) => void;
-  anular: (mensagem: string, repor: () => unknown, anulado?: string) => void;
+  toast: Avisar;
+  anular: Anular;
   depoisDeApagarVarios: (
     corpos: unknown[],
     frase: string,

@@ -1,11 +1,7 @@
 import type { Quote } from "@/lib/orcamento/types";
-import { esquecerRascunho, type CamposDoPedido } from "../rascunho-do-pedido";
-import {
-  fetchComTecto,
-  respostaDeHttp,
-  type RespostaDoEnvio,
-  enviarComRepeticao,
-} from "../useGravacaoAutomatica";
+import { esquecerRascunho } from "../rascunho-do-pedido";
+import { fetchComTecto } from "@/lib/gravar-com-tecto";
+import { respostaDeHttp, type RespostaDoEnvio, enviarComRepeticao } from "../useGravacaoAutomatica";
 import { randomId } from "../util";
 import { reporEstadoDoPedido } from "../anular-estado";
 import { asPropostasMudaram } from "../percentagem-do-sinal";
@@ -13,7 +9,6 @@ import { type NotasAutomaticas } from "@/lib/orcamento/pedidos/notas-automaticas
 import { comPedidoSubstituido } from "@/lib/orcamento/pedidos/lista-de-pedidos";
 import { type EdicaoDoPedido } from "./useEdicaoDoPedido";
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import type { AccaoDoAviso } from "../Toast";
 import type { GravacaoAutomatica } from "../useGravacaoAutomatica";
 
 import { porqueRecusou } from "@/lib/erro-do-servidor";
@@ -24,6 +19,9 @@ import {
   linhasDoHistorico,
 } from "@/lib/orcamento/pedidos/gravar-o-pedido";
 import { lerPainel } from "@/lib/orcamento/pedidos/painel-do-pedido";
+import { type Avisar } from "../Toast";
+import { type Anular } from "../ui/anular";
+import { type RascunhoEncontrado } from "../rascunho-do-pedido";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -44,17 +42,11 @@ export interface EntradasGravacaoDoPedido {
   setSelected: Dispatch<SetStateAction<Quote | null>>;
   selected: Quote | null;
   setSaving: Dispatch<SetStateAction<boolean>>;
-  toast: (message: string, kind?: "success" | "error" | "info", accao?: AccaoDoAviso) => void;
-  anular: (mensagem: string, repor: () => unknown, anulado?: string) => void;
+  toast: Avisar;
+  anular: Anular;
   escritoNoServidor: RefObject<NotasAutomaticas | null>;
   acertarBaseDoConflito: (id: string, res: Response) => Promise<void>;
-  setRascunhoPorRepor: Dispatch<
-    SetStateAction<{
-      campos: CamposDoPedido;
-      quando: string;
-      mudou: (keyof CamposDoPedido)[];
-    } | null>
-  >;
+  setRascunhoPorRepor: Dispatch<SetStateAction<RascunhoEncontrado | null>>;
   gravacao: GravacaoAutomatica;
   edicao: EdicaoDoPedido;
   refletirPedidoReposto: (q: Quote) => void;

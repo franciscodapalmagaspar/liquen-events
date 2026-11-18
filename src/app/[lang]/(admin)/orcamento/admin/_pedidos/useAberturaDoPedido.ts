@@ -10,7 +10,6 @@ import { localizeHref } from "@/lib/i18n/config";
 import { navegarPara } from "../navegar";
 import type { Quote } from "@/lib/orcamento/types";
 import { haQuantoTempo, lerRascunho, oQueMudou, type CamposDoPedido } from "../rascunho-do-pedido";
-import { type AccaoDoAviso } from "../Toast";
 import { prefetchList } from "../useCachedList";
 import { type SeparadorPorDecidir } from "../separador-por-decidir";
 import { propostaDaFaseDoPedido, type PropostaLeve } from "../percentagem-do-sinal";
@@ -19,6 +18,8 @@ import type { LeituraDoPedido } from "@/lib/orcamento/pedidos/leitura-do-pedido"
 import { type EdicaoDoPedido } from "./useEdicaoDoPedido";
 import { detailNextAction, type DetailTab } from "./separadores-do-painel";
 import { type SeparadorDoPedido } from "@/lib/orcamento/pedidos/proxima-accao";
+import { type Avisar } from "../Toast";
+import { type RascunhoEncontrado } from "../rascunho-do-pedido";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -42,17 +43,11 @@ export interface EntradasAberturaDoPedido {
   setView: Dispatch<SetStateAction<View>>;
   setPropostaPara: Dispatch<SetStateAction<string | null>>;
   setAAbrir: Dispatch<SetStateAction<{ id: string; nome: string } | null>>;
-  toast: (message: string, kind?: "success" | "error" | "info", accao?: AccaoDoAviso) => void;
+  toast: Avisar;
   detailOpenerRef: RefObject<HTMLElement | null>;
   locale: "pt" | "en";
   camposDoPedido: (q: Quote) => CamposDoPedido;
-  setRascunhoPorRepor: Dispatch<
-    SetStateAction<{
-      campos: CamposDoPedido;
-      quando: string;
-      mudou: (keyof CamposDoPedido)[];
-    } | null>
-  >;
+  setRascunhoPorRepor: Dispatch<SetStateAction<RascunhoEncontrado | null>>;
   discardGuard: () => boolean;
   comPedidoInteiro: (q: Quote) => Promise<LeituraDoPedido>;
   lembrarRecente: (q: Quote) => void;

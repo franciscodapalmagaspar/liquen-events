@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mandarPrecoAoPedido } from "./ProposalStudio";
+import { mandarPrecoAoPedido } from "@/lib/orcamento/estudio/gravar";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════

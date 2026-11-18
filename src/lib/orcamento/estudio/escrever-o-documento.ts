@@ -4,7 +4,6 @@
  * Saiu tal e qual do `ProposalStudio.tsx` (fase 1 de `docs/ESTRUTURA-DO-CODIGO.md`);
  * o componente reexporta o que já exportava, para nenhum chamador mudar.
  */
-import type { SetStateAction } from "react";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import { realinharChavesDosTemas } from "@/lib/pdf-editorial/plano";
 import type { StudioDoc } from "./documento-inicial";
@@ -27,7 +26,11 @@ export function marcarLimpas<T extends object | undefined>(fp: T): T {
  * tocou, ou só as limpou (`fotosLimpasDoAnterior`). Um par (temas, fotos) que
  * já esteve gravado junto — o que um «Anular» repõe — passa direito.
  */
-export function escreverODocumento(prev: StudioDoc, u: SetStateAction<StudioDoc>): StudioDoc {
+/** O que um `setDoc` recebe: o documento novo, ou como o tirar do anterior
+ *  (a mesma forma do `SetStateAction` do React, sem o importar). */
+export type EscritaDoDocumento = StudioDoc | ((anterior: StudioDoc) => StudioDoc);
+
+export function escreverODocumento(prev: StudioDoc, u: EscritaDoDocumento): StudioDoc {
   const next = typeof u === "function" ? u(prev) : u;
   if (next === prev) return prev;
   const fp = next.fotosDasPaginas;

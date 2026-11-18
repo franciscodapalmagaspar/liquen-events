@@ -1,7 +1,7 @@
 "use client";
 
 import { type RefObject } from "react";
-import { type useToast } from "../Toast";
+import { type Avisar } from "../Toast";
 import { dateStamp, downloadCsv, quotesToCsvRows } from "../exportar-em-csv";
 import { type FiltrosDaLista } from "./useFiltrosDosPedidos";
 import { CATEGORIES } from "@/lib/orcamento/data";
@@ -18,7 +18,7 @@ import { FILTRO_CAIXA, FILTRO_CLASSES } from "./pele-da-lista";
 export interface ControlosDaListaProps {
   filtros: FiltrosDaLista;
   userName: string;
-  toast: ReturnType<typeof useToast>["toast"];
+  toast: Avisar;
   searchRef: RefObject<HTMLInputElement | null>;
   mesesDisponiveis: string[];
   regioesDisponiveis: string[];

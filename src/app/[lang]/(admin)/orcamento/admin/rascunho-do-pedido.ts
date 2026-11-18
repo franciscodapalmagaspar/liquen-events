@@ -194,3 +194,14 @@ export function haQuantoTempo(em: string, agora: Date): string {
   const dias = Math.floor(horas / 24);
   return dias === 1 ? "há 1 dia" : `há ${dias} dias`;
 }
+
+/** O rascunho encontrado ao abrir um pedido, à espera de uma decisão dela. */
+export interface RascunhoEncontrado {
+  campos: CamposDoPedido;
+  /** Já escrito — «há 12 minutos». Calculado ao ABRIR e não a cada desenho:
+   *  no desenho, `new Date()` faz a frase mudar sozinha quando o painel
+   *  redesenha por outra razão qualquer, e uma frase que se mexe sem motivo
+   *  chama a atenção para o sítio errado. */
+  quando: string;
+  mudou: (keyof CamposDoPedido)[];
+}

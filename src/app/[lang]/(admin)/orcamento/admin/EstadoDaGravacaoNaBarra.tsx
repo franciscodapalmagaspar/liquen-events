@@ -19,7 +19,7 @@
  * O que se VÊ é o mesmo de antes: um indicador só, numa das duas.
  */
 
-import type { EstadoDaGravacaoNoEcra } from "./ProposalStudio";
+import type { EstadoDaGravacaoNoEcra } from "@/lib/orcamento/estudio/textos-do-estudio";
 
 export function eAlarmeDaGravacao(estado: EstadoDaGravacaoNoEcra): boolean {
   return estado === "so-neste-computador" || estado === "nao-dura-ao-deploy";

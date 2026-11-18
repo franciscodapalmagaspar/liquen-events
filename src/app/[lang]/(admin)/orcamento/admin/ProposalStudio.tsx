@@ -67,7 +67,6 @@ import {
   type Contagem,
 } from "@/lib/tempo-activo";
 import { ehRefDeTema } from "@/lib/theme-ref";
-import { eventTypeName } from "@/lib/orcamento/data";
 import { log } from "@/lib/logger";
 import { camposMudados, mesmoValor } from "@/lib/rascunho-juntar";
 import { EstadoDaGravacaoNaBarra } from "./EstadoDaGravacaoNaBarra";
@@ -323,21 +322,7 @@ import {
   gravarRascunhoNoServidor,
   mandarPrecoAoPedido,
   type ResultadoDaGravacao,
-  type ResultadoDoPreco,
 } from "@/lib/orcamento/estudio/gravar";
-
-/*
- * A lógica pura do estúdio vive em `lib/orcamento/estudio/` (fase 1 de
- * `docs/ESTRUTURA-DO-CODIGO.md`). O que este ficheiro exportava continua a
- * sair daqui, para nenhum teste nem chamador ter de mudar.
- */
-export { semAsFotosNasPaginas, semOTema, temasLevadosPelasLinhas };
-export { avisoDeConteudoIncompleto, cortesDoCabecalho, textoDaGravacao, textoDoTotal };
-export type { EstadoDaGravacaoNoEcra };
-export { contagemDePrecos, modoDoAdicional, textoDoAdicional };
-export type { ModoDeIvaDoAdicional };
-export { gravarRascunhoNoServidor, mandarPrecoAoPedido };
-export type { ResultadoDaGravacao, ResultadoDoPreco };
 
 /**
  * Visual editor for the studio's multi-page proposal PDF. Produces a

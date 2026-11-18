@@ -3,7 +3,9 @@ import { comLimite, ESCRITAS_EM_SIMULTANEO } from "../com-limite";
 import { reporEstadoDoPedido } from "../anular-estado";
 import { ARQUIVAR_SEM_PERGUNTAR } from "@/lib/orcamento/pedidos/regras-da-lista";
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
-import { type AccaoDoAviso } from "../Toast";
+import { type Avisar } from "../Toast";
+import { type Anular } from "../ui/anular";
+import { comPedidosSubstituidos, semPedidos } from "@/lib/orcamento/pedidos/lista-de-pedidos";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -38,8 +40,8 @@ export interface EntradasAccoesEmLote {
   contarMaisUmNoLote: () => void;
   setAApagarLote: Dispatch<SetStateAction<string[] | null>>;
   setAArquivarLote: Dispatch<SetStateAction<string[] | null>>;
-  toast: (message: string, kind?: "success" | "error" | "info", accao?: AccaoDoAviso) => void;
-  anular: (mensagem: string, repor: () => unknown, anulado?: string) => void;
+  toast: Avisar;
+  anular: Anular;
   depoisDeApagarVarios: (
     corpos: unknown[],
     frase: string,
@@ -98,7 +100,7 @@ export function useAccoesEmLote({
         if (u && typeof u === "object") updated.set(ids[i], { ...u, id: u.id ?? ids[i] });
       });
       if (updated.size > 0) {
-        setQuotes((prev) => prev.map((q) => updated.get(q.id) ?? q));
+        setQuotes((prev) => comPedidosSubstituidos(prev, updated));
         setSelected((prev) => (prev && updated.has(prev.id) ? updated.get(prev.id)! : prev));
       }
       const ok = updated.size;
@@ -128,7 +130,7 @@ export function useAccoesEmLote({
           const porId = new Map(
             repostos.filter((q): q is Quote => !!q).map((q) => [q.id, q] as const),
           );
-          setQuotes((prev) => prev.map((q) => porId.get(q.id) ?? q));
+          setQuotes((prev) => comPedidosSubstituidos(prev, porId));
           setSelected((prev) => (prev && porId.has(prev.id) ? porId.get(prev.id)! : prev));
           const avisos: string[] = [];
           if (mudaramOutraVez.length > 0) {
@@ -209,7 +211,7 @@ export function useAccoesEmLote({
         if (u && typeof u === "object") updated.set(ids[i], { ...u, id: u.id ?? ids[i] });
       });
       if (updated.size > 0) {
-        setQuotes((prev) => prev.map((q) => updated.get(q.id) ?? q));
+        setQuotes((prev) => comPedidosSubstituidos(prev, updated));
         setSelected((prev) => (prev && updated.has(prev.id) ? updated.get(prev.id)! : prev));
       }
       const ok = updated.size;
@@ -228,7 +230,7 @@ export function useAccoesEmLote({
               .filter((q): q is Quote => !!q && typeof q.id === "string")
               .map((q) => [q.id, q]),
           );
-          setQuotes((prev) => prev.map((q) => porId.get(q.id) ?? q));
+          setQuotes((prev) => comPedidosSubstituidos(prev, porId));
           setSelected((prev) => (prev && porId.has(prev.id) ? porId.get(prev.id)! : prev));
           if (porId.size < updated.size) {
             throw new Error(
@@ -297,7 +299,7 @@ export function useAccoesEmLote({
       const apagados = results.filter((x): x is { id: string; corpo: unknown } => x !== null);
       const removed = new Set(apagados.map((x) => x.id));
       if (removed.size > 0) {
-        setQuotes((prev) => prev.filter((q) => !removed.has(q.id)));
+        setQuotes((prev) => semPedidos(prev, removed));
         setSelected((prev) => (prev && removed.has(prev.id) ? null : prev));
       }
       const ok = removed.size;

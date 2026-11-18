@@ -1,17 +1,14 @@
 "use client";
 
-import { fraseDoQueMudou, type CamposDoPedido } from "../../rascunho-do-pedido";
+import { fraseDoQueMudou } from "../../rascunho-do-pedido";
 import { Button } from "../../ui";
+import { type RascunhoEncontrado } from "../../rascunho-do-pedido";
 
 /** O aviso do que ficou por gravar da última vez que este pedido esteve aberto
  *  (o rascunho no telemóvel), com «Recuperar» e «Descartar». (Saiu do painel na
  *  fase 7 da estrutura do código, tal e qual.) */
 export interface RascunhoPorReporProps {
-  rascunhoPorRepor: {
-    campos: CamposDoPedido;
-    quando: string;
-    mudou: (keyof CamposDoPedido)[];
-  } | null;
+  rascunhoPorRepor: RascunhoEncontrado | null;
   reporRascunho: () => void;
   descartarRascunho: () => void;
 }

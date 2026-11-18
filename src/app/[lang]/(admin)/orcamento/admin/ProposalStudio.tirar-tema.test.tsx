@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { semAsFotosNasPaginas, semOTema } from "./ProposalStudio";
+import { semAsFotosNasPaginas, semOTema } from "@/lib/orcamento/estudio/temas-e-fotos";
 
 /**
  * Pedido de 12/11: «os noivos não querem cocktail; ela tirou o mood board no

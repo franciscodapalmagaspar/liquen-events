@@ -92,7 +92,11 @@ const eslintConfig = defineConfig([
   //
   // 1. A lógica pura não conhece React, o Next, a base de dados nem a interface.
   {
-    files: ["src/lib/orcamento/pedidos/**/*.ts", "src/lib/temas/**/*.ts"],
+    files: [
+      "src/lib/orcamento/pedidos/**/*.ts",
+      "src/lib/orcamento/estudio/**/*.ts",
+      "src/lib/temas/**/*.ts",
+    ],
     ignores: ["**/*.test.ts"],
     rules: {
       "no-restricted-imports": [
@@ -102,7 +106,7 @@ const eslintConfig = defineConfig([
             {
               group: ["react", "react-dom", "react/*", "next", "next/*", "server-only"],
               message:
-                "A lógica pura dos pedidos e dos temas não importa React nem o Next: o estado e os efeitos vivem nos hooks das casas.",
+                "A lógica pura dos pedidos, do estúdio e dos temas não importa React nem o Next: o estado e os efeitos vivem nos hooks das casas.",
             },
             {
               group: ["@/lib/supabase*", "@/lib/*-store", "@/lib/repository"],

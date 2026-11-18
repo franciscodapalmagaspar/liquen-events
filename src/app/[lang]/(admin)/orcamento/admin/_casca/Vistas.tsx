@@ -1,6 +1,5 @@
 "use client";
 
-import { textoDoPreco } from "@/lib/orcamento/pedidos/textos-do-pedido";
 import ComPropostasParaContas from "../ComPropostasParaContas";
 import {
   Calendario,
@@ -35,13 +34,12 @@ export function Vistas({ pedidos, navegacao, userName }: VistasProps) {
     quotes,
     substituirPedido,
     alterarPedido,
-    setEditPrice,
-    selectedRef,
     marcarDesfecho,
     abrirCliente,
     openQuote,
     revalidarPedidos,
     refletirEstadoDoEstudio,
+    refletirPrecoDoEstudio,
     archivedCount,
     verArquivados,
     activeQuotes,
@@ -149,14 +147,7 @@ export function Vistas({ pedidos, navegacao, userName }: VistasProps) {
             // As propostas já feitas não estão nesta lista — estão lá.
             onIrParaPropostas={(procura) => irComPedido("propostas", { procura: procura ?? "" })}
             onNovoPedido={() => setNewQuoteOpen(true)}
-            onQuoteUpdated={(q) => {
-              substituirPedido(q);
-              // A MESMA guarda de id das duas linhas de cima. Sem ela, o
-              // estúdio a gravar o preço do pedido B escrevia-o no campo do
-              // pedido A que está aberto no painel — e o «Guardar tudo» do
-              // cabeçalho mandava-o para A.
-              if (q.id === selectedRef.current?.id) setEditPrice(textoDoPreco(q));
-            }}
+            onQuoteUpdated={refletirPrecoDoEstudio}
             onEstadoDoPedido={(q, status) => refletirEstadoDoEstudio(q.id, status)}
             onSent={(q) => {
               alterarPedido(q.id, { status: "cotado" });

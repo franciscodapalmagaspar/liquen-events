@@ -5,6 +5,12 @@
  * o componente reexporta o que já exportava, para nenhum chamador mudar.
  */
 import type { Quote, QuoteStatus } from "@/lib/orcamento/types";
+import {
+  fetchComTecto,
+  GRAVACAO_PAUSA_MS,
+  GRAVACAO_TECTO_MS,
+  GRAVACAO_TENTATIVAS,
+} from "@/lib/gravar-com-tecto";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -30,10 +36,6 @@ import type { Quote, QuoteStatus } from "@/lib/orcamento/types";
  * tem a tabela, ou a chave não a pode escrever). Nesses, tentar outra vez dá
  * exactamente a mesma resposta e só atrasa o aviso.
  */
-
-const GRAVACAO_TENTATIVAS = 3;
-const GRAVACAO_PAUSA_MS = 400;
-const GRAVACAO_TECTO_MS = 10000;
 
 export type ResultadoDaGravacao =
   | {
@@ -107,20 +109,6 @@ export type ResultadoDaGravacao =
        *  basta entrar outra vez (achado n.º 34). */
       sessaoExpirada?: boolean;
     };
-
-/** Um `fetch` com tecto de tempo próprio. Sem ele, uma rede que aceita a
- *  ligação e nunca responde deixa a gravação pendurada para sempre — e o
- *  indicador ficaria eternamente em «a guardar…», que é outra maneira de
- *  mentir. */
-async function fetchComTecto(url: string, init: RequestInit, ms: number): Promise<Response> {
-  const abortador = new AbortController();
-  const t = setTimeout(() => abortador.abort(), ms);
-  try {
-    return await fetch(url, { ...init, signal: abortador.signal });
-  } finally {
-    clearTimeout(t);
-  }
-}
 
 /**
  * Grava o rascunho no servidor, repetindo enquanto fizer sentido, e devolve a

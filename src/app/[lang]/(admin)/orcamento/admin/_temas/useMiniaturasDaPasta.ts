@@ -1,10 +1,10 @@
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
 import type { ThemeImage, ThemeSummary } from "@/lib/theme-types";
 import { THEME_PAGE_SIZE } from "@/lib/theme-types";
-import { type AccaoDoAviso } from "../Toast";
 import { ThumbJob } from "./tipos-da-pasta";
 import { plural } from "@/lib/plural";
 import { MAX_THUMB_BATCHES, MAX_BAD_BATCHES, MAX_REFRESH_PAGES } from "./tectos-da-pasta";
+import { type Avisar } from "../Toast";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -21,7 +21,7 @@ import { MAX_THUMB_BATCHES, MAX_BAD_BATCHES, MAX_REFRESH_PAGES } from "./tectos-
  */
 export interface EntradasMiniaturasDaPasta {
   theme: ThemeSummary;
-  toast: (message: string, kind?: "success" | "error" | "info", accao?: AccaoDoAviso) => void;
+  toast: Avisar;
   setImages: Dispatch<SetStateAction<ThemeImage[]>>;
   images: ThemeImage[];
   total: number | null;

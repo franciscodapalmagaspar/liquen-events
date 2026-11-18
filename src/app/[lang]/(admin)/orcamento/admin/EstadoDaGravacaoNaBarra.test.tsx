@@ -2,7 +2,10 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 import { EstadoDaGravacaoNaBarra } from "./EstadoDaGravacaoNaBarra";
-import { textoDaGravacao, type EstadoDaGravacaoNoEcra } from "./ProposalStudio";
+import {
+  textoDaGravacao,
+  type EstadoDaGravacaoNoEcra,
+} from "@/lib/orcamento/estudio/textos-do-estudio";
 
 afterEach(cleanup);
 

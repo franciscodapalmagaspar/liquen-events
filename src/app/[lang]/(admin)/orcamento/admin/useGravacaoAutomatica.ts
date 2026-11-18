@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { gravadoEmPorExtenso } from "@/lib/quando-gravado";
 import { useInscricaoNoRegisto, type ResultadoDoEcra } from "./registo-de-gravacoes";
+import { GRAVACAO_PAUSA_MS, GRAVACAO_TENTATIVAS } from "@/lib/gravar-com-tecto";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -55,12 +56,8 @@ import { useInscricaoNoRegisto, type ResultadoDoEcra } from "./registo-de-gravac
 
 /** Espera, em ms, entre a última tecla e a gravação. */
 export const ATRASO_DA_GRAVACAO = 800;
-/** Quantas vezes se tenta antes de desistir. */
-export const GRAVACAO_TENTATIVAS = 3;
-/** Pausa base entre tentativas; cresce com o número da tentativa. */
-export const GRAVACAO_PAUSA_MS = 400;
-/** Tecto de tempo de cada tentativa. */
-export const GRAVACAO_TECTO_MS = 10000;
+// O ritmo (tentativas, pausa, tecto) e o `fetchComTecto` vivem em
+// `lib/gravar-com-tecto.ts`: os mesmos do estúdio.
 
 /**
  * ── OS ESTADOS DO INDICADOR ────────────────────────────────────────────────
@@ -150,25 +147,6 @@ export type ResultadoDaGravacao =
   | { estado: "guardado" }
   /** Não ficou no servidor. Quem chama sabe se ficou nalgum outro lado. */
   | { estado: "nao-guardado"; porque?: string };
-
-/**
- * Um `fetch` com tecto de tempo próprio. Sem ele, uma rede que aceita a ligação
- * e nunca responde deixa a gravação pendurada para sempre — e o indicador
- * ficaria eternamente em «a guardar…», que é outra maneira de mentir.
- */
-export async function fetchComTecto(
-  url: string,
-  init: RequestInit,
-  ms: number = GRAVACAO_TECTO_MS,
-): Promise<Response> {
-  const abortador = new AbortController();
-  const t = setTimeout(() => abortador.abort(), ms);
-  try {
-    return await fetch(url, { ...init, signal: abortador.signal });
-  } finally {
-    clearTimeout(t);
-  }
-}
 
 /**
  * Traduz um código de estado HTTP numa tentativa.

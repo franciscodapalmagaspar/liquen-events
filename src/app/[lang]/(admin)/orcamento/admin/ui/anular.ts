@@ -22,7 +22,10 @@ import { useToast } from "../Toast";
  * sua maneira (as listas da gaveta têm a frase da colisão, «foi alterada noutro
  * sítio») devolve `false`: não aparece «Anulado.» nem um segundo aviso.
  */
-export function useAnular() {
+/** O «Anular» de um aviso: a mensagem, como repor, e o que dizer depois de repor. */
+export type Anular = (mensagem: string, repor: () => unknown, anulado?: string) => void;
+
+export function useAnular(): Anular {
   const { toast } = useToast();
   return useCallback(
     (mensagem: string, repor: () => unknown, anulado = "Anulado.") => {

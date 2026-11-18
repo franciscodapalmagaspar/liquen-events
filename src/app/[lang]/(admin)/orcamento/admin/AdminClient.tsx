@@ -43,10 +43,10 @@ import { separadorQuandoAPropostaChega, type SeparadorPorDecidir } from "./separ
 import {
   useGravacaoAutomatica,
   useTravaoDeSaida,
-  fetchComTecto,
   respostaDeHttp,
   type RespostaDoEnvio,
 } from "./useGravacaoAutomatica";
+import { fetchComTecto } from "@/lib/gravar-com-tecto";
 import { useInscricaoNoRegisto } from "./registo-de-gravacoes";
 import { onIdle } from "@/lib/onIdle";
 import { marcarSaidaDeProposito } from "./entrada-destino";
@@ -77,6 +77,7 @@ import { Button, EmCurso, FolhaOuDialogo, PerguntaDestrutiva } from "./ui";
 import { useDescarga } from "./ui/descarregar";
 
 import { useMarcaQueAnda } from "./ui/useMarcaQueAnda";
+import { type RascunhoEncontrado } from "./rascunho-do-pedido";
 /* A outra metade do vocabulário: a `.bo-saida` é a palavra em CSS, e este hook
    é a parte que o CSS não pode fazer sozinho — segurar o nó montado os 200 ms
    da saída. A prosa toda está no `ui/saida.ts` e na regra do `globals.css`. */
@@ -1270,15 +1271,7 @@ export default function AdminClient({
   );
 
   /** O rascunho encontrado ao abrir, à espera de uma decisão dela. */
-  const [rascunhoPorRepor, setRascunhoPorRepor] = useState<{
-    campos: CamposDoPedido;
-    /** Já escrito — «há 12 minutos». Calculado ao ABRIR e não a cada desenho:
-     *  no desenho, `new Date()` faz a frase mudar sozinha quando o painel
-     *  redesenha por outra razão qualquer, e uma frase que se mexe sem motivo
-     *  chama a atenção para o sítio errado. */
-    quando: string;
-    mudou: (keyof CamposDoPedido)[];
-  } | null>(null);
+  const [rascunhoPorRepor, setRascunhoPorRepor] = useState<RascunhoEncontrado | null>(null);
 
   /**
    * Guarda o que está escrito, com um atraso curto.
@@ -2333,15 +2326,16 @@ export default function AdminClient({
     window.location.href = "/orcamento/admin";
   }
 
-  const { appendActivity, refletirEstadoDoEstudio, refletirPedidoReposto } = useHistoricoDoPedido({
-    setQuotes,
-    setSelected,
-    substituirPedido,
-    toast,
-    selectedRef,
-    escritoNoServidor,
-    edicao,
-  });
+  const { appendActivity, refletirEstadoDoEstudio, refletirPrecoDoEstudio, refletirPedidoReposto } =
+    useHistoricoDoPedido({
+      setQuotes,
+      setSelected,
+      substituirPedido,
+      toast,
+      selectedRef,
+      escritoNoServidor,
+      edicao,
+    });
   const { guardarTudoDoPedido, guardarAgora } = useGravacaoDoPedido({
     refletirPedidoReposto,
     userName,
@@ -2809,17 +2803,16 @@ export default function AdminClient({
               nomesDosPedidos,
               archivedCount,
               falhaDosPedidos,
-              selectedRef,
               substituirPedido,
               alterarPedido,
               refletirEstadoDoEstudio,
+              refletirPrecoDoEstudio,
               marcarDesfecho,
               revalidarPedidos,
               verArquivados,
               comPedidoInteiro,
               abrirCliente,
               openQuote,
-              setEditPrice,
             }}
             navegacao={{
               view,

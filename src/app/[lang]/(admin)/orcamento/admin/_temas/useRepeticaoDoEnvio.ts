@@ -1,8 +1,8 @@
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
-import { type AccaoDoAviso } from "../Toast";
 import { MAX_DROP_FILES, expandDropEntries, isImageFile } from "./largar-pastas";
 import { Failure, Skipped } from "./tipos-da-pasta";
 import { plural } from "@/lib/plural";
+import { type Avisar } from "../Toast";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -18,7 +18,7 @@ import { plural } from "@/lib/plural";
  * ficam os de lá.
  */
 export interface EntradasRepeticaoDoEnvio {
-  toast: (message: string, kind?: "success" | "error" | "info", accao?: AccaoDoAviso) => void;
+  toast: Avisar;
   failed: Failure[];
   setFailed: Dispatch<SetStateAction<Failure[]>>;
   skipped: Skipped[];

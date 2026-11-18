@@ -50,9 +50,9 @@ interface Toast {
   accao?: AccaoDoAviso;
 }
 
-interface ToastApi {
-  toast: (message: string, kind?: ToastKind, accao?: AccaoDoAviso) => void;
-}
+/** Dar um aviso: o `toast` do `useToast()`, com nome para quem o recebe por parâmetro. */
+export type Avisar = (message: string, kind?: ToastKind, accao?: AccaoDoAviso) => void;
+type ToastApi = { toast: Avisar };
 
 const ToastContext = createContext<ToastApi>({ toast: () => {} });
 

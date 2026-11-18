@@ -1,4 +1,4 @@
-import { type Dispatch, type RefObject, type SetStateAction } from "react";
+import { type Dispatch, type SetStateAction } from "react";
 import { type LeituraDoPedido } from "@/lib/orcamento/pedidos/leitura-do-pedido";
 import { type Quote, type QuoteStatus } from "@/lib/orcamento/types";
 import { type LeituraFalhada } from "@/lib/porque-nao-leu";
@@ -26,17 +26,17 @@ export interface PedidosDasVistas {
   nomesDosPedidos: Map<string, string>;
   archivedCount: number;
   falhaDosPedidos: LeituraFalhada | null;
-  selectedRef: RefObject<Quote | null>;
   substituirPedido: AccoesDosPedidos["substituirPedido"];
   alterarPedido: AccoesDosPedidos["alterarPedido"];
   refletirEstadoDoEstudio: (id: string, status: QuoteStatus) => void;
+  /** O estúdio gravou o pedido: a lista troca-o, e o preço do painel segue-o se for o aberto. */
+  refletirPrecoDoEstudio: (q: Quote) => void;
   marcarDesfecho: (actualizado: Quote) => void;
   revalidarPedidos: (forcar?: boolean) => Promise<void>;
   verArquivados: () => void;
   comPedidoInteiro: (q: Quote) => Promise<LeituraDoPedido>;
   abrirCliente: (pedido: Quote) => void;
   openQuote: (pedido: Quote) => Promise<void>;
-  setEditPrice: Dispatch<SetStateAction<string>>;
 }
 
 /** Onde se está, para onde se vai, e o que se leva na viagem. */

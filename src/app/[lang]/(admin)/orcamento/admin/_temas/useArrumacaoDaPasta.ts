@@ -1,10 +1,11 @@
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
 import type { ThemeImage, ThemeSummary } from "@/lib/theme-types";
 import { MAX_PHOTO_ORDER } from "@/lib/theme-types";
-import { type AccaoDoAviso } from "../Toast";
 import { capaDaFoto, type CapaDoCartao } from "../capa-do-cartao";
 import { porqueFalhou, porqueRebentou, type Falha } from "@/lib/porque-falhou";
 import { AccaoEmBloco, moveItem } from "@/lib/temas/listas-de-fotos";
+import { type Avisar } from "../Toast";
+import { type Anular } from "../ui/anular";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -23,8 +24,8 @@ export interface EntradasArrumacaoDaPasta {
   theme: ThemeSummary;
   onRename: (name: string) => void;
   onCover: (coverPath: string, capa: CapaDoCartao) => void;
-  toast: (message: string, kind?: "success" | "error" | "info", accao?: AccaoDoAviso) => void;
-  anular: (mensagem: string, repor: () => unknown, anulado?: string) => void;
+  toast: Avisar;
+  anular: Anular;
   setImages: Dispatch<SetStateAction<ThemeImage[]>>;
   images: ThemeImage[];
   selected: Set<string>;

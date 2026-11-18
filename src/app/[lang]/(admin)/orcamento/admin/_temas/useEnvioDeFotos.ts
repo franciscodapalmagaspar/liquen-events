@@ -2,7 +2,6 @@ import { type Dispatch, type RefObject, type SetStateAction } from "react";
 import type { ThemeImage, ThemeSummary } from "@/lib/theme-types";
 import { CHECK_CHUNK, type ThemeDuplicate } from "@/lib/theme-types";
 import { fingerprintBlob } from "@/lib/theme-fingerprint";
-import { type AccaoDoAviso } from "../Toast";
 import { prepareImageWithThumb } from "../image-prep";
 import { bibliotecaAlteradaEmLote } from "../biblioteca-alterada";
 import { revokeUrl } from "./FotoDaGrelha";
@@ -10,6 +9,7 @@ import { pool } from "@/lib/concorrencia";
 import { Failure, Pending, Screening, Skipped } from "./tipos-da-pasta";
 import { plural } from "@/lib/plural";
 import { UPLOAD_CONCURRENCY, FINGERPRINT_CONCURRENCY, PREVIEW_EAGER } from "./tectos-da-pasta";
+import { type Avisar } from "../Toast";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -26,7 +26,7 @@ import { UPLOAD_CONCURRENCY, FINGERPRINT_CONCURRENCY, PREVIEW_EAGER } from "./te
  */
 export interface EntradasEnvioDeFotos {
   theme: ThemeSummary;
-  toast: (message: string, kind?: "success" | "error" | "info", accao?: AccaoDoAviso) => void;
+  toast: Avisar;
   setImages: Dispatch<SetStateAction<ThemeImage[]>>;
   setTotal: Dispatch<SetStateAction<number | null>>;
   setUploadingCount: Dispatch<SetStateAction<number>>;

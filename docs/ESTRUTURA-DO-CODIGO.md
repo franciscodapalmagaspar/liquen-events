@@ -108,6 +108,27 @@ antes e depois (linhas, complexidade, peso das rotas).
   `ErroDeLeitura` das listas eram a mesma classe e passam a uma só, em
   `lib/porque-nao-leu.ts`; e o `Ahead` do seletor estende o da pasta.
 
+- **O que o júri de arquitetura pediu e se fez nesta ronda:** a página da
+  lista volta ao princípio com TODOS os filtros (os quatro do BO 4 tinham
+  ficado de fora do efeito); o ritmo das gravações e o `fetchComTecto` passam
+  a um sítio só (`lib/gravar-com-tecto.ts`), em vez de uma cópia no estúdio e
+  outra no painel; tipos com nome para o que estava escrito à mão em onze
+  ficheiros (`Avisar`, `Anular`, `RascunhoEncontrado`); a fronteira «a lógica
+  pura não importa React» passa a cobrir `lib/orcamento/estudio/`, e o estúdio
+  deixa de reexportar as funções puras (os testes importam-nas de lá); a regra
+  «o preço do estúdio só vai para o campo do painel se for o pedido aberto»
+  sai do JSX da casca para uma acção com nome e teste
+  (`refletirPrecoDoEstudio`); e as acções em lote usam as funções puras da
+  lista (`comPedidosSubstituidos`, `semPedidos`).
+- **O que o júri pediu e fica para as fases seguintes**, por ser mudança de
+  desenho e não de casa: os donos continuam grandes (a função `AdminClient`,
+  o `ThemeFolder`, o `ThemePicker`), e os hooks recebem os `setState` do pai
+  em vez de serem donos do seu estado — é a fase 3 do plano aplicada a estes
+  ecrãs (um `useReducer` por domínio, com acções com nome); os onze campos do
+  painel ainda estão enumerados em cinco sítios (um registo só, com
+  `camposDe(q)`); e o estado das importações do seletor ainda é exportado e
+  mutável (um store fechado, com a pastilha a subscrever).
+
 **Desvios da fase 1 ao texto:** além do que a tabela da fase 1 nomeia, saíram
 com as funções as ajudantes privadas de que elas precisam (`eventTypeLabel`,
 `formatEventDate`, `buildRef`, `nomesDoCasal`, `baseDoPedidoParaOEcra`,

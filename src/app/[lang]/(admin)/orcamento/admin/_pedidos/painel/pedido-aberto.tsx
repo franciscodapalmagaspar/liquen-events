@@ -9,7 +9,7 @@ import {
   type SetStateAction,
 } from "react";
 import { type ActivityEntry, type Quote, type QuoteStatus } from "@/lib/orcamento/types";
-import { type useToast } from "../../Toast";
+import { type Avisar } from "../../Toast";
 import { accoesDosPedidos } from "../accoes-dos-pedidos";
 import { type DetailTab } from "../separadores-do-painel";
 import { type EdicaoDoPedido } from "../useEdicaoDoPedido";
@@ -46,7 +46,7 @@ export interface PedidoAberto {
   edicao: EdicaoDoPedido;
   userName: string;
   locale: "pt" | "en";
-  toast: ReturnType<typeof useToast>["toast"];
+  toast: Avisar;
   alterarOAberto: (remendo: Partial<Quote>) => void;
   substituirPedido: (q: Quote) => void;
   mostrarPedido: (q: Quote) => void;

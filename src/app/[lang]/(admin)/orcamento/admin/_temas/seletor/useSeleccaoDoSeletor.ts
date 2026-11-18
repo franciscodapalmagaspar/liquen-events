@@ -1,8 +1,8 @@
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
 import { MAX_IMPORT_BATCH, type ThemeImage } from "@/lib/theme-types";
-import { type AccaoDoAviso } from "../../Toast";
 import { avaliarFoto, type LugarDaFoto } from "@/lib/qualidade-da-foto";
 import { fotoEmCache } from "../../theme-picker-cache";
+import { type Avisar } from "../../Toast";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -20,7 +20,7 @@ import { fotoEmCache } from "../../theme-picker-cache";
 export interface EntradasSeleccaoDoSeletor {
   multiple: boolean;
   lugar: LugarDaFoto | undefined;
-  toast: (message: string, kind?: "success" | "error" | "info", accao?: AccaoDoAviso) => void;
+  toast: Avisar;
   images: ThemeImage[];
   setSelected: Dispatch<SetStateAction<string[]>>;
   selected: string[];

@@ -2,9 +2,10 @@ import { porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
 import type { Quote, QuoteStatus, ActivityEntry } from "@/lib/orcamento/types";
 import { type NotasAutomaticas } from "@/lib/orcamento/pedidos/notas-automaticas";
 import { comPedidoAlterado } from "@/lib/orcamento/pedidos/lista-de-pedidos";
+import { textoDoPreco } from "@/lib/orcamento/pedidos/textos-do-pedido";
 import { type EdicaoDoPedido } from "./useEdicaoDoPedido";
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import type { AccaoDoAviso } from "../Toast";
+import { type Avisar } from "../Toast";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -21,7 +22,7 @@ export interface EntradasHistoricoDoPedido {
   setQuotes: Dispatch<SetStateAction<Quote[]>>;
   setSelected: Dispatch<SetStateAction<Quote | null>>;
   substituirPedido: (q: Quote) => void;
-  toast: (message: string, kind?: "success" | "error" | "info", accao?: AccaoDoAviso) => void;
+  toast: Avisar;
   selectedRef: RefObject<Quote | null>;
   escritoNoServidor: RefObject<NotasAutomaticas | null>;
   edicao: EdicaoDoPedido;
@@ -36,7 +37,7 @@ export function useHistoricoDoPedido({
   escritoNoServidor,
   edicao,
 }: EntradasHistoricoDoPedido) {
-  const { setEditStatus, preencherCom } = edicao;
+  const { setEditStatus, setEditPrice, preencherCom } = edicao;
   /**
    * ══════════════════════════════════════════════════════════════════════════
    * O HISTÓRICO DEIXA DE SE PERDER EM SILÊNCIO
@@ -129,5 +130,15 @@ export function useHistoricoDoPedido({
       lostReason: q.lostReason ?? "",
     };
   }
-  return { appendActivity, refletirEstadoDoEstudio, refletirPedidoReposto };
+  /**
+   * O estúdio gravou o pedido (o preço da proposta chegou ao pedido). A lista
+   * troca-o; o campo do preço do painel segue-o SÓ se o pedido aberto for este
+   * — sem a guarda, o estúdio a gravar o preço do B escrevia-o no campo do A
+   * aberto no painel, e o «Guardar tudo» do cabeçalho mandava-o para o A.
+   */
+  function refletirPrecoDoEstudio(q: Quote) {
+    substituirPedido(q);
+    if (q.id === selectedRef.current?.id) setEditPrice(textoDoPreco(q));
+  }
+  return { appendActivity, refletirEstadoDoEstudio, refletirPrecoDoEstudio, refletirPedidoReposto };
 }

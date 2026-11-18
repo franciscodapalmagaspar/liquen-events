@@ -9,7 +9,7 @@ import { type FiltrosDaLista } from "./useFiltrosDosPedidos";
  * ════════════════════════════════════════════════════════════════════════════
  *
  * A lista mostra os pedidos aos lotes («Mostrar mais»), volta ao princípio
- * quando o filtro muda, e sabe quais são os do lote que acabou de entrar
+ * quando QUALQUER filtro muda, e sabe quais são os do lote que acabou de entrar
  * (para esses, e só esses, entrarem como um bloco).
  *
  * Saiu do corpo do `AdminClient.tsx` (fase 7 de `docs/ESTRUTURA-DO-CODIGO.md`)
@@ -27,6 +27,10 @@ export function usePaginaDaLista({ filtros }: EntradasPaginaDaLista) {
     filterCategory,
     showArchived,
     mineOnly,
+    filterEspera,
+    filterMes,
+    filterRegiao,
+    filterPlanner,
     search,
     sort,
     filtered,
@@ -54,7 +58,23 @@ export function usePaginaDaLista({ filtros }: EntradasPaginaDaLista) {
     // marca antiga ficava pendurada e as primeiras linhas de uma procura nova
     // entravam como se tivessem acabado de ser acrescentadas.
     setInicioDoLote(null);
-  }, [search, filterStatus, filterCategory, tagFilter, sort, showArchived, mineOnly]);
+    // TODOS os filtros: os quatro do BO 4 (espera, mês, região, planner) ficaram
+    // de fora desta lista quando chegaram, e escolher um mês depois de «Mostrar
+    // mais» deixava a página a meio e animava as linhas 50–100 como um lote
+    // novo (revisão independente de 17/11).
+  }, [
+    search,
+    filterStatus,
+    filterCategory,
+    tagFilter,
+    sort,
+    showArchived,
+    mineOnly,
+    filterEspera,
+    filterMes,
+    filterRegiao,
+    filterPlanner,
+  ]);
   const visibleQuotes = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
   /**
    * Os ids do lote novo — e nada quando não há lote novo.
