@@ -20,9 +20,16 @@ import type { Quote, RascunhoNoMoloni } from "./types";
  *    as duas), a marca é o único rasto de um rascunho que existe. Na dúvida,
  *    num registo fiscal, apaga-se de menos (júri de 18/11, 12.ª volta).
  *
- * O preço do lado seguro: uma marca que ficou de um pedido em que o Moloni
- * recusou E a limpeza da marca também falhou prende o pedido até a próxima
- * tentativa no cartão da fatura a substituir (passados os 2 minutos).
+ * A marca NÃO caduca para o apagar (revisão de 18/11, R3). Uma marca sem
+ * documento fica de três maneiras: o Moloni recusou e a limpeza falhou; o
+ * rascunho foi criado e o registo falhou (a rota avisa «Não o cries outra
+ * vez»); ou o servidor morreu a meio. Só na primeira se sabe que não há
+ * documento — e é aí que a rota a tira, com uma segunda tentativa. Nas outras
+ * não há como distinguir sem perguntar ao Moloni (a API dele não tem, aqui,
+ * uma procura por referência), e tirá-la — por um prazo ou numa recusa
+ * 422/503 — podia deixar um documento fiscal sem origem. O preço: o pedido
+ * fica preso até a próxima tentativa no cartão da fatura (passados os 2
+ * minutos) a substituir, com o documento ou sem a marca.
  */
 
 /** A fase TEM fatura no Moloni: lá está o documento, ou foi passada à mão. Puro. */

@@ -131,8 +131,12 @@ async function POST_semMedida(
         naoEManual = true;
         return q;
       }
+      // Os rascunhos ANTERIORES da fase («Criar outro rascunho») existem no
+      // Moloni: anular a marca à mão não os pode levar, senão o pedido deixava
+      // de estar preso por eles e um apagar tirava-lhes a origem.
       const fats = { ...(q.faturasMoloni ?? {}) };
-      delete fats[fase];
+      if (e.anteriores?.length) fats[fase] = { em: e.em, anteriores: e.anteriores };
+      else delete fats[fase];
       return {
         ...q,
         faturasMoloni: fats,
@@ -162,8 +166,7 @@ async function POST_semMedida(
   // rascunhos iguais no Moloni é o caminho para faturar o sinal duas vezes.
   // (Lido aqui para responder depressa; a garantia é a marca, mais abaixo.)
   const anterior = quote.faturasMoloni?.[fase];
-  const jaLaEsta = faturaJaEstaNoMoloni;
-  if (jaLaEsta(anterior) && body.denovo !== true) {
+  if (faturaJaEstaNoMoloni(anterior) && body.denovo !== true) {
     return NextResponse.json(
       {
         error: anterior?.manual
@@ -215,7 +218,7 @@ async function POST_semMedida(
       recusaManual = false;
       const e = q.faturasMoloni?.[fase];
       const aCriarAgora = !!e?.aCriarDesde && Date.now() - Date.parse(e.aCriarDesde) < 2 * 60_000;
-      if (aCriarAgora || (jaLaEsta(e) && body.denovo !== true)) {
+      if (aCriarAgora || (faturaJaEstaNoMoloni(e) && body.denovo !== true)) {
         recusaManual = true;
         return q;
       }
@@ -282,7 +285,7 @@ async function POST_semMedida(
       recusa = "a-criar";
       return q;
     }
-    if (jaLaEsta(e) && body.denovo !== true) {
+    if (faturaJaEstaNoMoloni(e) && body.denovo !== true) {
       recusa = "ja-existe";
       return q;
     }
@@ -310,8 +313,13 @@ async function POST_semMedida(
       { status: 409 },
     );
   }
-  /** Tira a marca, deixando o que lá estava (um rascunho anterior, se havia). */
-  const tirarAMarca = () =>
+  /**
+   * Tira a marca, deixando o que lá estava (um rascunho anterior, se havia).
+   * Só se chama quando o Moloni RECUSOU (não há documento): é o único momento
+   * em que se sabe que a marca não esconde nada. Por isso tenta duas vezes —
+   * uma marca que fica prende o pedido para sempre (`fatura-no-moloni.ts`).
+   */
+  const tirarAMarcaUmaVez = () =>
     updateQuoteWith(id, (q) => {
       const e = q.faturasMoloni?.[fase];
       if (!e) return q;
@@ -321,7 +329,11 @@ async function POST_semMedida(
       if (resto.documentId || resto.manual) fats[fase] = resto;
       else delete fats[fase];
       return { ...q, faturasMoloni: fats };
-    }).catch((e) => log.error("moloni: não foi possível tirar a marca", e, { quoteId: id, fase }));
+    });
+  const tirarAMarca = () =>
+    tirarAMarcaUmaVez()
+      .catch(() => tirarAMarcaUmaVez())
+      .catch((e) => log.error("moloni: não foi possível tirar a marca", e, { quoteId: id, fase }));
 
   let r: { documentId: number; valorSemIva: number };
   try {
@@ -344,8 +356,18 @@ async function POST_semMedida(
   }
 
   const em = new Date().toISOString();
+  /** O rascunho EXISTE no Moloni; só não ficou registado aqui. Diz-se. */
+  const criadoSemRegisto = () =>
+    NextResponse.json({
+      ok: true,
+      documentId: r.documentId,
+      valorSemIva: r.valorSemIva,
+      em,
+      aviso:
+        "O rascunho foi criado no Moloni, mas não ficou registado aqui. Não o cries outra vez.",
+    });
   try {
-    await updateQuoteWith(id, (q) => {
+    const registado = await updateQuoteWith(id, (q) => {
       const e = q.faturasMoloni?.[fase];
       const anteriores = [...(e?.anteriores ?? []), ...(e?.documentId ? [e.documentId] : [])];
       return {
@@ -374,18 +396,20 @@ async function POST_semMedida(
         ],
       };
     });
+    // O pedido saiu entre a marca e aqui (um apagar noutro ecrã): a escrita
+    // não lança, devolve `null` — e responder `ok` escondia um documento
+    // fiscal sem origem.
+    if (!registado) {
+      log.error("moloni: rascunho criado, mas o pedido já não existe", null, {
+        quoteId: id,
+        fase,
+        documentId: r.documentId,
+      });
+      return criadoSemRegisto();
+    }
   } catch (e) {
-    // O rascunho EXISTE no Moloni; só não ficou registado aqui. Diz-se, para
-    // ninguém carregar outra vez a pensar que não foi.
     log.error("moloni: rascunho criado mas não registado no pedido", e, { quoteId: id, fase });
-    return NextResponse.json({
-      ok: true,
-      documentId: r.documentId,
-      valorSemIva: r.valorSemIva,
-      em,
-      aviso:
-        "O rascunho foi criado no Moloni, mas não ficou registado aqui. Não o cries outra vez.",
-    });
+    return criadoSemRegisto();
   }
   return NextResponse.json({ ok: true, documentId: r.documentId, valorSemIva: r.valorSemIva, em });
 }

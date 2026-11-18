@@ -253,6 +253,47 @@ describe("POST /api/orcamento/[id]/moloni", () => {
     ).toMatchObject({ documentId: 9 });
   });
 
+  // Revisão de 18/11, R2: os rascunhos anteriores existem no Moloni.
+  it("«Anular» a marca à mão não leva os rascunhos ANTERIORES da fase", async () => {
+    estado.quote = {
+      ...estado.quote!,
+      faturasMoloni: { sinal: { em: "x", manual: true, anteriores: [41] } },
+    };
+    expect((await POST(req({ fase: "sinal", desmarcar: true }), ctx)).status).toBe(200);
+    expect(
+      (estado.quote as { faturasMoloni: Record<string, unknown> }).faturasMoloni.sinal,
+    ).toEqual({ em: "x", anteriores: [41] });
+  });
+
+  // Revisão de 18/11, R3: uma marca que fica prende o pedido para sempre.
+  it("se o Moloni recusa e a 1.ª limpeza da marca falha, tenta outra vez", async () => {
+    const { ErroDoMoloni } = await import("@/lib/moloni");
+    const { updateQuoteWith } = await import("@/lib/quotes-store");
+    moloni.criar.mockRejectedValueOnce(new ErroDoMoloni("recusado", "artigo"));
+    const real = vi.mocked(updateQuoteWith).getMockImplementation()!;
+    vi.mocked(updateQuoteWith)
+      .mockImplementationOnce(real) // a marca entra
+      .mockRejectedValueOnce(new Error("TESTE: a base caiu")); // a 1.ª limpeza falha
+    expect((await POST(req({ fase: "sinal" }), ctx)).status).toBe(502);
+    expect(
+      (estado.quote as { faturasMoloni?: Record<string, unknown> }).faturasMoloni?.sinal,
+    ).toBeUndefined();
+  });
+
+  // Revisão de 18/11, R5: um apagar noutro ecrã entre a marca e o registo.
+  it("se o pedido desaparece depois de o rascunho ser criado, diz que não ficou registado", async () => {
+    const { updateQuoteWith } = await import("@/lib/quotes-store");
+    const real = vi.mocked(updateQuoteWith).getMockImplementation()!;
+    vi.mocked(updateQuoteWith)
+      .mockImplementationOnce(real) // a marca entra
+      .mockResolvedValueOnce(null); // o registo: o pedido já não existe
+    const res = await POST(req({ fase: "sinal" }), ctx);
+    expect(res.status).toBe(200);
+    const j = await res.json();
+    expect(j.documentId).toBe(77);
+    expect(j.aviso).toMatch(/não ficou registado aqui/);
+  });
+
   it("fora do back office, nada", async () => {
     authed.ok = false;
     expect((await POST(req({ fase: "sinal" }), ctx)).status).toBe(401);
