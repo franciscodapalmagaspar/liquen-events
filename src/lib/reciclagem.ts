@@ -38,9 +38,10 @@ import {
   listProposalsForQuote,
   reporProposta,
 } from "./proposals-store";
-import { apagarPedidoSemContrato } from "./apagar-pedido";
+import { apagarPedido } from "./apagar-pedido";
 import { respostaAoApagarPedido } from "./resposta-ao-apagar-pedido";
 import { draftKey } from "./proposal-drafts";
+import { chavesDoRascunhoDoPedido } from "./chaves-do-rascunho";
 import { getState, setState } from "./app-state";
 import { getEventMaterial, getForQuote, reporEventMaterial } from "./event-material-store";
 import type { EventMaterial, EventMaterialItem } from "./event-material-types";
@@ -317,9 +318,9 @@ export const TIPOS = {
         listProposalsForQuote(id),
         rascunhosDoPedido(id),
         getForQuote(id),
-        // As tarefas saem com o pedido (`apagarPedidoSemContrato`) e voltam
+        // As tarefas saem com o pedido (`apagarPedido`) e voltam
         // com ele (auditoria de 12/11, n.º 7).
-        // A mesma consulta que o `apagarPedidoSemContrato` usa para as apagar.
+        // A mesma consulta que o `apagarPedido` usa para as apagar.
         listTasksForQuote(id),
       ]);
       const [itens, registo] = material
@@ -339,7 +340,7 @@ export const TIPOS = {
       };
     },
     async apagar(id, entradaId) {
-      const r = await apagarPedidoSemContrato(id, { fotos: !entradaId });
+      const r = await apagarPedido(id, { fotos: !entradaId });
       if (!r.apagado) {
         const { frase, estado } = respostaAoApagarPedido(r);
         throw new NaoDeuParaApagar(frase, estado, r);
@@ -561,17 +562,9 @@ const TEMA_FOTOS =
 const FOTO_REFERENCIAS =
   "Esta foto é usada por uma proposta e não foi possível guardar lá uma cópia. A foto NÃO foi removida — tenta de novo.";
 
-/** As quatro chaves do rascunho que o `apagarPedidoSemContrato` limpa. */
-const chavesDoRascunho = (id: string) => [
-  id,
-  `${id}--orcamento-linhas`,
-  `${id}--sobreposto`,
-  `${id}--orcamento-linhas--sobreposto`,
-];
-
 async function rascunhosDoPedido(id: string): Promise<{ chave: string; valor: unknown }[]> {
   const out: { chave: string; valor: unknown }[] = [];
-  for (const chave of chavesDoRascunho(id)) {
+  for (const chave of chavesDoRascunhoDoPedido(id)) {
     const valor = await getState<unknown>(draftKey(chave));
     if (valor != null) out.push({ chave, valor });
   }

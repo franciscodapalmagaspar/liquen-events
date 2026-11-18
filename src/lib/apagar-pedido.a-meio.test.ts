@@ -33,7 +33,7 @@ vi.mock("@/lib/proposal-storage", () =>
 vi.mock("@/lib/tasks-store", () => import("./apagar-pedido.testkit").then((k) => k.lojas.tasks));
 vi.mock("@/lib/logger", () => import("./apagar-pedido.testkit").then((k) => k.lojas.logger));
 
-const { apagarPedidoSemContrato } = await import("./apagar-pedido");
+const { apagarPedido } = await import("./apagar-pedido");
 
 beforeEach(reporOMundo);
 
@@ -44,7 +44,7 @@ describe("P5: as tarefas caem em cascata com o pedido", () => {
       { id: "t2", quoteId: "q1" },
     ];
     dados.tarefaQueFalha = "t2";
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.apagado).toBe(false);
     expect(dados.pedidosApagados).toEqual([]);
     expect(r.saiu.tarefas).toEqual(["t1"]);
@@ -55,7 +55,7 @@ describe("P5: as tarefas caem em cascata com o pedido", () => {
     dados.propostas = [proposta("p1")];
     dados.fotos = [{ path: "q1/a.jpg" }];
     dados.tarefasRebentam = true;
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.apagado).toBe(false);
     expect(dados.apagadas).toEqual([]);
     expect(dados.removidas).toEqual([]);
@@ -64,7 +64,7 @@ describe("P5: as tarefas caem em cascata com o pedido", () => {
 
   it("sem conseguir listar as tarefas, o pedido também fica", async () => {
     dados.tarefasRebentam = true;
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.apagado).toBe(false);
     // Uma tarefa por ler não é um registo fiscal: nada de «tem contrato».
     expect(r.motivo).toBeUndefined();
@@ -81,7 +81,7 @@ describe("P5: uma tarefa criada a meio do apagar", () => {
     aMeio(dados.removidas, () => {
       dados.tarefas = [...dados.tarefas, { id: "t-nova", quoteId: "q1" }];
     });
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.apagado).toBe(false);
     expect(dados.pedidosApagados).toEqual([]);
     expect(r.falhou).toContain("apareceram 1 tarefa(s) novas neste pedido");
@@ -95,7 +95,7 @@ describe("P5: um contrato que nasce a meio do apagar", () => {
       // Um aceite noutro ecrã enquanto as fotografias saem.
       dados.contratos = [...dados.contratos, contrato("q1")];
     });
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.apagado).toBe(false);
     // Sem motivo de recusa: já saiu coisa, e a Reciclagem tem de o guardar
     // (um motivo diria «nada saiu» e ela deitava fora a única cópia).
@@ -114,7 +114,7 @@ describe("P5: uma proposta que nasce a meio pára antes das fotografias", () => 
       // Enquanto p1 sai, noutro ecrã nasce outra proposta para este pedido.
       dados.propostas = [...dados.propostas, proposta("p-nova")];
     });
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.apagado).toBe(false);
     expect(r.saiu.propostas).toEqual(["p1"]);
     expect(dados.removidas).toEqual([]);
@@ -130,7 +130,7 @@ describe("P5: uma fatura que nasce a meio do apagar", () => {
       // O Moloni grava uma fatura enquanto as fotografias saem.
       dados.faturas = [...dados.faturas, { id: "f1", quoteId: "q1" }];
     });
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.apagado).toBe(false);
     expect(r.motivo).toBeUndefined();
     expect(dados.pedidosApagados).toEqual([]);
@@ -145,7 +145,7 @@ describe("P5: as propostas — contar o que nasceu, não repetir o que falhou", 
     aMeio(dados.apagadas, () => {
       dados.propostas = [...dados.propostas, proposta("p-nova")];
     });
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.apagado).toBe(false);
     expect(r.falhou).toContain("a proposta p2 não foi apagada");
     // A que nasceu conta-se à parte da que falhou.
@@ -156,7 +156,7 @@ describe("P5: as propostas — contar o que nasceu, não repetir o que falhou", 
 describe("uma listagem de propostas que falha uma vez e depois prova que não há nenhuma", () => {
   it("o pedido sai, sem um aviso que já não é verdade", async () => {
     dados.listagensDePropostasQueFalham = 1;
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.apagado).toBe(true);
     expect(r.falhou).not.toContain("não consegui listar as propostas deste pedido");
   });
@@ -166,7 +166,7 @@ describe("uma proposta cuja resposta se perdeu mas que saiu mesmo", () => {
   it("o pedido sai, e o relatório não diz que ela ficou", async () => {
     dados.propostas = [proposta("p1")];
     dados.propostaQueApagaEFalha = "p1";
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.apagado).toBe(true);
     expect(r.falhou.join(" ")).not.toContain("p1");
     expect(r.saiu.propostas).toEqual(["p1"]);
@@ -179,7 +179,7 @@ describe("uma proposta cuja resposta se perdeu mas que saiu mesmo", () => {
     dados.propostas = [proposta("p1"), proposta("p2")];
     dados.propostaQueApagaEFalha = "p1";
     dados.pedidoRebenta = true;
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.apagado).toBe(false);
     expect(r.motivo).toBeUndefined();
     expect([...r.saiu.propostas].sort()).toEqual(["p1", "p2"]);
@@ -193,7 +193,7 @@ describe("uma proposta cuja resposta se perdeu mas que saiu mesmo", () => {
     aMeio(dados.apagadas, () => {
       dados.listagensDePropostasQueFalham = 1;
     });
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.apagado).toBe(false);
     expect(r.saiu.propostas).toEqual(["p0"]);
     // Mas fica como «talvez tenha saído»: a Reciclagem guarda-lhe a cópia
@@ -215,7 +215,7 @@ describe("um rascunho do Moloni a ser criado enquanto se apagava (júri, 12.ª v
         faturasMoloni: { sinal: { em: "x", aCriarDesde: new Date().toISOString() } },
       });
     });
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.apagado).toBe(false);
     expect(r.motivo).toBeUndefined();
     expect(dados.pedidosApagados).toEqual([]);

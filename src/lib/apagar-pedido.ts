@@ -9,57 +9,51 @@ import {
   registoFiscalDoPedido,
 } from "./o-que-prende-o-pedido";
 import { clearProposalDraft, draftKey } from "./proposal-drafts";
+import { chavesDoRascunhoDoPedido } from "./chaves-do-rascunho";
 import { getState } from "./app-state";
 import { listProposalImages, removeStoredObject, PROPOSAL_BUCKET } from "./proposal-storage";
 import { listTasksForQuote, deleteTask } from "./tasks-store";
 import { log } from "@/lib/logger";
+import { lerOuNull, umAUm } from "./apagar-um-a-um";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
  * APAGAR UM PEDIDO A SÉRIO — a promessa que estava publicada e não se cumpria
  * ════════════════════════════════════════════════════════════════════════════
  *
- * A política de privacidade do sítio diz, com estas palavras:
- *
- *   «Pedidos que não deem origem a contrato são eliminados no prazo máximo de
- *    12 meses após o último contacto.»
+ * A política de privacidade do sítio diz: «Pedidos que não deem origem a
+ * contrato são eliminados no prazo máximo de 12 meses após o último contacto.»
  *
  * O apagamento que existia tirava a linha do pedido e mais nada. As PROPOSTAS
- * ficavam — com o nome do casal, o email, e o documento inteiro lá dentro —
- * porque a chave estrangeira é `on delete set null`: em vez de irem atrás,
- * ficavam órfãs e intactas. As fotografias que ela carregou para aquele pedido
- * ficavam no bucket. O rascunho do estúdio ficava no `app_state`.
+ * ficavam — com o nome do casal, o email e o documento inteiro — porque a
+ * chave estrangeira é `on delete set null`; as fotografias ficavam no bucket,
+ * e o rascunho do estúdio no `app_state`. Uma linha apagada e os dados todos
+ * no sítio não é um apagamento: é a aparência de um.
  *
- * Uma linha apagada e os dados todos no sítio não é um apagamento. É a
- * aparência de um.
+ * ── O QUE FICA ────────────────────────────────────────────────────────────
  *
- * ── O QUE FICA, E PORQUE É QUE FICA ───────────────────────────────────────
+ * CONTRATOS E FATURAS NÃO SE APAGAM: são registos fiscais, e conservam-se
+ * anos. Um pedido com contrato ou fatura (também a do Moloni, e o rasto de
+ * uma a ser criada) **não é apagado**, e a resposta di-lo pelo nome. As guardas
+ * vivem em `o-que-prende-o-pedido.ts`.
  *
- * CONTRATOS E FACTURAS NÃO SE APAGAM, e isso não é uma falha: são registos
- * fiscais, e em Portugal têm de ser conservados anos. A própria política sabe
- * disso — por isso a promessa fala de pedidos que NÃO deram origem a contrato.
+ * ── PORQUE É QUE CONTA O QUE APAGOU ───────────────────────────────────────
  *
- * Daí a regra deste módulo: um pedido com contrato — ou, desde o P5 (18/11),
- * com fatura — **não é apagado**, e a resposta di-lo pelo nome em vez de
- * fingir que apagou (o nome da função ficou do tempo em que só havia o
- * contrato; as guardas estão em `o-que-prende-o-pedido.ts`). Quem quiser tratar
- * desse caso tem de o decidir com a contabilidade à frente, não com um botão.
- *
- * ── PORQUE É QUE ISTO CONTA O QUE APAGOU ──────────────────────────────────
- *
- * Porque um apagamento silencioso é indistinguível de um apagamento que não
- * aconteceu — que é exactamente o defeito que este ficheiro veio corrigir. A
- * resposta traz o que saiu e, sobretudo, o que NÃO saiu: se o bucket recusar
- * uma fotografia, isso tem de chegar a quem carregou no botão e ao registo,
- * senão fica um ficheiro com a cara de um casal num sítio que ninguém sabe que
- * ainda existe.
+ * Um apagamento silencioso é indistinguível de um que não aconteceu. A
+ * resposta traz o que saiu e, sobretudo, o que NÃO saiu — e o que TALVEZ
+ * tenha saído, para a Reciclagem lhe guardar a cópia.
  *
  * ── A ORDEM IMPORTA ───────────────────────────────────────────────────────
  *
- * O pedido é o ÚLTIMO a sair. Se ele fosse primeiro e alguma coisa falhasse a
- * meio, ficavam propostas órfãs sem nada que apontasse para elas — ou seja, o
- * defeito de hoje, agora sem forma de o encontrar. Enquanto o pedido existir,
- * uma segunda tentativa sabe o que ainda falta.
+ *  1. o registo fiscal recusa antes de qualquer coisa sair;
+ *  2. as TAREFAS primeiro: a base apaga-as em cascata com o pedido (P5), e
+ *     uma que ficasse para trás cairia sem relatório nem Reciclagem;
+ *  3. as PROPOSTAS, confirmadas antes de as fotografias saírem: uma que ficou
+ *     faz parar com tudo o resto inteiro;
+ *  4. as fotografias e 5. os rascunhos;
+ *  6. outra vez tudo o que prende o pedido (pode ter nascido noutro ecrã);
+ *  7. e o PEDIDO, por último: enquanto ele existir, uma segunda tentativa sabe
+ *     o que ainda falta.
  */
 
 /** O que uma passagem de apagamento levou, e o que não conseguiu levar. */
@@ -71,14 +65,7 @@ export interface ResultadoDoApagamento {
    * genérica (não afirma um contrato que pode não existir).
    */
   motivo?: "tem-contrato" | "tem-fatura" | "nao-verificado" | "nao-existe";
-  contou: {
-    propostas: number;
-    fotos: number;
-    /** O rascunho do estúdio, quando havia um. */
-    rascunhos: number;
-    /** As tarefas ligadas ao pedido (guardam o nome do casal). */
-    tarefas: number;
-  };
+  contou: Contagem;
   /** O que ficou para trás, em linguagem de quem vai ler o registo. */
   falhou: string[];
   /**
@@ -86,32 +73,44 @@ export interface ResultadoDoApagamento {
    * deixa na Reciclagem só isto — e não o retrato inteiro, que repunha por
    * cima do pedido vivo o que nunca tinha saído (revisão de 13/11).
    */
-  saiu: { propostas: string[]; tarefas: string[]; rascunhos: string[] };
+  saiu: OQueSaiu;
   /**
-   * O que TALVEZ tenha saído: propostas cujo apagar falhou e que não se
-   * conseguiu confirmar (a resposta pode ter-se perdido com a proposta já
-   * apagada). A Reciclagem guarda-lhes a cópia como se tivessem saído — o
-   * «Repor» só repõe o que falta, por isso uma que ficou viva não é pisada.
+   * Propostas cujo apagar falhou e que não se conseguiu confirmar (a resposta
+   * pode ter-se perdido com a proposta já apagada). A Reciclagem guarda-lhes a
+   * cópia como se tivessem saído — o «Repor» só repõe o que FALTA, por isso
+   * uma que ficou viva não é pisada (revisão de 18/11, R1).
    */
   talvezSaiu: { propostas: string[] };
 }
 
-const nadaSaiu = () => ({
-  propostas: [] as string[],
-  tarefas: [] as string[],
-  rascunhos: [] as string[],
-});
+interface Contagem {
+  propostas: number;
+  fotos: number;
+  /** Os rascunhos do estúdio que existiam. */
+  rascunhos: number;
+  /** As tarefas ligadas ao pedido (guardam o nome do casal). */
+  tarefas: number;
+}
+interface OQueSaiu {
+  propostas: string[];
+  tarefas: string[];
+  rascunhos: string[];
+}
 
-const VAZIO = { propostas: 0, fotos: 0, rascunhos: 0, tarefas: 0 };
-const LISTAGEM_DAS_PROPOSTAS_FALHOU = "não consegui listar as propostas deste pedido";
+/** O que um passo fez. `parar`: o pedido fica, e nada mais sai. */
+interface Passo {
+  contou?: Partial<Contagem>;
+  saiu?: Partial<OQueSaiu>;
+  talvezSaiu?: string[];
+  falhou?: string[];
+  parar?: boolean;
+}
 
 /**
- * Apaga um pedido e tudo o que é dele, quando ele não deu origem a contrato.
- *
- * Nunca lança: um apagamento que rebenta a meio deixa o sistema num estado que
- * ninguém consegue descrever. Devolve sempre o que conseguiu e o que não.
+ * Apaga um pedido e tudo o que é dele, quando ele não deu origem a registo
+ * fiscal. Nunca lança: devolve sempre o que conseguiu e o que não.
  */
-export async function apagarPedidoSemContrato(
+export async function apagarPedido(
   pedidoId: string,
   /**
    * `fotos: false` deixa a pasta do pedido no Storage: é o que a Reciclagem
@@ -120,234 +119,252 @@ export async function apagarPedidoSemContrato(
   opcoes: { fotos?: boolean } = {},
 ): Promise<ResultadoDoApagamento> {
   const id = String(pedidoId ?? "").trim();
-  if (!id)
-    return {
-      apagado: false,
-      motivo: "nao-existe",
-      contou: { ...VAZIO },
-      falhou: [],
-      saiu: nadaSaiu(),
-      talvezSaiu: { propostas: [] },
-    };
+  const pedido = id ? await getQuote(id) : null;
+  if (!pedido) return { apagado: false, motivo: "nao-existe", ...nadaAinda() };
 
-  const contou = { ...VAZIO };
-  const falhou: string[] = [];
-  const saiu = nadaSaiu();
-  const talvezSaiu = { propostas: [] as string[] };
+  const recusa = await recusaFiscal(pedido);
+  if (recusa) return recusa;
 
-  const pedido = await getQuote(id);
-  if (!pedido) return { apagado: false, motivo: "nao-existe", contou, falhou, saiu, talvezSaiu };
-
-  /**
-   * ── O CONTRATO MANDA PARAR ──────────────────────────────────────────────
-   *
-   * Qualquer contrato, e não só o aceite: um contrato emitido já é um registo,
-   * e a promessa da política é sobre pedidos que NÃO deram origem a contrato
-   * nenhum. Na dúvida entre apagar de mais e apagar de menos, num registo
-   * fiscal, apaga-se de menos.
-   *
-   * E se a leitura dos contratos falhar, também se pára. Não saber se há
-   * contrato não é o mesmo que saber que não há — e aqui a diferença é entre
-   * cumprir uma política e destruir contabilidade.
-   */
-  //
-  // E a FATURA também (P5, 17/11): é um registo fiscal como o contrato, e a
-  // chave dela é `set null` — apagar o pedido apagava-lhe a origem de vez. O
-  // ecrã diz a frase genérica de sempre. As guardas vivem em
-  // `o-que-prende-o-pedido.ts` (esta é `registoFiscalDoPedido`).
-  try {
-    const fiscal = await registoFiscalDoPedido(pedido);
-    if (fiscal) return { apagado: false, motivo: fiscal, contou, falhou, saiu, talvezSaiu };
-  } catch (e) {
-    // Não saber se há contrato não é o mesmo que saber que não há: não se
-    // apaga nada. Mas também não se afirma um contrato que pode não existir.
-    falhou.push("não consegui verificar se este pedido tem contrato ou faturas");
-    log.error("apagar-pedido: leitura fiscal falhou — não se apaga nada", e, { pedido: id });
-    return { apagado: false, motivo: "nao-verificado", contou, falhou, saiu, talvezSaiu };
-  }
-
-  // ── As tarefas do pedido (auditoria de 12/11, n.º 7) ─────────────────────
-  //
-  // Cada tarefa guarda uma cópia do nome do casal (`client_name`) e o id do
-  // pedido, sem chave estrangeira: apagar o pedido deixava-as para trás, com
-  // os dados pessoais que esta função existe para apagar. A Reciclagem guarda-
-  // as no retrato do pedido ANTES de chamar isto, e repõe-nas com ele.
-  //
-  // Desde o P5 (17/11) a base apaga-as sozinha com o pedido (`on delete
-  // cascade`). Por isso vêm PRIMEIRO, antes de qualquer outra coisa sair: se
-  // alguma fica por apagar (ou nem se consegue listar), pára-se aqui — senão a
-  // cascata levava-as sem que este relatório nem a Reciclagem o soubessem, e o
-  // pedido ficava vivo sem as propostas e as fotografias. Uma segunda tentativa
-  // sabe o que ainda falta.
-  let tarefasFicaram = false;
-  try {
-    const tarefas = await listTasksForQuote(id);
-    for (const t of tarefas) {
-      try {
-        await deleteTask(t.id);
-        contou.tarefas++;
-        saiu.tarefas.push(t.id);
-      } catch (e) {
-        tarefasFicaram = true;
-        falhou.push(`a tarefa ${t.id} não foi apagada`);
-        log.error("apagar-pedido: tarefa não apagada", e, { pedido: id, tarefa: t.id });
-      }
-    }
-  } catch (e) {
-    tarefasFicaram = true;
-    falhou.push("não consegui listar as tarefas deste pedido");
-    log.error("apagar-pedido: listagem de tarefas falhou", e, { pedido: id });
-  }
-  if (tarefasFicaram) {
-    log.warn("apagar-pedido: ficaram tarefas — não se apaga mais nada (a cascata levá-las-ia)", {
-      pedido: id,
-    });
-    return { apagado: false, contou, falhou, saiu, talvezSaiu };
-  }
-
-  // ── As propostas, que é onde estão os dados pessoais a mais ──────────────
-  //
-  // As falhas não vão logo para o relatório: quem decide o que é verdade é a
-  // confirmação que vem a seguir (uma proposta cuja resposta se perdeu pode
-  // ter saído na mesma, e uma listagem falhada pode não esconder nada).
-  const falharam = new Set<string>();
-  let listagemFalhou = false;
-  try {
-    const propostas = await listProposalsForQuote(id);
-    for (const p of propostas) {
-      try {
-        await deleteProposal(p.id);
-        contou.propostas++;
-        saiu.propostas.push(p.id);
-      } catch (e) {
-        falharam.add(p.id);
-        log.error("apagar-pedido: proposta não apagada", e, { pedido: id, proposta: p.id });
-      }
-    }
-  } catch (e) {
-    listagemFalhou = true;
-    log.error("apagar-pedido: listagem de propostas falhou", e, { pedido: id });
-  }
-  // Uma proposta que ficou (não saiu, ou nasceu noutro ecrã) faz parar AQUI,
-  // antes de as fotografias e os rascunhos saírem sem volta: o pedido e essa
-  // proposta ficam inteiros, e uma segunda tentativa sabe o que falta.
-  try {
-    const ficaram = (await listProposalsForQuote(id)).map((p) => p.id);
-    // Uma que falhou ao apagar e que a confirmação já não encontra SAIU — só a
-    // resposta se perdeu. Entra em `saiu` e conta: se o apagar parar mais à
-    // frente, a Reciclagem guarda só o que está em `saiu`, e sem isto deitava
-    // fora a única cópia dela (júri de 18/11, 12.ª volta).
-    for (const p of propostasQueSairamSemResposta(falharam, ficaram)) {
-      contou.propostas++;
-      saiu.propostas.push(p);
-    }
-    if (ficaram.length > 0) {
-      if (listagemFalhou) falhou.push(LISTAGEM_DAS_PROPOSTAS_FALHOU);
-      falhou.push(...oQueFicouDasPropostas(ficaram, falharam));
-      return { apagado: false, contou, falhou, saiu, talvezSaiu };
-    }
-  } catch (e) {
-    // Sem a confirmação não se sabe se as que falharam saíram: ficam em
-    // `talvezSaiu`, e a Reciclagem guarda-lhes a cópia. Não há risco de pisar
-    // uma que ficou viva: o «Repor» e o conflito só repõem o que FALTA
-    // (`reporSeFaltar`, `faltaAlgoDoQueSaiu`).
-    talvezSaiu.propostas.push(...falharam);
-    if (listagemFalhou) falhou.push(LISTAGEM_DAS_PROPOSTAS_FALHOU);
-    falhou.push(...oQueFicouDasPropostas([...falharam], falharam));
-    falhou.push("não consegui confirmar as propostas deste pedido");
-    log.error("apagar-pedido: confirmação das propostas falhou", e, { pedido: id });
-    return { apagado: false, contou, falhou, saiu, talvezSaiu };
-  }
-
-  // ── As fotografias que ela carregou para este pedido ─────────────────────
-  //
-  // Só a pasta `<pedido>/` do bucket das propostas. As fotografias da
-  // BIBLIOTECA não se tocam: vivem noutro bucket, são dela, e são usadas em
-  // muitas propostas — apagá-las por causa de um pedido esvaziaria mood boards
-  // de outros casais.
-  if (opcoes.fotos !== false) {
-    try {
-      const fotos = await listProposalImages(id);
-      for (const f of fotos) {
-        try {
-          await removeStoredObject(PROPOSAL_BUCKET, f.path);
-          contou.fotos++;
-        } catch (e) {
-          falhou.push(`a fotografia ${f.path} continua no armazenamento`);
-          log.error("apagar-pedido: fotografia não apagada", e, { pedido: id, path: f.path });
-        }
-      }
-    } catch (e) {
-      falhou.push("não consegui listar as fotografias deste pedido");
-      log.error("apagar-pedido: listagem de fotografias falhou", e, { pedido: id });
-    }
-  }
-
-  // ── O rascunho do estúdio, e as suas variantes ───────────────────────────
-  //
-  // As três chaves que o `proposta-rascunho` conhece: o documento do estúdio, a
-  // tabela de linhas da ferramenta antiga, e as duas gavetas de resgate. Um
-  // rascunho esquecido tem lá dentro o mesmo documento que a proposta tinha.
-  for (const chave of [
-    id,
-    `${id}--orcamento-linhas`,
-    `${id}--sobreposto`,
-    `${id}--orcamento-linhas--sobreposto`,
-  ]) {
-    try {
-      // Só se apaga (e só se CONTA) o rascunho que existe. Gravar `null` por
-      // cima de nada deixava uma chave vazia por pedido — e contava-a como
-      // «apagada», o que fazia a Reciclagem achar que o pedido já tinha saído
-      // em parte quando nada tinha saído (revisão de 13/11, n.º 3). A leitura
-      // é a de quem vai escrever: se falhar, lança, e diz-se que ficou.
-      if ((await getState(draftKey(chave), { ouFalha: true })) == null) continue;
-      const r = await clearProposalDraft(chave);
-      if (r.gravado) {
-        contou.rascunhos++;
-        saiu.rascunhos.push(chave);
-      } else falhou.push(`o rascunho ${chave} não foi limpo`);
-    } catch (e) {
-      falhou.push(`o rascunho ${chave} não foi limpo`);
-      log.error("apagar-pedido: rascunho não limpo", e, { pedido: id, chave });
-    }
-  }
-
-  // ── E o pedido, por último ───────────────────────────────────────────────
-  //
-  // Antes, outra vez o que pode ter nascido entretanto noutro ecrã — a mesma
-  // pergunta do início, alargada (`ligacoesDoPedido`). Um contrato ou uma fatura ficavam
-  // sem origem pelo `set null`; uma proposta ficava solta com o nome do casal;
-  // uma tarefa caía pela cascata sem relatório nem Reciclagem. Em qualquer
-  // caso o pedido fica, e a próxima tentativa sabe o que há.
-  //
-  // SEM `motivo`: aqui já saiu muita coisa, e um motivo de recusa diria à
-  // Reciclagem «nada saiu» — e ela deitava fora a única cópia do que saiu.
-  try {
-    const prende = oQueAindaPrende(await ligacoesDoPedido(id));
-    if (prende.length > 0) {
-      falhou.push(...prende);
-      return { apagado: false, contou, falhou, saiu, talvezSaiu };
-    }
-  } catch (e) {
-    falhou.push("não consegui confirmar o que ainda está ligado ao pedido antes de o apagar");
-    log.error("apagar-pedido: a segunda verificação falhou", e, { pedido: id });
-    return { apagado: false, contou, falhou, saiu, talvezSaiu };
-  }
-  try {
-    await deleteQuote(id);
-  } catch (e) {
-    falhou.push("o pedido em si não foi apagado");
-    log.error("apagar-pedido: o pedido não foi apagado", e, { pedido: id });
-    return { apagado: false, contou, falhou, saiu, talvezSaiu };
+  const feito = nadaAinda();
+  const passos: (() => Promise<Passo>)[] = [
+    () => apagarTarefas(id),
+    () => apagarPropostas(id),
+    () => (opcoes.fotos === false ? Promise.resolve({}) : apagarFotos(id)),
+    () => apagarRascunhos(id),
+    () => confirmarQueNadaPrende(id),
+    () => apagarOPedido(id),
+  ];
+  for (const passo of passos) {
+    if (juntar(feito, await passo()).parar) return { apagado: false, ...feito };
   }
 
   log.info("pedido apagado por completo", {
     pedido: id,
-    propostas: contou.propostas,
-    fotos: contou.fotos,
-    rascunhos: contou.rascunhos,
-    tarefas: contou.tarefas,
-    ficou_por_apagar: falhou.length,
+    ...feito.contou,
+    ficou_por_apagar: feito.falhou.length,
   });
-  return { apagado: true, contou, falhou, saiu, talvezSaiu };
+  return { apagado: true, ...feito };
+}
+
+// ── O que se vai juntando ──────────────────────────────────────────────────
+
+type Feito = Omit<ResultadoDoApagamento, "apagado" | "motivo">;
+
+const nadaAinda = (): Feito => ({
+  contou: { propostas: 0, fotos: 0, rascunhos: 0, tarefas: 0 },
+  falhou: [],
+  saiu: { propostas: [], tarefas: [], rascunhos: [] },
+  talvezSaiu: { propostas: [] },
+});
+
+function juntar(feito: Feito, passo: Passo): Passo {
+  for (const k of Object.keys(passo.contou ?? {}) as (keyof Contagem)[]) {
+    feito.contou[k] += passo.contou?.[k] ?? 0;
+  }
+  for (const k of Object.keys(passo.saiu ?? {}) as (keyof OQueSaiu)[]) {
+    feito.saiu[k].push(...(passo.saiu?.[k] ?? []));
+  }
+  feito.talvezSaiu.propostas.push(...(passo.talvezSaiu ?? []));
+  feito.falhou.push(...(passo.falhou ?? []));
+  return passo;
+}
+
+// ── 1. O registo fiscal ────────────────────────────────────────────────────
+
+/**
+ * Qualquer contrato (não só o aceite) ou fatura recusa. E não saber também
+ * recusa: não saber se há contrato não é saber que não há — mas não se
+ * afirma um contrato que pode não existir (`nao-verificado`).
+ */
+async function recusaFiscal(
+  pedido: NonNullable<Awaited<ReturnType<typeof getQuote>>>,
+): Promise<ResultadoDoApagamento | null> {
+  try {
+    const motivo = await registoFiscalDoPedido(pedido);
+    return motivo ? { apagado: false, motivo, ...nadaAinda() } : null;
+  } catch (e) {
+    log.error("apagar-pedido: leitura fiscal falhou — não se apaga nada", e, { pedido: pedido.id });
+    const feito = nadaAinda();
+    feito.falhou.push("não consegui verificar se este pedido tem contrato ou faturas");
+    return { apagado: false, motivo: "nao-verificado", ...feito };
+  }
+}
+
+// ── 2. As tarefas (auditoria de 12/11, n.º 7; cascata desde o P5) ───────────
+
+async function apagarTarefas(pedido: string): Promise<Passo> {
+  const tarefas = await lerOuNull(
+    () => listTasksForQuote(pedido),
+    "apagar-pedido: listagem de tarefas falhou",
+    pedido,
+  );
+  if (!tarefas) return { falhou: ["não consegui listar as tarefas deste pedido"], parar: true };
+  const { sairam, falharam } = await umAUm(
+    tarefas,
+    (t) => deleteTask(t.id),
+    (t) => ({ mensagem: "apagar-pedido: tarefa não apagada", contexto: { pedido, tarefa: t.id } }),
+  );
+  if (falharam.length > 0) {
+    log.warn("apagar-pedido: ficaram tarefas — não se apaga mais nada (a cascata levá-las-ia)", {
+      pedido,
+    });
+  }
+  return {
+    contou: { tarefas: sairam.length },
+    saiu: { tarefas: sairam.map((t) => t.id) },
+    falhou: falharam.map((t) => `a tarefa ${t.id} não foi apagada`),
+    parar: falharam.length > 0,
+  };
+}
+
+// ── 3. As propostas, com a confirmação ─────────────────────────────────────
+
+const LISTAGEM_DAS_PROPOSTAS_FALHOU = "não consegui listar as propostas deste pedido";
+
+/**
+ * As falhas não vão logo para o relatório: quem decide o que é verdade é a
+ * confirmação (uma proposta cuja resposta se perdeu pode ter saído, e uma
+ * listagem falhada pode não esconder nada). Uma que ficou — ou que nasceu
+ * noutro ecrã — faz parar antes de as fotografias e os rascunhos saírem.
+ */
+async function apagarPropostas(pedido: string): Promise<Passo> {
+  const lista = await lerOuNull(
+    () => listProposalsForQuote(pedido),
+    "apagar-pedido: listagem de propostas falhou",
+    pedido,
+  );
+  const { sairam, falharam } = await umAUm(
+    lista ?? [],
+    (p) => deleteProposal(p.id),
+    (p) => ({
+      mensagem: "apagar-pedido: proposta não apagada",
+      contexto: { pedido, proposta: p.id },
+    }),
+  );
+  const ids = new Set(falharam.map((p) => p.id));
+  const aviso = lista ? [] : [LISTAGEM_DAS_PROPOSTAS_FALHOU];
+  const confirmadas = sairam.map((p) => p.id);
+
+  const ficaram = await lerOuNull(
+    async () => (await listProposalsForQuote(pedido)).map((p) => p.id),
+    "apagar-pedido: confirmação das propostas falhou",
+    pedido,
+  );
+  if (!ficaram) {
+    // Sem confirmação não se sabe se as que falharam saíram: «talvez».
+    return {
+      contou: { propostas: confirmadas.length },
+      saiu: { propostas: confirmadas },
+      talvezSaiu: [...ids],
+      falhou: [
+        ...aviso,
+        ...oQueFicouDasPropostas([...ids], ids),
+        "não consegui confirmar as propostas deste pedido",
+      ],
+      parar: true,
+    };
+  }
+  // Uma que falhou e a confirmação já não encontra SAIU: só a resposta se
+  // perdeu (júri de 18/11, 12.ª volta).
+  const semResposta = propostasQueSairamSemResposta(ids, ficaram);
+  const todas = [...confirmadas, ...semResposta];
+  const parar = ficaram.length > 0;
+  return {
+    contou: { propostas: todas.length },
+    saiu: { propostas: todas },
+    falhou: parar ? [...aviso, ...oQueFicouDasPropostas(ficaram, ids)] : [],
+    parar,
+  };
+}
+
+// ── 4. As fotografias que ela carregou para este pedido ────────────────────
+
+/**
+ * Só a pasta `<pedido>/` do bucket das propostas. As da BIBLIOTECA não se
+ * tocam: vivem noutro bucket e são usadas em muitas propostas.
+ */
+async function apagarFotos(pedido: string): Promise<Passo> {
+  const fotos = await lerOuNull(
+    () => listProposalImages(pedido),
+    "apagar-pedido: listagem de fotografias falhou",
+    pedido,
+  );
+  if (!fotos) return { falhou: ["não consegui listar as fotografias deste pedido"] };
+  const { sairam, falharam } = await umAUm(
+    fotos,
+    (f) => removeStoredObject(PROPOSAL_BUCKET, f.path),
+    (f) => ({
+      mensagem: "apagar-pedido: fotografia não apagada",
+      contexto: { pedido, path: f.path },
+    }),
+  );
+  return {
+    contou: { fotos: sairam.length },
+    falhou: falharam.map((f) => `a fotografia ${f.path} continua no armazenamento`),
+  };
+}
+
+// ── 5. O rascunho do estúdio, e as suas variantes ──────────────────────────
+
+/**
+ * Só se apaga (e só se CONTA) o rascunho que existe: gravar `null` por cima de
+ * nada deixava uma chave vazia e contava-a como apagada (revisão de 13/11,
+ * n.º 3). A leitura é a de quem vai escrever: se falhar, diz-se que ficou.
+ */
+async function apagarRascunhos(pedido: string): Promise<Passo> {
+  const existem: string[] = [];
+  const naoLidos: string[] = [];
+  for (const chave of chavesDoRascunhoDoPedido(pedido)) {
+    try {
+      if ((await getState(draftKey(chave), { ouFalha: true })) != null) existem.push(chave);
+    } catch (e) {
+      naoLidos.push(chave);
+      log.error("apagar-pedido: rascunho não limpo", e, { pedido, chave });
+    }
+  }
+  const { sairam, falharam } = await umAUm(
+    existem,
+    async (chave) => {
+      if (!(await clearProposalDraft(chave)).gravado) throw new Error("não gravou");
+    },
+    (chave) => ({ mensagem: "apagar-pedido: rascunho não limpo", contexto: { pedido, chave } }),
+  );
+  return {
+    contou: { rascunhos: sairam.length },
+    saiu: { rascunhos: sairam },
+    falhou: [...naoLidos, ...falharam].map((chave) => `o rascunho ${chave} não foi limpo`),
+  };
+}
+
+// ── 6. O que pode ter nascido entretanto ───────────────────────────────────
+
+/**
+ * A pergunta do início, alargada (`ligacoesDoPedido`): um contrato ou uma
+ * fatura ficavam sem origem pelo `set null`, uma proposta solta com o nome do
+ * casal, uma tarefa caía pela cascata sem relatório. SEM `motivo`: aqui já
+ * saiu muita coisa, e um motivo diria à Reciclagem «nada saiu».
+ */
+async function confirmarQueNadaPrende(pedido: string): Promise<Passo> {
+  try {
+    const prende = oQueAindaPrende(await ligacoesDoPedido(pedido));
+    return { falhou: prende, parar: prende.length > 0 };
+  } catch (e) {
+    log.error("apagar-pedido: a segunda verificação falhou", e, { pedido });
+    return {
+      falhou: ["não consegui confirmar o que ainda está ligado ao pedido antes de o apagar"],
+      parar: true,
+    };
+  }
+}
+
+// ── 7. E o pedido, por último ──────────────────────────────────────────────
+
+async function apagarOPedido(pedido: string): Promise<Passo> {
+  try {
+    await deleteQuote(pedido);
+    return {};
+  } catch (e) {
+    log.error("apagar-pedido: o pedido não foi apagado", e, { pedido });
+    return { falhou: ["o pedido em si não foi apagado"], parar: true };
+  }
 }

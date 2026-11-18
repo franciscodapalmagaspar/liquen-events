@@ -23,7 +23,7 @@ const apagou = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/apagar-pedido", () => ({
-  apagarPedidoSemContrato: async (id: string) => {
+  apagarPedido: async (id: string) => {
     apagou.chamado.push(id);
     const r = apagou.resposta.get(id) ?? { apagado: true };
     return {
@@ -153,7 +153,7 @@ describe("a passagem", () => {
 
   it("um pedido com contrato é contado como caducado e NÃO apagado", async () => {
     /**
-     * O travão está no `apagarPedidoSemContrato`, e a retenção respeita a
+     * O travão está no `apagarPedido`, e a retenção respeita a
      * resposta em vez de insistir. Contar como ficado — e não como apagado — é
      * o que faz a diferença aparecer no registo em vez de desaparecer.
      */

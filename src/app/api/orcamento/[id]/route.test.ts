@@ -177,10 +177,10 @@ const apagamento = vi.hoisted(() => ({
     falhou: [] as string[],
   })),
 }));
-vi.mock("@/lib/apagar-pedido", () => ({ apagarPedidoSemContrato: apagamento.correr }));
+vi.mock("@/lib/apagar-pedido", () => ({ apagarPedido: apagamento.correr }));
 // Apagar passa pela Reciclagem (R3b, `src/lib/reciclagem.ts`, com testes
 // próprios). Aqui interessa a rota: a guarda, e as respostas de cada desfecho
-// do `apagarPedidoSemContrato` — que a Reciclagem devolve tal e qual.
+// do `apagarPedido` — que a Reciclagem devolve tal e qual.
 const RESPOSTAS_DA_RECICLAGEM = vi.hoisted(
   () =>
     ({

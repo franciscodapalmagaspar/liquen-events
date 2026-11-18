@@ -39,7 +39,7 @@ vi.mock("@/lib/proposal-storage", () =>
 vi.mock("@/lib/tasks-store", () => import("./apagar-pedido.testkit").then((k) => k.lojas.tasks));
 vi.mock("@/lib/logger", () => import("./apagar-pedido.testkit").then((k) => k.lojas.logger));
 
-const { apagarPedidoSemContrato } = await import("./apagar-pedido");
+const { apagarPedido } = await import("./apagar-pedido");
 
 beforeEach(reporOMundo);
 
@@ -51,7 +51,7 @@ describe("apagar um pedido sem contrato", () => {
      * desligava-as em vez de as apagar, e elas ficavam lá com tudo dentro.
      */
     dados.propostas = [proposta("p1"), proposta("p2"), proposta("p3", "outro")];
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.apagado).toBe(true);
     expect(dados.apagadas.sort()).toEqual(["p1", "p2"]);
     // A proposta de OUTRO pedido não se toca.
@@ -66,14 +66,14 @@ describe("apagar um pedido sem contrato", () => {
       { id: "t3" },
       { id: "t4", quoteId: "q1" },
     ];
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(dados.tarefasApagadas.sort()).toEqual(["t1", "t4"]);
     expect(r.contou.tarefas).toBe(2);
   });
 
   it("leva as fotografias carregadas para aquele pedido", async () => {
     dados.fotos = [{ path: "q1/a.jpg" }, { path: "q1/b.jpg" }];
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(dados.removidas.sort()).toEqual(["q1/a.jpg", "q1/b.jpg"]);
     expect(r.contou.fotos).toBe(2);
   });
@@ -81,7 +81,7 @@ describe("apagar um pedido sem contrato", () => {
   it("limpa o rascunho do estúdio E as gavetas de resgate", async () => {
     // Um rascunho esquecido tem lá dentro o mesmo documento que a proposta
     // tinha — e as gavetas de resgate guardam versões inteiras por cima.
-    await apagarPedidoSemContrato("q1");
+    await apagarPedido("q1");
     expect(dados.rascunhosLimpos).toEqual([
       "q1",
       "q1--orcamento-linhas",
@@ -92,7 +92,7 @@ describe("apagar um pedido sem contrato", () => {
 
   it("um rascunho que não existe não se «apaga» nem se conta (revisão 13/11, n.º 3)", async () => {
     dados.estado = new Map([["draft:q1", { doc: {} }]]);
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(dados.rascunhosLimpos).toEqual(["q1"]);
     expect(r.contou.rascunhos).toBe(1);
   });
@@ -105,7 +105,7 @@ describe("apagar um pedido sem contrato", () => {
      * falta.
      */
     dados.propostas = [proposta("p1")];
-    await apagarPedidoSemContrato("q1");
+    await apagarPedido("q1");
     expect(dados.apagadas.length).toBe(1);
     expect(dados.pedidosApagados).toEqual(["q1"]);
   });
@@ -119,7 +119,7 @@ describe("o que NÃO se apaga", () => {
      */
     dados.contratos = [contrato("q1", "pendente")];
     dados.propostas = [proposta("p1")];
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.apagado).toBe(false);
     expect(r.motivo).toBe("tem-contrato");
     // E NADA foi tocado — nem as propostas, nem o pedido.
@@ -132,7 +132,7 @@ describe("o que NÃO se apaga", () => {
     // dúvida entre apagar de mais e de menos, num registo fiscal, apaga-se de
     // menos.
     dados.contratos = [contrato("q1", "aceite")];
-    expect((await apagarPedidoSemContrato("q1")).motivo).toBe("tem-contrato");
+    expect((await apagarPedido("q1")).motivo).toBe("tem-contrato");
   });
 
   it("NÃO SABER se há contrato conta como haver", async () => {
@@ -142,7 +142,7 @@ describe("o que NÃO se apaga", () => {
      */
     dados.contratosRebentam = true;
     dados.propostas = [proposta("p1")];
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.apagado).toBe(false);
     expect(dados.apagadas).toEqual([]);
     expect(r.falhou.join(" ")).toMatch(/não consegui verificar/i);
@@ -151,12 +151,12 @@ describe("o que NÃO se apaga", () => {
   });
 
   it("um pedido que não existe diz que não existe", async () => {
-    expect((await apagarPedidoSemContrato("nao-ha")).motivo).toBe("nao-existe");
+    expect((await apagarPedido("nao-ha")).motivo).toBe("nao-existe");
   });
 
   it("um contrato de OUTRO pedido não impede nada", async () => {
     dados.contratos = [contrato("outro")];
-    expect((await apagarPedidoSemContrato("q1")).apagado).toBe(true);
+    expect((await apagarPedido("q1")).apagado).toBe(true);
   });
 });
 
@@ -168,7 +168,7 @@ describe("o que ficou por apagar é DITO", () => {
      */
     dados.propostas = [proposta("p1"), proposta("p2")];
     dados.propostaQueFalha = "p2";
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.contou.propostas).toBe(1);
     expect(r.falhou.join(" ")).toContain("p2");
     // O resto continua (fotografias, rascunhos), mas o PEDIDO fica (P5): com a
@@ -189,14 +189,14 @@ describe("o que ficou por apagar é DITO", () => {
     // que ainda existe.
     dados.fotos = [{ path: "q1/a.jpg" }, { path: "q1/b.jpg" }];
     dados.fotoQueFalha = "q1/b.jpg";
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.contou.fotos).toBe(1);
     expect(r.falhou.join(" ")).toContain("q1/b.jpg");
   });
 
   it("se o pedido em si não sair, NÃO se diz que se apagou", async () => {
     dados.pedidoRebenta = true;
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.apagado).toBe(false);
     expect(r.falhou.join(" ")).toMatch(/o pedido em si/i);
   });
@@ -207,7 +207,7 @@ describe("o que ficou por apagar é DITO", () => {
     dados.contratosRebentam = true;
     dados.pedidoRebenta = true;
     dados.propostaQueFalha = "p1";
-    await expect(apagarPedidoSemContrato("q1")).resolves.toBeTruthy();
+    await expect(apagarPedido("q1")).resolves.toBeTruthy();
   });
 });
 
@@ -217,7 +217,7 @@ describe("P5: uma fatura também manda parar (registo fiscal, chave `set null`)"
     dados.propostas = [proposta("p1")];
     dados.tarefas = [{ id: "t1", quoteId: "q1" }];
     dados.fotos = [{ path: "q1/a.jpg" }];
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.apagado).toBe(false);
     expect(r.motivo).toBe("tem-fatura");
     expect(dados.apagadas).toEqual([]);
@@ -229,7 +229,7 @@ describe("P5: uma fatura também manda parar (registo fiscal, chave `set null`)"
 
   it("sem conseguir ler as faturas, também não se apaga nada", async () => {
     dados.faturasRebentam = true;
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.apagado).toBe(false);
     expect(r.motivo).toBe("nao-verificado");
     expect(r.falhou).toContain("não consegui verificar se este pedido tem contrato ou faturas");
@@ -239,7 +239,7 @@ describe("P5: uma fatura também manda parar (registo fiscal, chave `set null`)"
 
   it("a fatura de OUTRO pedido não trava este", async () => {
     dados.faturas = [{ id: "f1", quoteId: "outro" }];
-    expect((await apagarPedidoSemContrato("q1")).apagado).toBe(true);
+    expect((await apagarPedido("q1")).apagado).toBe(true);
   });
 });
 
@@ -247,7 +247,7 @@ describe("um registo fiscal VISTO vale mais do que uma leitura falhada", () => {
   it("com um contrato visto e as faturas por ler, recusa pelo contrato", async () => {
     dados.contratos = [contrato("q1")];
     dados.faturasRebentam = true;
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.motivo).toBe("tem-contrato");
     expect(dados.pedidosApagados).toEqual([]);
   });
@@ -259,7 +259,7 @@ describe("P5: a fatura que vive no Moloni também manda parar", () => {
       ["q1", { id: "q1", faturasMoloni: { sinal: { em: "x", documentId: 7 } } }],
     ]);
     dados.propostas = [proposta("p1")];
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.motivo).toBe("tem-fatura");
     expect(dados.apagadas).toEqual([]);
     expect(dados.pedidosApagados).toEqual([]);
@@ -274,7 +274,7 @@ describe("P5: a fatura que vive no Moloni também manda parar", () => {
       faturasMoloni: { saldo: { em: "x", aCriarDesde: "2026-01-01T00:00:00Z" } },
     });
     dados.propostas = [proposta("p1")];
-    const r = await apagarPedidoSemContrato("q1");
+    const r = await apagarPedido("q1");
     expect(r.motivo).toBe("tem-fatura");
     expect(dados.apagadas).toEqual([]);
     expect(dados.pedidosApagados).toEqual([]);

@@ -1,6 +1,6 @@
 import "server-only";
 import type { Quote } from "./orcamento/types";
-import { apagarPedidoSemContrato } from "./apagar-pedido";
+import { apagarPedido } from "./apagar-pedido";
 import { log } from "@/lib/logger";
 
 /**
@@ -82,7 +82,7 @@ export function ultimoContacto(pedido: Quote): number | null {
  *  1. sem data conhecida, não se apaga (ver acima);
  *  2. um pedido GANHO não se apaga aqui, mesmo que o contrato ainda não
  *     exista na base — é cinto e suspensórios sobre o travão do contrato que
- *     já vive no `apagarPedidoSemContrato`, e custa uma linha;
+ *     já vive no `apagarPedido`, e custa uma linha;
  *  3. e a comparação é estrita: exactamente 12 meses ainda não passou.
  */
 export function caducou(pedido: Quote, agora: number): boolean {
@@ -125,7 +125,7 @@ export async function correrRetencao(
 
   for (const pedido of fora.slice(0, lote)) {
     try {
-      const r = await apagarPedidoSemContrato(pedido.id);
+      const r = await apagarPedido(pedido.id);
       if (r.apagado) {
         resultado.apagados++;
         if (r.falhou.length) {
@@ -141,7 +141,7 @@ export async function correrRetencao(
         });
       }
     } catch (e) {
-      // Não pode acontecer (o `apagarPedidoSemContrato` não lança), e mesmo
+      // Não pode acontecer (o `apagarPedido` não lança), e mesmo
       // assim: um pedido não pode travar os outros.
       resultado.ficaram.push({ pedido: pedido.id, motivo: "erro" });
       log.error("retenção: apagamento rebentou", e, { pedido: pedido.id });
