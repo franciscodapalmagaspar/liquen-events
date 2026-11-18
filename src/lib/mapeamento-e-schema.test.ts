@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { promises as fs } from "fs";
 import path from "path";
 import type { Mapper } from "./repository";
-import { esquemaDoSql } from "./db/comparar-esquemas";
+import { esquemaDoSql } from "../../test/comparar-esquemas";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { promises as fs } from "fs";
 import path from "path";
-import { diferencasEntre, esquemaDoSql, esquemaDosTipos } from "./comparar-esquemas";
+import { diferencasEntre, esquemaDoSql, esquemaDosTipos } from "../../../test/comparar-esquemas";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════

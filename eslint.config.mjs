@@ -74,6 +74,28 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  // As ferramentas de teste (`test/`, como o `comparar-esquemas.ts`) e o
+  // compilador de TypeScript não entram na aplicação: puxavam megabytes para a
+  // função e só servem para provar coisas nos testes. Só nos `.ts` de `src/`
+  // fora dos testes (os `.tsx` têm a guarda de cima, e a regra não se soma).
+  {
+    files: ["src/**/*.ts"],
+    ignores: ["**/*.test.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/test/*", "typescript"],
+              message:
+                "Ferramenta de teste (ou o compilador de TypeScript) importada pela aplicação — só os testes a podem usar.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Server entry points (page/layout/template) and tests run on the server and
   // legitimately value-import the stores — lift the client-boundary guard there.
   {

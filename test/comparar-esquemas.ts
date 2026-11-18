@@ -15,10 +15,9 @@
  * que, a cada PR, o ficheiro que se escreve à mão e o que se gerou contam a
  * mesma história.
  *
- * Só para testes e ferramentas: importa o compilador de TypeScript, e nada da
- * aplicação o deve importar.
+ * Só para testes e ferramentas — por isso vive em `test/`, fora de `src/`:
+ * importa o compilador de TypeScript, e nada da aplicação o deve importar.
  */
-import "server-only";
 import ts from "typescript";
 
 /** Uma coluna, reduzida ao que as duas descrições conseguem dizer. */
