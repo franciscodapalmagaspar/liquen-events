@@ -4,6 +4,7 @@ import path from "path";
 import { getSupabase } from "./supabase";
 import { eRelogioAdiantado, isMissingTable, lerComNovaTentativa } from "./repository";
 import { log } from "./logger";
+import { vigiarChave, vigiarValor } from "./app-state/vigiar";
 
 /**
  * Tiny persistent key-value state for operational markers (e.g. the list of
@@ -253,6 +254,7 @@ async function lerComTentativas<T>(
   const sb = getSupabase();
   if (!sb) {
     const all = await readFileState();
+    vigiarValor(key, all[key]);
     return { ok: true, valor: (all[key] as T) ?? null };
   }
   let ultimoErro: unknown = null;
@@ -262,7 +264,10 @@ async function lerComTentativas<T>(
         sb.from("app_state").select("value").eq("key", key).maybeSingle(),
         TEMPO_POR_TENTATIVA_MS,
       );
-      if (!error) return { ok: true, valor: (data?.value as T) ?? null };
+      if (!error) {
+        vigiarValor(key, data?.value);
+        return { ok: true, valor: (data?.value as T) ?? null };
+      }
       ultimoErro = error;
     } catch (err) {
       ultimoErro = err;
@@ -317,7 +322,11 @@ export async function getStates<T>(keys: readonly string[]): Promise<Map<string,
   const sb = getSupabase();
   if (!sb) {
     const all = await readFileState();
-    for (const k of unicas) if (k in all) saida.set(k, all[k] as T);
+    for (const k of unicas) {
+      if (!(k in all)) continue;
+      vigiarValor(k, all[k]);
+      saida.set(k, all[k] as T);
+    }
     return saida;
   }
   try {
@@ -330,7 +339,10 @@ export async function getStates<T>(keys: readonly string[]): Promise<Map<string,
         TEMPO_POR_TENTATIVA_MS,
       );
       if (error) throw error;
-      for (const r of (data ?? []) as { key: string; value: T }[]) saida.set(r.key, r.value);
+      for (const r of data ?? []) {
+        vigiarValor(r.key, r.value);
+        saida.set(r.key, r.value as T);
+      }
     }
     return saida;
   } catch (err) {
@@ -386,8 +398,11 @@ export async function listStateByPrefix<T>(
             .range(desde, ate),
         );
         if (error) throw error;
-        const pagina = (data ?? []) as { key: string; value: T }[];
-        linhas.push(...pagina);
+        const pagina = data ?? [];
+        for (const l of pagina) {
+          vigiarValor(l.key, l.value);
+          linhas.push({ key: l.key, value: l.value as T });
+        }
         if (pagina.length < ate - desde + 1) break;
       }
       return { entradas: linhas.slice(0, limite), completa: linhas.length <= limite };
@@ -401,7 +416,10 @@ export async function listStateByPrefix<T>(
   const all = await readFileState();
   const entradas = Object.entries(all)
     .filter(([k]) => k.startsWith(prefix))
-    .map(([key, value]) => ({ key, value: value as T }));
+    .map(([key, value]) => {
+      vigiarValor(key, value);
+      return { key, value: value as T };
+    });
   return { entradas: entradas.slice(0, limite), completa: entradas.length <= limite };
 }
 
@@ -435,6 +453,7 @@ export async function lerEstadoComVersao<T>(
   const sb = getSupabase();
   if (!sb) {
     const all = await readFileState();
+    vigiarValor(key, all[key]);
     const valor = (all[key] as T) ?? null;
     return { valor, versao: valor === null ? null : JSON.stringify(valor) };
   }
@@ -444,10 +463,11 @@ export async function lerEstadoComVersao<T>(
   );
   if (error) throw error;
   if (!data) return { valor: null, versao: null };
-  const linha = data as { value?: unknown; updated_at?: unknown };
+  vigiarValor(key, data.value);
   return {
-    valor: (linha.value as T) ?? null,
-    versao: typeof linha.updated_at === "string" ? linha.updated_at : "",
+    valor: (data.value as T) ?? null,
+    // Não-nula pelo esquema; o `""` fica para uma linha escrita à mão sem ela.
+    versao: typeof data.updated_at === "string" ? data.updated_at : "",
   };
 }
 
@@ -457,6 +477,7 @@ export async function gravarEstadoSeNaoMudou<T>(
   versao: VersaoDoEstado,
   tectoMs: number = TEMPO_POR_TENTATIVA_MS,
 ): Promise<"gravado" | "conflito" | "falhou"> {
+  vigiarChave(key);
   const sb = getSupabase();
   if (!sb) {
     if (oFicheiroEhEfemero()) return "falhou";
@@ -561,6 +582,7 @@ export async function apagarEstadoPorPrefixo(
  * saber que não escreveu.
  */
 export async function setState<T>(key: string, value: T): Promise<ResultadoDeEscrita> {
+  vigiarChave(key);
   const sb = getSupabase();
   if (sb) {
     let ultimoErro: unknown = null;

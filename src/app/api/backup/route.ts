@@ -27,6 +27,7 @@ import { listarServicos } from "@/lib/servicos-catalogo-store";
 import { listProposalDrafts } from "@/lib/proposal-drafts";
 import { listEnviosDeProposta } from "@/lib/envios-de-proposta";
 import { listIndiceDoBlob } from "@/lib/armazenamento/indice-na-copia";
+import type { ConjuntoDaCopia } from "@/lib/app-state/espacos";
 import { registarCopiaEnviada } from "@/lib/copia-de-seguranca-marcador";
 import { getSupabase } from "@/lib/supabase";
 import { log } from "@/lib/logger";
@@ -81,6 +82,18 @@ async function listInvoiceCounters(): Promise<unknown[]> {
   if (error) throw error;
   return data ?? [];
 }
+
+/**
+ * Os espaços do `app_state` que vão na cópia, UMA leitura por conjunto. Quem vai
+ * di-lo o registo dos espaços (`copia.leva` em `app-state/espacos.ts`): um
+ * espaço novo marcado para a cópia não compila sem a sua leitura aqui, e um
+ * conjunto que o registo não conhece também não.
+ */
+const LEITURAS_DO_APP_STATE = {
+  proposalDrafts: listProposalDrafts,
+  proposalEmails: listEnviosDeProposta,
+  indiceDoBlob: listIndiceDoBlob,
+} satisfies Record<ConjuntoDaCopia, () => Promise<unknown[]>>;
 
 /**
  * TUDO o que a cópia leva.
@@ -175,7 +188,7 @@ export const BACKUP_DATASETS: readonly BackupDataset[] = [
   {
     key: "proposalDrafts",
     table: "app_state",
-    list: listProposalDrafts,
+    list: LEITURAS_DO_APP_STATE.proposalDrafts,
   },
   // As CÓPIAS dos emails de proposta que saíram (`envio-de-proposta:…`), pelo
   // mesmo caminho e pela mesma razão: a cópia levava a PROPOSTA e não levava o
@@ -188,7 +201,7 @@ export const BACKUP_DATASETS: readonly BackupDataset[] = [
   {
     key: "proposalEmails",
     table: "app_state",
-    list: listEnviosDeProposta,
+    list: LEITURAS_DO_APP_STATE.proposalEmails,
   },
   // O índice do Vercel Blob (`blob:i:…`, 17/11): a única lista do que está no
   // Blob, que nunca se lista no dia a dia. Sem ele, uma base reposta deixava
@@ -196,7 +209,7 @@ export const BACKUP_DATASETS: readonly BackupDataset[] = [
   {
     key: "indiceDoBlob",
     table: "app_state",
-    list: listIndiceDoBlob,
+    list: LEITURAS_DO_APP_STATE.indiceDoBlob,
   },
 ] as const;
 

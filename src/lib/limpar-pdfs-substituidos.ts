@@ -2,6 +2,7 @@ import "server-only";
 import { balde } from "@/lib/armazenamento/balde";
 import { semProtegidos } from "@/lib/arquivo-de-pdfs/protegidos";
 import { eChaveDeIndiceDeFotos } from "@/lib/indices-de-fotos";
+import { chavesDosEspacos } from "@/lib/app-state/espacos";
 import { lerTodasAsLinhas } from "./ler-todas-as-linhas";
 import { createHash } from "node:crypto";
 import { getSupabase } from "@/lib/supabase";
@@ -270,17 +271,14 @@ export async function aosPoucos<T, R>(itens: readonly T[], n: number, fn: (t: T)
 /**
  * Chaves de `app_state` que nomeiam uma proposta sem precisarem do PDF dela.
  * Lidas como menção, guardavam para sempre a pasta de uma proposta apagada
- * (ver «Porque é que não apagava», acima). Os prefixos são os dos módulos que
- * as escrevem: `proposta-link-curto.ts`, `envios-de-proposta.ts`,
- * `aquecimento-de-pdf.ts` e `proposta-web/guardado.ts`.
+ * (ver «Porque é que não apagava», acima). Quem são di-lo o registo dos espaços
+ * (`mencionaPdfs: false` em `app-state/espacos.ts`): as ligações curtas, os
+ * envios, o aquecimento dos PDFs e a proposta online. Os índices de fotografias
+ * ficam de fora daqui porque `contaComoMencao` os afasta pelo seu nome.
  */
-export const PREFIXOS_QUE_NAO_SAO_MENCAO = [
-  "ligacao-proposta:",
-  "ligacao-de-proposta:",
-  "envio-de-proposta:",
-  "aquecimento-pdf:",
-  "proposta-web:",
-] as const;
+export const PREFIXOS_QUE_NAO_SAO_MENCAO: readonly string[] = chavesDosEspacos(
+  (e) => e.mencionaPdfs === false && e.indiceDeFotos !== true,
+);
 
 /** Esta linha de `app_state` conta como menção de um PDF ou de uma proposta? */
 export function contaComoMencao(chave: unknown): boolean {

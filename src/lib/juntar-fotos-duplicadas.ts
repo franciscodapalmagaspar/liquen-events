@@ -2,6 +2,7 @@ import "server-only";
 import { balde } from "@/lib/armazenamento/balde";
 import { semProtegidos } from "@/lib/arquivo-de-pdfs/protegidos";
 import { eChaveDeIndiceDeFotos } from "@/lib/indices-de-fotos";
+import { chavesDosEspacos } from "@/lib/app-state/espacos";
 import { CHAVE_DOS_DUPLICADOS } from "@/lib/registos-das-limpezas";
 import { getSupabase } from "@/lib/supabase";
 import { getState, setState } from "@/lib/app-state";
@@ -128,9 +129,12 @@ export const FEITOS_DIAS = 60;
 const MARGEM_MS = 5 * 60_000;
 const HORA_MS = 60 * 60_000;
 const DIA_MS = 24 * HORA_MS;
-const PREFIXO_CACHE_WEB = "proposta-web:";
-// Os índices das fotografias (`foto-resumo:`, `foto-visual:`) nomeiam caminhos
-// mas não os usam — ver `indices-de-fotos.ts`.
+/** Caches que nomeiam fotografias sem as usar (a proposta online refaz-se):
+ *  `mencionaFotos: false` no registo dos espaços. Os índices das fotografias
+ *  também as nomeiam sem as usar — esses afasta-os `eChaveDeIndiceDeFotos`. */
+const NOMEIAM_SEM_USAR: readonly string[] = chavesDosEspacos(
+  (e) => e.mencionaFotos === false && e.indiceDeFotos !== true,
+);
 const PROPOSAL_COVER_BUCKET = "proposal-capas";
 const THEME_COVER_BUCKET = "theme-capas";
 const EM_PARALELO = 6;
@@ -288,7 +292,11 @@ async function lerTudo(sb: Cliente): Promise<Leitura | null> {
     }
     for (const l of linhas) {
       const chave = String(l.key ?? "");
-      if (chave === CHAVE || chave.startsWith(PREFIXO_CACHE_WEB) || eChaveDeIndiceDeFotos(chave))
+      if (
+        chave === CHAVE ||
+        NOMEIAM_SEM_USAR.some((p) => chave.startsWith(p)) ||
+        eChaveDeIndiceDeFotos(chave)
+      )
         continue;
       if (chave.startsWith(DRAFT_PREFIX)) {
         rascunhos.push({ chave, texto: JSON.stringify(l.value ?? null), valor: l.value });

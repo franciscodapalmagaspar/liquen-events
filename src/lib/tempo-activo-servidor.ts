@@ -1,4 +1,5 @@
 import "server-only";
+import { ESPACOS } from "@/lib/app-state/espacos";
 import { getState, listStateByPrefix, setState, type ResultadoDeEscrita } from "./app-state";
 
 /**
@@ -41,7 +42,7 @@ import { getState, listStateByPrefix, setState, type ResultadoDeEscrita } from "
  */
 
 /** O espaço de nomes dentro do `app_state`. */
-export const TEMPO_PREFIX = "tempo-activo:";
+export const TEMPO_PREFIX = ESPACOS.tempoActivo.chave;
 
 const chave = (quoteId: string) => `${TEMPO_PREFIX}${quoteId}`;
 

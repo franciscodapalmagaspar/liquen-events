@@ -1,4 +1,5 @@
 import "server-only";
+import { ESPACOS } from "@/lib/app-state/espacos";
 import { balde } from "@/lib/armazenamento/balde";
 import { createHash } from "crypto";
 import sharp from "sharp";
@@ -83,7 +84,7 @@ import { log } from "@/lib/logger";
  * OUTRO pedido nunca (apagar esse pedido levava a foto).
  */
 
-export const PREFIXO_DO_INDICE_VISUAL = "foto-visual:";
+export const PREFIXO_DO_INDICE_VISUAL = ESPACOS.impressoesVisuais.chave;
 const LINHAS = 64;
 /** Quantas impressões uma pergunta pode trazer (a rota da importação). */
 export const MAX_IMPRESSOES_POR_PERGUNTA = 60;

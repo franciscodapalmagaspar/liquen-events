@@ -1,4 +1,5 @@
 import "server-only";
+import { ESPACOS } from "@/lib/app-state/espacos";
 import { listAllProposals } from "@/lib/proposals-store";
 import { idiomaDaProposta } from "@/lib/proposta-idioma";
 import { chaveDoPdf } from "@/lib/proposal-pdf-chave";
@@ -105,7 +106,7 @@ export const TECTO_POR_CHAMADA = 8;
 export const ORCAMENTO_AVULSO_MS = 50_000;
 
 /** Onde fica a memória das que falharam. */
-export const CHAVE_DO_ESTADO = "aquecimento-pdf:estado";
+export const CHAVE_DO_ESTADO = `${ESPACOS.aquecimentoDePdf.chave}estado`;
 
 /** Uma proposta que falhou não se volta a tentar antes disto. */
 export const ESPERA_APOS_FALHA_MS = 7 * 24 * 60 * 60 * 1000;

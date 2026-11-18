@@ -1,4 +1,5 @@
 import "server-only";
+import { ESPACOS } from "@/lib/app-state/espacos";
 import { getSupabase } from "@/lib/supabase";
 import { listStateByPrefix } from "@/lib/app-state";
 import { log } from "@/lib/logger";
@@ -27,7 +28,7 @@ import type { BaldeDoBlob } from "./baldes";
  * verificou — o `libertar` só apaga do Supabase o que tem `v: true` aqui.
  */
 
-export const PREFIXO_DO_INDICE = "blob:i:";
+export const PREFIXO_DO_INDICE = ESPACOS.indiceDoBlob.chave;
 
 export interface LinhaDoIndice {
   /** Tamanho em bytes. */

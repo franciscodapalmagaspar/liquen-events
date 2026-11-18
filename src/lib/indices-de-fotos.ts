@@ -1,3 +1,5 @@
+import { ESPACOS, chavesDosEspacos } from "@/lib/app-state/espacos";
+
 /**
  * ════════════════════════════════════════════════════════════════════════════
  * AS CHAVES DE `app_state` QUE SÃO ÍNDICES — NOMEIAM FOTOS, NÃO AS USAM
@@ -10,23 +12,19 @@
  * limpeza voltava a apagar nada (achado da revisão de 13/11: as linhas
  * `foto-visual:*` bloqueavam as três).
  *
- * Uma lista só, para um índice novo não ter de ser lembrado em três sítios.
+ * Uma lista só, para um índice novo não ter de ser lembrado em três sítios — e
+ * derivada do registo dos espaços do `app_state` (`app-state/espacos.ts`).
  */
-export const PREFIXOS_DE_INDICE_DE_FOTOS = [
-  /** `fotos-resumo.ts`: resumo exacto → caminhos. */
-  "foto-resumo:",
-  /** `fotos-parecidas.ts`: caminho → impressão visual. */
-  "foto-visual:",
-  /**
-   * `armazenamento/indice.ts`: o que está no Vercel Blob, uma linha por
-   * ficheiro (16/11). Nomeia TODOS os ficheiros do Blob — contá-la como
-   * menção travava as três limpezas (revisão de 17/11, n.º 3).
-   */
-  "blob:i:",
-] as const;
+export const PREFIXOS_DE_INDICE_DE_FOTOS: readonly string[] = chavesDosEspacos(
+  // `foto-resumo:` (resumo exacto → caminhos), `foto-visual:` (caminho →
+  // impressão visual) e `blob:i:` (o que está no Vercel Blob, uma linha por
+  // ficheiro: contá-la como menção travava as três limpezas — revisão de
+  // 17/11, n.º 3). Quem é índice di-lo o registo dos espaços.
+  (e) => e.indiceDeFotos === true,
+);
 
 /** O prefixo do índice do Vercel Blob (`armazenamento/indice.ts`), à parte para quem só o quer a ele. */
-export const PREFIXO_DO_INDICE_DO_BLOB = "blob:i:";
+export const PREFIXO_DO_INDICE_DO_BLOB = ESPACOS.indiceDoBlob.chave;
 
 /** Esta chave de `app_state` é um índice de fotografias (não é uma menção)? */
 export function eChaveDeIndiceDeFotos(chave: unknown): boolean {

@@ -1,4 +1,5 @@
 import "server-only";
+import { ESPACOS } from "@/lib/app-state/espacos";
 import {
   getState,
   listStateByPrefix,
@@ -57,7 +58,7 @@ export interface StoredProposalDraft {
 /** O espaço de nomes dos rascunhos dentro do `app_state`. Exportado porque há
  *  quem precise de os VARRER e não apenas de ler um: apagar uma foto da
  *  Biblioteca tem de saber que rascunhos a usam (ver `theme-materializar.ts`). */
-export const DRAFT_PREFIX = "proposal-draft:";
+export const DRAFT_PREFIX = ESPACOS.rascunhos.chave;
 
 /** Chave do rascunho de um pedido. O id é saneado para não poder colidir com
  *  outras chaves do `app_state` (nem sair do seu espaço de nomes). */

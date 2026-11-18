@@ -2,6 +2,20 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { BACKUP_DATASETS, NOT_BACKED_UP, PARTIALLY_BACKED_UP } from "./route";
+import { ESPACOS } from "@/lib/app-state/espacos";
+
+describe("o app_state na cópia segue o registo dos espaços", () => {
+  it("vão os conjuntos que o registo marca com `copia.leva`, e só esses", () => {
+    const doRegisto = Object.values(ESPACOS)
+      .flatMap((e) => (e.copia.leva ? [e.copia.conjunto] : []))
+      .sort();
+    const naCopia = BACKUP_DATASETS.filter((d) => d.table === "app_state")
+      .map((d) => d.key)
+      .sort();
+    expect(naCopia).toEqual(doRegisto);
+    expect(naCopia).toEqual(["indiceDoBlob", "proposalDrafts", "proposalEmails"]);
+  });
+});
 
 /**
  * A rede de segurança da cópia de segurança.

@@ -1,4 +1,5 @@
 import "server-only";
+import { ESPACOS } from "@/lib/app-state/espacos";
 import { balde } from "@/lib/armazenamento/balde";
 import { createHash } from "crypto";
 import { getState, getStates, setState } from "@/lib/app-state";
@@ -73,7 +74,7 @@ import { log } from "@/lib/logger";
  * guardar, que é exactamente o que se fazia antes disto existir.
  */
 
-export const PREFIXO_DO_INDICE = "foto-resumo:";
+export const PREFIXO_DO_INDICE = ESPACOS.resumosDeFotos.chave;
 /** Quantos caminhos se guardam por resumo (os mais recentes). */
 export const MAX_CAMINHOS = 6;
 /** Quantos resumos uma pergunta pode trazer (a rota da importação). */

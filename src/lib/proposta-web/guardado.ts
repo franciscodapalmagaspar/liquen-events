@@ -1,4 +1,5 @@
 import "server-only";
+import { ESPACOS } from "@/lib/app-state/espacos";
 import { createHash } from "node:crypto";
 import { getState, setState } from "@/lib/app-state";
 import { log } from "@/lib/logger";
@@ -37,7 +38,7 @@ export function chaveDoGuardado(tipo: string, proposalId: string, ...partes: str
     .update(`${VERSAO_DO_GUARDADO}\n${partes.join("\n")}`)
     .digest("hex")
     .slice(0, 24);
-  return `proposta-web:${tipo}:${proposalId.replace(/[^a-zA-Z0-9_-]/g, "")}:${impressao}`;
+  return `${ESPACOS.propostaWeb.chave}${tipo}:${proposalId.replace(/[^a-zA-Z0-9_-]/g, "")}:${impressao}`;
 }
 
 /**

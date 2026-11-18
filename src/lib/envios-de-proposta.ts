@@ -1,4 +1,5 @@
 import "server-only";
+import { ESPACOS } from "@/lib/app-state/espacos";
 import { getState, listStateByPrefix, setState, type ResultadoDeEscrita } from "./app-state";
 import type { Mapper } from "./repository";
 import { log } from "./logger";
@@ -49,7 +50,7 @@ import { log } from "./logger";
  */
 
 /** O espaço de nomes dos envios dentro do `app_state`. */
-export const ENVIOS_PREFIX = "envio-de-proposta:";
+export const ENVIOS_PREFIX = ESPACOS.enviosDeProposta.chave;
 
 /**
  * Quantos envios se guardam por pedido.

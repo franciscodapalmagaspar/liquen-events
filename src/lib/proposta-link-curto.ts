@@ -1,4 +1,5 @@
 import "server-only";
+import { ESPACOS } from "@/lib/app-state/espacos";
 import { randomInt } from "node:crypto";
 import { getState, setState } from "./app-state";
 import { createProposalToken, validadeDeUmLinkNovo } from "./proposal-token";
@@ -75,7 +76,7 @@ import { log } from "./logger";
  */
 
 /** O prefixo das gavetas, no armazenamento de estado partilhado. */
-const PREFIXO = "ligacao-proposta:";
+const PREFIXO = ESPACOS.ligacoes.chave;
 
 /**
  * O caminho ao contrário: da proposta para o seu código.
@@ -85,7 +86,7 @@ const PREFIXO = "ligacao-proposta:";
  * para o mesmo sítio e nenhum possível de cortar sem cortar os outros. Uma
  * proposta, um endereço.
  */
-const PREFIXO_INVERSO = "ligacao-de-proposta:";
+const PREFIXO_INVERSO = ESPACOS.ligacoesInversas.chave;
 
 /** Crockford base32, minúsculas: sem `i`, `l`, `o` nem `u`. */
 const ALFABETO = "0123456789abcdefghjkmnpqrstvwxyz";
