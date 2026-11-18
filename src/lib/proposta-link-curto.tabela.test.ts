@@ -18,6 +18,8 @@ const tabela = vi.hoisted(() => ({
   >(),
   atual: new Map<string, string>(),
   gravadas: [] as string[],
+  /** Quantas gravações seguidas esbarram num código que já é de outra. */
+  colisoes: 0,
 }));
 
 vi.mock("./app-state", () => ({
@@ -34,9 +36,11 @@ vi.mock("./ligacoes-de-proposta-tabela", () => ({
   gravarLigacaoNaTabela: vi.fn(
     async (l: { codigo: string; propostaId: string; criadaEm: string; expiraEm: string }) => {
       tabela.gravadas.push(l.codigo);
+      // A função da base não pisa um código que já existe.
+      if (tabela.linhas.has(l.codigo) || tabela.colisoes-- > 0) return "ja-existe" as const;
       tabela.linhas.set(l.codigo, l);
       tabela.atual.set(l.propostaId, l.codigo);
-      return true;
+      return "gravado" as const;
     },
   ),
   lerLigacaoDaTabela: vi.fn(async (codigo: string) => tabela.linhas.get(codigo)),
@@ -57,6 +61,7 @@ beforeEach(() => {
   tabela.linhas.clear();
   tabela.atual.clear();
   tabela.gravadas.length = 0;
+  tabela.colisoes = 0;
 });
 
 describe("os códigos curtos na tabela (P7)", () => {
@@ -66,6 +71,25 @@ describe("os códigos curtos na tabela (P7)", () => {
     expect(tabela.gravadas).toEqual([codigo]);
     expect(gaveta.get(`ligacao-proposta:${codigo}`)).toMatchObject({ propostaId: PROPOSTA });
     expect(gaveta.get(`ligacao-de-proposta:${PROPOSTA}`)).toEqual({ codigo });
+  });
+
+  // Júri de 18/11 (J3): a tabela é a primeira que a leitura consulta.
+  it("um código que a tabela já tem é trocado ANTES de se escrever no app_state", async () => {
+    tabela.colisoes = 1;
+    const codigo = await criarLigacaoCurta(PROPOSTA, "LIQ-1", daqui(30));
+    expect(tabela.gravadas).toHaveLength(2);
+    const [ocupado, livre] = tabela.gravadas;
+    expect(codigo).toBe(livre);
+    expect(ocupado).not.toBe(livre);
+    // O app_state só conhece o que ficou na tabela.
+    expect(gaveta.has(`ligacao-proposta:${ocupado}`)).toBe(false);
+    expect(gaveta.get(`ligacao-de-proposta:${PROPOSTA}`)).toEqual({ codigo: livre });
+  });
+
+  it("cinco códigos ocupados seguidos: fica o token, e nada se escreve", async () => {
+    tabela.colisoes = 5;
+    expect(await criarLigacaoCurta(PROPOSTA, "LIQ-1", daqui(30))).toBeNull();
+    expect(gaveta.size).toBe(0);
   });
 
   it("lê da tabela: um código só na tabela abre", async () => {

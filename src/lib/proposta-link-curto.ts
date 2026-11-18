@@ -163,6 +163,30 @@ async function ipDoPedido(): Promise<string | null> {
 }
 
 /**
+ * Um código que ninguém tem, já gravado na tabela (P7) quando ela existe.
+ *
+ * Com 12 símbolos uma repetição é improvável mas possível. Confirma-se a
+ * gaveta do `app_state` e, sobretudo, a TABELA — que é a primeira que a
+ * leitura consulta: a função dela não pisa um código que já existe e diz
+ * `ja-existe`, e então cunha-se outro ANTES de escrever no `app_state` (senão
+ * o `app_state` apontava para esta proposta e a tabela para outra). Uma tabela
+ * que falha ou não existe não impede: o `app_state` abre o link. Até cinco
+ * tentativas; depois, `null` (fica o token).
+ */
+async function codigoLivre(ligacao: LigacaoCurta): Promise<string | null> {
+  for (let i = 0; i < 5; i += 1) {
+    const codigo = codigoNovo();
+    if (await getState<LigacaoCurta>(chave(codigo)).catch(() => null)) continue;
+    if ((await gravarLigacaoNaTabela({ codigo, ...ligacao })) === "ja-existe") continue;
+    return codigo;
+  }
+  log.warn("ligação curta: cinco códigos ocupados seguidos — usa-se o token", {
+    proposta: ligacao.propostaId,
+  });
+  return null;
+}
+
+/**
  * Cria a gaveta e devolve o código. `null` quando não deu para guardar.
  *
  * NUNCA atira, e o `null` é significativo: quem chama tem de poder cair para o
@@ -175,14 +199,6 @@ export async function criarLigacaoCurta(
   pedidoId: string,
   validaAte: Date,
 ): Promise<string | null> {
-  // Com 8 símbolos, uma repetição é improvável mas possível: confirma-se que a
-  // gaveta está livre antes de a usar (e tenta-se outra, até cinco vezes).
-  let codigo = codigoNovo();
-  for (let i = 0; i < 5; i += 1) {
-    const ocupada = await getState<LigacaoCurta>(chave(codigo)).catch(() => null);
-    if (!ocupada) break;
-    codigo = codigoNovo();
-  }
   const ligacao: LigacaoCurta = {
     propostaId: String(propostaId ?? "").trim(),
     pedidoId: String(pedidoId ?? "").trim(),
@@ -190,6 +206,8 @@ export async function criarLigacaoCurta(
     expiraEm: validaAte.toISOString(),
   };
   if (!ligacao.propostaId) return null;
+  const codigo = await codigoLivre(ligacao);
+  if (!codigo) return null;
   try {
     const r = await setState(chave(codigo), ligacao);
     // `duradouro: false` quer dizer que ficou num sítio que não sobrevive —
@@ -209,8 +227,6 @@ export async function criarLigacaoCurta(
         proposta: ligacao.propostaId,
       });
     }
-    // E a tabela (P7). Nunca lança; falhar não estraga o link (o app_state abre-o).
-    await gravarLigacaoNaTabela({ codigo, ...ligacao });
     return codigo;
   } catch (e) {
     log.warn("ligação curta: não deu para guardar — usa-se o token", {

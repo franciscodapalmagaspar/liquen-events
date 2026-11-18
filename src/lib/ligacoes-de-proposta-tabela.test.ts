@@ -114,19 +114,19 @@ describe("gravarLigacaoNaTabela", () => {
   };
 
   it("grava pela função transacional (código + atual numa só transação)", async () => {
-    expect(await gravarLigacaoNaTabela(nova)).toBe(true);
+    expect(await gravarLigacaoNaTabela(nova)).toBe("gravado");
     expect(sbState.chamadas).toEqual(["rpc gravar_ligacao_de_proposta k7m2q9xdabcd"]);
   });
 
-  it("uma colisão (false) ou uma avaria dão false, sem lançar", async () => {
+  it("uma colisão diz `ja-existe` (cunha-se outro); uma avaria, `nao-gravado` — sem lançar", async () => {
     sbState.rpc = { data: false, error: null };
-    expect(await gravarLigacaoNaTabela(nova)).toBe(false);
+    expect(await gravarLigacaoNaTabela(nova)).toBe("ja-existe");
     sbState.rpc = { data: null, error: new Error("em baixo") };
-    expect(await gravarLigacaoNaTabela(nova)).toBe(false);
+    expect(await gravarLigacaoNaTabela(nova)).toBe("nao-gravado");
   });
 
   it("uma proposta sem forma de uuid não tenta (a chave estrangeira recusava)", async () => {
-    expect(await gravarLigacaoNaTabela({ ...nova, propostaId: "prop-1" })).toBe(false);
+    expect(await gravarLigacaoNaTabela({ ...nova, propostaId: "prop-1" })).toBe("nao-gravado");
     expect(sbState.chamadas).toEqual([]);
   });
 });

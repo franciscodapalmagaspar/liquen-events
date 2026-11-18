@@ -67,17 +67,25 @@ function avisarAvaria(onde: string, erro: unknown): void {
 }
 
 /**
+ * O desfecho de gravar um código: `gravado`; `ja-existe` — o código já é de
+ * outra ligação (a função não pisa, `on conflict do nothing`), e quem chama
+ * tem de cunhar outro; ou `nao-gravado` — sem base, sem a tabela, uma
+ * proposta sem forma de uuid, ou uma avaria (o `app_state` abre o link).
+ */
+export type GravacaoDaLigacao = "gravado" | "ja-existe" | "nao-gravado";
+
+/**
  * Grava um código novo e torna-o o atual da proposta, numa transação
- * (`gravar_ligacao_de_proposta`). `true` só se ficou gravado.
+ * (`gravar_ligacao_de_proposta`). Nunca lança.
  */
 export async function gravarLigacaoNaTabela(l: {
   codigo: string;
   propostaId: string;
   criadaEm: string;
   expiraEm: string;
-}): Promise<boolean> {
+}): Promise<GravacaoDaLigacao> {
   const sb = getSupabase();
-  if (!sb || !UUID.test(l.propostaId)) return false;
+  if (!sb || !UUID.test(l.propostaId)) return "nao-gravado";
   try {
     const { data, error } = await sb.rpc("gravar_ligacao_de_proposta", {
       p_codigo: l.codigo,
@@ -86,10 +94,10 @@ export async function gravarLigacaoNaTabela(l: {
       p_expira_em: l.expiraEm,
     });
     if (error) throw error;
-    return data === true;
+    return data === true ? "gravado" : "ja-existe";
   } catch (e) {
     avisarAvaria("a gravação", e);
-    return false;
+    return "nao-gravado";
   }
 }
 
