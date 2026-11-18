@@ -680,13 +680,19 @@ export async function enviarComDetalhe(
     const parouAMeio =
       err instanceof NaoDeuParaApagar &&
       !(err.detalhe as { motivo?: unknown } | undefined)?.motivo &&
-      (saiuAlgo(err.detalhe) || anteriores.length > 0);
+      (saiuAlgo(err.detalhe) || talvezSaiuAlgo(err.detalhe) || anteriores.length > 0);
     if (parouAMeio && tipo === "pedido") {
       // A entrada fica — mas só com o que saiu (desta vez e das anteriores).
-      const saiu = (err.detalhe as { saiu?: Parameters<typeof soOQueSaiu>[1] }).saiu ?? {
-        propostas: [],
-        tarefas: [],
-        rascunhos: [],
+      const d = err.detalhe as {
+        saiu?: Parameters<typeof soOQueSaiu>[1];
+        talvezSaiu?: { propostas: string[] };
+      };
+      const certo = d.saiu ?? { propostas: [], tarefas: [], rascunhos: [] };
+      // As que talvez tenham saído guardam-se como as que saíram: o «Repor» só
+      // repõe o que falta, e sem a cópia uma que saiu perdia-se de vez.
+      const saiu = {
+        ...certo,
+        propostas: [...certo.propostas, ...(d.talvezSaiu?.propostas ?? [])],
       };
       const reduzido = juntarRetratos(
         soOQueSaiu(retratoNovo, saiu, entrada.apagadoEm),
@@ -804,6 +810,12 @@ function juntarRetratos(novo: Retrato, antigos: Retrato[]): Retrato {
     }
   }
   return out;
+}
+
+/** O apagar devolveu propostas que talvez tenham saído (sem confirmação)? */
+function talvezSaiuAlgo(detalhe: unknown): boolean {
+  const t = (detalhe as { talvezSaiu?: { propostas?: unknown[] } } | undefined)?.talvezSaiu;
+  return (t?.propostas?.length ?? 0) > 0;
 }
 
 /** O apagar devolveu uma contagem com alguma coisa já apagada? */

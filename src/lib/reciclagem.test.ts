@@ -437,6 +437,42 @@ describe("Reciclagem — pedido (R3b)", () => {
     }
   });
 
+  it("uma proposta que saiu sem resposta e sem confirmação fica guardada (revisão de 18/11, R1)", async () => {
+    // O servidor apagou-a mas a resposta perdeu-se; e a listagem que o
+    // confirmaria também falha. Sem isto, nada contava como saído, a entrada
+    // era tirada da Reciclagem — e a única cópia da proposta perdia-se.
+    let perdida = false;
+    vi.doMock("./proposals-store", async () => {
+      const real = await vi.importActual<typeof import("./proposals-store")>("./proposals-store");
+      return {
+        ...real,
+        listProposalsForQuote: async (q: string) => {
+          if (perdida) throw new Error("TESTE: a base caiu");
+          return real.listProposalsForQuote(q);
+        },
+        deleteProposal: async (id: string) => {
+          await real.deleteProposal(id);
+          perdida = true;
+          throw new Error("TESTE: resposta perdida");
+        },
+      };
+    });
+    try {
+      const r = await carregarR3b();
+      await r.pedidos.createQuote(UM_PEDIDO);
+      await r.propostas.createProposal(umaProposta("P-TESTE-R1", UM_PEDIDO.id));
+
+      await expect(r.reciclagem.enviarComDetalhe("pedido", UM_PEDIDO.id)).rejects.toThrow(
+        /Reciclagem/,
+      );
+      expect(await r.propostas.getProposal("P-TESTE-R1")).toBeNull();
+      const [entrada] = await r.store.listarReciclagem();
+      expect(entrada?.retrato.propostas).toEqual([expect.objectContaining({ id: "P-TESTE-R1" })]);
+    } finally {
+      vi.doUnmock("./proposals-store");
+    }
+  });
+
   it("parado a meio: «Repor» com o pedido vivo devolve o que saiu; e tentar outra vez junta numa entrada só", async () => {
     let recusa = true;
     vi.doMock("./quotes-store", async () => {

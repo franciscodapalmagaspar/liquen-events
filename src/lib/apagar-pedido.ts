@@ -87,6 +87,13 @@ export interface ResultadoDoApagamento {
    * cima do pedido vivo o que nunca tinha saído (revisão de 13/11).
    */
   saiu: { propostas: string[]; tarefas: string[]; rascunhos: string[] };
+  /**
+   * O que TALVEZ tenha saído: propostas cujo apagar falhou e que não se
+   * conseguiu confirmar (a resposta pode ter-se perdido com a proposta já
+   * apagada). A Reciclagem guarda-lhes a cópia como se tivessem saído — o
+   * «Repor» só repõe o que falta, por isso uma que ficou viva não é pisada.
+   */
+  talvezSaiu: { propostas: string[] };
 }
 
 const nadaSaiu = () => ({
@@ -120,14 +127,16 @@ export async function apagarPedidoSemContrato(
       contou: { ...VAZIO },
       falhou: [],
       saiu: nadaSaiu(),
+      talvezSaiu: { propostas: [] },
     };
 
   const contou = { ...VAZIO };
   const falhou: string[] = [];
   const saiu = nadaSaiu();
+  const talvezSaiu = { propostas: [] as string[] };
 
   const pedido = await getQuote(id);
-  if (!pedido) return { apagado: false, motivo: "nao-existe", contou, falhou, saiu };
+  if (!pedido) return { apagado: false, motivo: "nao-existe", contou, falhou, saiu, talvezSaiu };
 
   /**
    * ── O CONTRATO MANDA PARAR ──────────────────────────────────────────────
@@ -148,13 +157,13 @@ export async function apagarPedidoSemContrato(
   // `o-que-prende-o-pedido.ts` (esta é `registoFiscalDoPedido`).
   try {
     const fiscal = await registoFiscalDoPedido(pedido);
-    if (fiscal) return { apagado: false, motivo: fiscal, contou, falhou, saiu };
+    if (fiscal) return { apagado: false, motivo: fiscal, contou, falhou, saiu, talvezSaiu };
   } catch (e) {
     // Não saber se há contrato não é o mesmo que saber que não há: não se
     // apaga nada. Mas também não se afirma um contrato que pode não existir.
     falhou.push("não consegui verificar se este pedido tem contrato ou faturas");
     log.error("apagar-pedido: leitura fiscal falhou — não se apaga nada", e, { pedido: id });
-    return { apagado: false, motivo: "nao-verificado", contou, falhou, saiu };
+    return { apagado: false, motivo: "nao-verificado", contou, falhou, saiu, talvezSaiu };
   }
 
   // ── As tarefas do pedido (auditoria de 12/11, n.º 7) ─────────────────────
@@ -193,7 +202,7 @@ export async function apagarPedidoSemContrato(
     log.warn("apagar-pedido: ficaram tarefas — não se apaga mais nada (a cascata levá-las-ia)", {
       pedido: id,
     });
-    return { apagado: false, contou, falhou, saiu };
+    return { apagado: false, contou, falhou, saiu, talvezSaiu };
   }
 
   // ── As propostas, que é onde estão os dados pessoais a mais ──────────────
@@ -235,17 +244,19 @@ export async function apagarPedidoSemContrato(
     if (ficaram.length > 0) {
       if (listagemFalhou) falhou.push(LISTAGEM_DAS_PROPOSTAS_FALHOU);
       falhou.push(...oQueFicouDasPropostas(ficaram, falharam));
-      return { apagado: false, contou, falhou, saiu };
+      return { apagado: false, contou, falhou, saiu, talvezSaiu };
     }
   } catch (e) {
-    // Sem a confirmação não se sabe se as que falharam saíram: ficam fora de
-    // `saiu` — repô-las da Reciclagem por cima de uma que ficou viva escrevia
-    // uma cópia velha sobre o que ela entretanto mudou.
+    // Sem a confirmação não se sabe se as que falharam saíram: ficam em
+    // `talvezSaiu`, e a Reciclagem guarda-lhes a cópia. Não há risco de pisar
+    // uma que ficou viva: o «Repor» e o conflito só repõem o que FALTA
+    // (`reporSeFaltar`, `faltaAlgoDoQueSaiu`).
+    talvezSaiu.propostas.push(...falharam);
     if (listagemFalhou) falhou.push(LISTAGEM_DAS_PROPOSTAS_FALHOU);
     falhou.push(...oQueFicouDasPropostas([...falharam], falharam));
     falhou.push("não consegui confirmar as propostas deste pedido");
     log.error("apagar-pedido: confirmação das propostas falhou", e, { pedido: id });
-    return { apagado: false, contou, falhou, saiu };
+    return { apagado: false, contou, falhou, saiu, talvezSaiu };
   }
 
   // ── As fotografias que ela carregou para este pedido ─────────────────────
@@ -315,19 +326,19 @@ export async function apagarPedidoSemContrato(
     const prende = oQueAindaPrende(await ligacoesDoPedido(id));
     if (prende.length > 0) {
       falhou.push(...prende);
-      return { apagado: false, contou, falhou, saiu };
+      return { apagado: false, contou, falhou, saiu, talvezSaiu };
     }
   } catch (e) {
     falhou.push("não consegui confirmar o que ainda está ligado ao pedido antes de o apagar");
     log.error("apagar-pedido: a segunda verificação falhou", e, { pedido: id });
-    return { apagado: false, contou, falhou, saiu };
+    return { apagado: false, contou, falhou, saiu, talvezSaiu };
   }
   try {
     await deleteQuote(id);
   } catch (e) {
     falhou.push("o pedido em si não foi apagado");
     log.error("apagar-pedido: o pedido não foi apagado", e, { pedido: id });
-    return { apagado: false, contou, falhou, saiu };
+    return { apagado: false, contou, falhou, saiu, talvezSaiu };
   }
 
   log.info("pedido apagado por completo", {
@@ -338,5 +349,5 @@ export async function apagarPedidoSemContrato(
     tarefas: contou.tarefas,
     ficou_por_apagar: falhou.length,
   });
-  return { apagado: true, contou, falhou, saiu };
+  return { apagado: true, contou, falhou, saiu, talvezSaiu };
 }

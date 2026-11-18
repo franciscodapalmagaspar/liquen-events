@@ -186,7 +186,7 @@ describe("uma proposta cuja resposta se perdeu mas que saiu mesmo", () => {
     expect(r.contou.propostas).toBe(2);
   });
 
-  it("sem a confirmação, a que falhou NÃO entra em `saiu` — pode estar viva", async () => {
+  it("sem a confirmação, a que falhou não entra em `saiu`, mas em `talvezSaiu`", async () => {
     dados.propostas = [proposta("p0"), proposta("p1")];
     dados.propostaQueApagaEFalha = "p1";
     // A 1.ª listagem passa; quando p0 sai, a base cai, e a confirmação falha.
@@ -196,6 +196,9 @@ describe("uma proposta cuja resposta se perdeu mas que saiu mesmo", () => {
     const r = await apagarPedidoSemContrato("q1");
     expect(r.apagado).toBe(false);
     expect(r.saiu.propostas).toEqual(["p0"]);
+    // Mas fica como «talvez tenha saído»: a Reciclagem guarda-lhe a cópia
+    // (revisão de 18/11, R1) — o «Repor» só repõe o que falta.
+    expect(r.talvezSaiu.propostas).toEqual(["p1"]);
     expect(r.falhou).toContain("a proposta p1 não foi apagada");
     expect(r.falhou).toContain("não consegui confirmar as propostas deste pedido");
   });
