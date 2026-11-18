@@ -1632,8 +1632,9 @@ describe("reposição com as chaves estrangeiras para os pedidos (P5)", () => {
     expect(db.writes).not.toContain("delete:quotes");
     expect(db.writes).toContain("delete-in:quotes:1");
     expect(rowsOf("quotes").map((q) => q.id)).toEqual(["LIQ-AAA-1"]);
-    // Igual a uma inserção: o `updated_at` fica como a inserção o deixava.
-    expect(rowsOf("quotes")[0].updated_at).toBeNull();
+    // O carimbo do compare-and-set muda: quem leu antes da reposição não
+    // escreve por cima dela sem dar conflito.
+    expect(typeof rowsOf("quotes")[0].updated_at).toBe("string");
   });
 
   it("uma linha da cópia com um pedido que já não existe tem o destino que a chave lhe daria", async () => {

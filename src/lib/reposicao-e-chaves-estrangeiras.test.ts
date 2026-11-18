@@ -124,7 +124,8 @@ describe("substituirSemApagarOsQueFicam", () => {
       { id: "Q1", data: "copia" },
       { id: "Q3", data: "copia" },
     ]);
-    expect(chamadas).toEqual(["apaga quotes Q2", "escreve quotes Q1,Q3"]);
+    // Escreve primeiro, apaga no fim: uma escrita que falhe não deixa nada caído.
+    expect(chamadas).toEqual(["escreve quotes Q1,Q3", "apaga quotes Q2"]);
     expect([...de("quotes").keys()].sort()).toEqual(["Q1", "Q3"]);
     expect(de("quotes").get("Q1")?.data).toBe("copia");
   });

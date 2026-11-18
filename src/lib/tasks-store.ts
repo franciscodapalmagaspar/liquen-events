@@ -2,7 +2,6 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { Task } from "@/lib/orcamento/types";
 import { createRepository, type Mapper } from "./repository";
-import { log } from "./logger";
 
 export const mapper: Mapper<Task> = {
   table: "tasks",
@@ -72,39 +71,6 @@ export const mapper: Mapper<Task> = {
 
 const repo = createRepository(mapper);
 
-/**
- * A chave estrangeira `tasks.quote_id → quotes` (P5, 17/11) recusa uma tarefa
- * ligada a um pedido que não existe — um pedido apagado noutro ecrã enquanto
- * este criava a tarefa, ou uma tarefa da Reciclagem cujo pedido já saiu de vez.
- * Antes da chave a tarefa gravava-se na mesma, a apontar para nada. Continua a
- * gravar-se, agora sem a ligação, que é o que o Postgres faria a uma fatura
- * nas mesmas condições (`set null`): perder a tarefa por causa da ligação era
- * pior do que perder a ligação.
- */
-export function eTarefaComPedidoQueNaoExiste(err: unknown): boolean {
-  if (!err || typeof err !== "object") return false;
-  const e = err as { code?: unknown; message?: unknown; details?: unknown };
-  return (
-    e.code === "23503" &&
-    /tasks_quote_id_fkey/.test(`${String(e.message ?? "")} ${String(e.details ?? "")}`)
-  );
-}
-
-async function semLigacaoSeOPedidoJaNaoExiste<R>(
-  quoteId: string | undefined,
-  gravar: (semPedido: boolean) => Promise<R>,
-): Promise<R> {
-  try {
-    return await gravar(false);
-  } catch (err) {
-    if (!quoteId || !eTarefaComPedidoQueNaoExiste(err)) throw err;
-    log.warn("tarefa: o pedido ligado já não existe — grava-se sem a ligação", {
-      pedido: quoteId,
-    });
-    return gravar(true);
-  }
-}
-
 export const listTasks = (): Promise<Task[]> => repo.list();
 
 /** As tarefas de um pedido, pelo índice `tasks_quote_id_idx` (P5) e não a tabela toda. */
@@ -135,24 +101,18 @@ export async function createTask(
     anexos: input.anexos,
     posicao: input.posicao,
   };
-  return semLigacaoSeOPedidoJaNaoExiste(task.quoteId, async (semPedido) => {
-    const gravada = semPedido ? { ...task, quoteId: undefined } : task;
-    await repo.create(gravada);
-    return gravada;
-  });
+  // Um pedido que já não existe é recusado pela chave estrangeira (P5): a
+  // tarefa segue o pedido, como na cascata. A rota di-lo (`tarefas/pedido-apagado.ts`).
+  await repo.create(task);
+  return task;
 }
 
 export const updateTask = (id: string, updates: Partial<Task>): Promise<Task | null> =>
-  semLigacaoSeOPedidoJaNaoExiste(updates.quoteId, (semPedido) =>
-    repo.update(id, semPedido ? { ...updates, quoteId: undefined } : updates),
-  );
+  repo.update(id, updates);
 
 export const deleteTask = (id: string): Promise<void> => repo.remove(id);
 
 /** Para a Reciclagem: ler uma, e repô-la tal e qual — com o MESMO id, que o
  *  `createTask` não deixa (gera sempre um novo, de propósito). */
 export const obterTarefa = (id: string): Promise<Task | null> => repo.get(id);
-export const reporTarefa = (t: Task): Promise<void> =>
-  semLigacaoSeOPedidoJaNaoExiste(t.quoteId, (semPedido) =>
-    repo.create(semPedido ? { ...t, quoteId: undefined } : t, { created_at: t.createdAt }),
-  );
+export const reporTarefa = (t: Task): Promise<void> => repo.create(t, { created_at: t.createdAt });

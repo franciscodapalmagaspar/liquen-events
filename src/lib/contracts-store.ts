@@ -28,7 +28,9 @@ export const mapper: Mapper<Contract> = {
     // Vazio é «sem pedido»: desde o P5 a coluna tem chave estrangeira, e '' não
     // é o id de pedido nenhum (a inserção falhava). O `fromRow` lê null como ''.
     quote_id: c.quoteId || null,
-    proposal_id: c.proposalId,
+    // Vazio é «sem proposta»: '' colidia no índice único `contracts_proposal_id_uk`
+    // (dois contratos sem proposta), e null não colide. O `fromRow` lê null como ''.
+    proposal_id: c.proposalId || null,
     client_name: c.clientName,
     client_email: c.clientEmail,
     terms_version: c.termsVersion,
@@ -108,6 +110,9 @@ export const mapper: Mapper<Contract> = {
 const repo = createRepository(mapper);
 
 export const listContracts = (): Promise<Contract[]> => repo.list();
+/** Os contratos de um pedido, pelo índice `contracts_quote_id_idx` (P5). */
+export const listContractsForQuote = (quoteId: string): Promise<Contract[]> =>
+  repo.where("quote_id", quoteId, (c) => (c.quoteId ?? "").trim() === quoteId);
 export const getContract = (id: string): Promise<Contract | null> => repo.get(id);
 /** Lookup by proposal — the idempotency check (one contract per proposal). */
 export const getContractByProposal = (proposalId: string): Promise<Contract | null> =>

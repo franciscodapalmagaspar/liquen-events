@@ -644,10 +644,11 @@ export const RESTORE_TARGETS: readonly RestoreTarget<AnyRow>[] = [
     stamp: (q) => q.lastUpdated ?? q.submittedAt,
     // `quotes.created_at` é `default now()` e o `toRow` não a escreve: sem
     // isto, todos os pedidos repostos ficavam com a data de hoje e a lista
-    // deixava de estar por ordem de chegada. O `updated_at` vai a null porque
-    // é o que a inserção lhe deixava (não tem valor por omissão): escrito por
-    // cima (`semApagarOsQueFicam`), o pedido fica igual ao de uma inserção.
-    extraColumns: (q) => ({ created_at: q.submittedAt, updated_at: null }),
+    // deixava de estar por ordem de chegada. O `updated_at` vai a AGORA, como
+    // no `reporPedido`: é o carimbo do compare-and-set (um separador que leu o
+    // pedido antes da reposição não escreve por cima dela) e da assinatura da
+    // lista (o back office dá pela mudança).
+    extraColumns: (q) => ({ created_at: q.submittedAt, updated_at: new Date().toISOString() }),
     semApagarOsQueFicam: true,
   }),
   asTarget({

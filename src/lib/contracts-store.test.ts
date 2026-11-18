@@ -219,6 +219,8 @@ describe("P5: a chave estrangeira contracts.quote_id → quotes", () => {
       createdAt: "2026-01-01",
     } as Contract;
     expect(mapper.toRow(c).quote_id).toBeNull();
+    // E a proposta: '' colidia no índice único de `proposal_id` entre dois contratos sem proposta.
+    expect(mapper.toRow({ ...c, proposalId: "" }).proposal_id).toBeNull();
     expect(mapper.fromRow(mapper.toRow(c)).quoteId).toBe("");
   });
 });

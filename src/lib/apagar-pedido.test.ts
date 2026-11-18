@@ -38,6 +38,7 @@ const dados = vi.hoisted(() => ({
   tarefas: [] as { id: string; quoteId?: string }[],
   tarefasApagadas: [] as string[],
   tarefasRebentam: false,
+  leiturasDeContratos: 0,
   tarefaQueFalha: null as string | null,
   /** As chaves de rascunho que existem (`draft:<chave>`). */
   estado: new Map<string, unknown>(),
@@ -58,9 +59,10 @@ vi.mock("@/lib/proposals-store", () => ({
   },
 }));
 vi.mock("@/lib/contracts-store", () => ({
-  listContracts: async () => {
+  listContractsForQuote: async (quoteId: string) => {
     if (dados.contratosRebentam) throw new Error("base em baixo");
-    return dados.contratos;
+    dados.leiturasDeContratos++;
+    return dados.contratos.filter((c) => c.quoteId === quoteId);
   },
 }));
 vi.mock("@/lib/app-state", () => ({
@@ -136,6 +138,7 @@ beforeEach(() => {
   dados.tarefas = [];
   dados.tarefasApagadas = [];
   dados.tarefasRebentam = false;
+  dados.leiturasDeContratos = 0;
   dados.tarefaQueFalha = null;
 });
 
@@ -343,5 +346,22 @@ describe("P5: uma tarefa criada a meio do apagar", () => {
     expect(r.apagado).toBe(false);
     expect(dados.pedidosApagados).toEqual([]);
     expect(r.falhou).toContain("apareceram 1 tarefa(s) novas neste pedido");
+  });
+});
+
+describe("P5: um contrato que nasce a meio do apagar", () => {
+  it("faz o pedido ficar — a chave do contrato é `set null` e o pedido saía sem ele", async () => {
+    dados.fotos = [{ path: "q1/a.jpg" }];
+    const original = dados.removidas.push.bind(dados.removidas);
+    dados.removidas.push = (...p: string[]) => {
+      // Um aceite noutro ecrã enquanto as fotografias saem.
+      dados.contratos = [...dados.contratos, contrato("q1")];
+      return original(...p);
+    };
+    const r = await apagarPedidoSemContrato("q1");
+    expect(r.apagado).toBe(false);
+    expect(r.motivo).toBe("tem-contrato");
+    expect(dados.pedidosApagados).toEqual([]);
+    expect(dados.leiturasDeContratos).toBe(2);
   });
 });

@@ -162,8 +162,16 @@ export async function comDependentesGuardados(
   } catch (e) {
     // A reposição rebentou a meio: o que a cascata já levou volta para os pais
     // que ficaram (lidos agora), e o erro segue para o conjunto sair em `failed`.
-    const vivos = new Set(await lerIds(sb, dependente.tabelaDoPai, dependente.chaveDoPai));
-    await porDeVolta(sb, dependente, guardadas, vivos).catch(() => 0);
+    // Se nem isso se consegue, o erro que sobe continua a ser o da reposição.
+    try {
+      const vivos = new Set(await lerIds(sb, dependente.tabelaDoPai, dependente.chaveDoPai));
+      await porDeVolta(sb, dependente, guardadas, vivos);
+    } catch (segundo) {
+      log.warn("restauro: os dependentes não voltaram depois de uma falha", {
+        tabela: dependente.tabela,
+        erro: String(segundo),
+      });
+    }
     throw e;
   }
   return porDeVolta(sb, dependente, guardadas, pais);
@@ -257,19 +265,22 @@ export async function substituirSemApagarOsQueFicam(
     await lerIds(sb, tabela, coluna),
     linhas.map((l) => String(l[coluna])),
   );
-  for (let i = 0; i < saem.length; i += IDS_POR_PEDIDO) {
-    const { error } = await sb
-      .from(tabela)
-      .delete()
-      .in(coluna, saem.slice(i, i + IDS_POR_PEDIDO));
-    if (error) throw error;
-  }
+  // Escrever PRIMEIRO e apagar no fim: se a escrita falha a meio, sobram
+  // linhas a mais (que a próxima reposição tira), e nada caiu em cascata atrás
+  // de um pedido apagado antes de a cópia estar escrita.
   for (let i = 0; i < linhas.length; i += LINHAS_POR_ESCRITA) {
     const { error } = await sb
       .from(tabela)
       .upsert(linhas.slice(i, i + LINHAS_POR_ESCRITA) as Record<string, unknown>[], {
         onConflict: coluna,
       });
+    if (error) throw error;
+  }
+  for (let i = 0; i < saem.length; i += IDS_POR_PEDIDO) {
+    const { error } = await sb
+      .from(tabela)
+      .delete()
+      .in(coluna, saem.slice(i, i + IDS_POR_PEDIDO));
     if (error) throw error;
   }
 }
