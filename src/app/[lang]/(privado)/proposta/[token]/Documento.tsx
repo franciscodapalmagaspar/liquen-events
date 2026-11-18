@@ -16,8 +16,8 @@ import {
   rotuloDoTotalNaLingua,
   textosDaProposta,
   type CampoDoEvento,
-  type IdiomaDaProposta,
 } from "@/lib/proposal-doc-textos";
+import { type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import { totaisDaProposta, valorAdicionalParaOEcra } from "@/lib/proposal-budget";
 import { ordemDeSaida, aplicarOrdem } from "@/lib/proposal-ordem";
 import type { FotoDaProposta } from "@/lib/proposta-fotos";

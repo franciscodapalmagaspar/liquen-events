@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { observar } from "@/lib/fronteira/observar";
+import { esquemaDoCorpoDoModeloDeEmail } from "@/lib/fronteira/corpos-das-rotas";
 import { isAuthed } from "@/lib/admin-auth";
 import { listTemplatesWithDefaults, upsertTemplate } from "@/lib/email-templates-store";
 import { log } from "@/lib/logger";
@@ -48,6 +50,9 @@ async function upsert(request: NextRequest) {
       .slice(0, MAX_SUBJECT);
     if (!name) return NextResponse.json({ error: "Nome obrigatório" }, { status: 400 });
     if (!subject) return NextResponse.json({ error: "Assunto obrigatório" }, { status: 400 });
+    // A fronteira, em modo de observar (fase 6), depois das guardas; o caso é
+    // a chave do modelo (um nome interno, nunca dados de um cliente).
+    observar(esquemaDoCorpoDoModeloDeEmail, body, "o corpo do upsert email-templates", { id: key });
 
     const saved = await upsertTemplate({
       key,

@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { observar } from "@/lib/fronteira/observar";
+import { TIPOS_DE_MODELO } from "@/lib/orcamento/listas-fechadas";
+import { ehUmDe } from "@/lib/todos-os-valores";
+import { esquemaDoCorpoDoModeloDeProposta } from "@/lib/fronteira/corpos-das-rotas";
 import { isAuthed } from "@/lib/admin-auth";
 import {
   listarModelos,
@@ -8,7 +12,6 @@ import {
   DemasiadosModelos,
   MAX_MODELOS,
   type ModeloProposta,
-  type TipoModelo,
 } from "@/lib/proposal-templates";
 import { log } from "@/lib/logger";
 
@@ -21,8 +24,6 @@ export const dynamic = "force-dynamic";
  * Tudo aqui é só para a equipa: um modelo tem a estrutura e os preços das
  * propostas dela, e não tem nada que ser lido por quem não entrou.
  */
-
-const TIPOS: TipoModelo[] = ["completo", "grupo", "moodboard"];
 
 export async function GET(request: NextRequest) {
   if (!isAuthed(request)) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
     .trim()
     .slice(0, 80);
   if (!nomeLimpo) return NextResponse.json({ error: "Dê um nome ao modelo" }, { status: 400 });
-  if (!tipo || !TIPOS.includes(tipo)) {
+  if (!ehUmDe(TIPOS_DE_MODELO, tipo)) {
     return NextResponse.json({ error: "Tipo de modelo desconhecido" }, { status: 400 });
   }
   // Um modelo sem conteúdo aparecia na lista e não fazia nada ao ser escolhido
@@ -57,6 +58,12 @@ export async function POST(request: NextRequest) {
   if (!conteudo || typeof conteudo !== "object") {
     return NextResponse.json({ error: "O modelo vem vazio" }, { status: 400 });
   }
+  // A fronteira, em modo de observar (fase 6), depois das guardas. O caso é o
+  // id do modelo, quando o ecrã o manda — NUNCA o nome: um modelo nasce de uma
+  // proposta real e pode chamar-se pelo nome do casal.
+  observar(esquemaDoCorpoDoModeloDeProposta, body, "o corpo do POST propostas/modelos", {
+    id: (body as { id?: unknown }).id,
+  });
 
   try {
     const modelo: ModeloProposta = {

@@ -687,7 +687,7 @@ export default async function ProposalPage({
            * Fica o nome deles. O `h1` acima é a abertura inteira.
            *
            * A frase da casa continua a existir no EMAIL
-           * (`proposta-doc/route.ts`), onde um corpo só com dois nomes não se
+           * (`lib/email-proposta-textos.ts`), onde um corpo só com dois nomes não se
            * lê como uma mensagem. */}
         </header>
 
@@ -729,7 +729,7 @@ export default async function ProposalPage({
               {/* O CABEÇALHO SÓ APARECE SE HOUVER LINHAS PARA PÔR POR BAIXO.
 
               Uma proposta feita no estúdio grava sempre `lineItems: []` (ver
-              api/orcamento/[id]/proposta-doc/route.ts) — o detalhe dos serviços
+              lib/orcamento/envio/a-proposta-que-se-grava.ts) — o detalhe dos serviços
               vive no documento em PDF que segue em anexo, não em linhas. Sem
               esta condição, o noivo que abre a página para decidir gastar
               milhares de euros via o cabeçalho "Descrição / Quantidade / Valor",

@@ -3,7 +3,7 @@ import sharp from "sharp";
 import { PDFDocument, PDFPage } from "pdf-lib";
 import { renderProposalDocPdf } from "./proposal-doc-pdf";
 import { withProposalDefaults, type ProposalDoc } from "./proposal-doc";
-import type { IdiomaDaProposta } from "./proposal-doc-textos";
+import { type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════

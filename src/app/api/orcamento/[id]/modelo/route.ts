@@ -19,6 +19,7 @@ import { listProposalsForQuote } from "@/lib/proposals-store";
 import { enderecoDaProposta } from "@/lib/proposta-link-curto";
 import { isAuthed } from "@/lib/admin-auth";
 import { log } from "@/lib/logger";
+import { pareceEmail } from "@/lib/parece-email";
 
 export const runtime = "nodejs";
 
@@ -175,7 +176,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
      * 500 «erro», que se lê como o correio ter avariado. A mesma regra da
      * proposta e do mensageiro: não se tenta, e diz-se o que falta.
      */
-    const temDestinatario = !!quote.email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(quote.email);
+    const temDestinatario = pareceEmail(quote.email);
     if (!temDestinatario) {
       return NextResponse.json({
         ok: true,

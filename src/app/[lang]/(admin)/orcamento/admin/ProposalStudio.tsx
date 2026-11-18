@@ -13,7 +13,6 @@ import {
   useState,
   useSyncExternalStore,
   useReducer,
-  type SetStateAction,
 } from "react";
 import { quandoGravado } from "@/lib/quando-gravado";
 import { useSeccaoAVista } from "./useSeccaoAVista";
@@ -51,24 +50,14 @@ import {
   type MoodBoard,
   type VatMode,
 } from "@/lib/proposal-doc";
+import { camposDoEventoNaLingua, isoDaDataPorExtenso } from "@/lib/proposal-doc-textos";
 import {
   IDIOMA_POR_OMISSAO,
-  camposDoEventoNaLingua,
-  dataDoEventoPorExtenso,
   ehIdiomaDaProposta,
-  isoDaDataPorExtenso,
-  referenciaDoDocumento,
   type IdiomaDaProposta,
-} from "@/lib/proposal-doc-textos";
-import { fotosQueDaoCor, grupoNoCasamento } from "@/lib/pdf-editorial/grupos";
-import {
-  ordemDeSaida,
-  eAOrdemEscrita,
-  aplicarOrdem,
-  ORDEM_EXPLICITA,
-  rubricasDosServicos,
-  temasQueSaemComAsLinhas,
-} from "@/lib/proposal-ordem";
+} from "@/lib/orcamento/listas-fechadas";
+import { fotosQueDaoCor } from "@/lib/pdf-editorial/grupos";
+import { ordemDeSaida, eAOrdemEscrita, aplicarOrdem, ORDEM_EXPLICITA } from "@/lib/proposal-ordem";
 import {
   CONTAGEM_VAZIA,
   comAcontecimento,
@@ -77,13 +66,7 @@ import {
   type Contagem,
 } from "@/lib/tempo-activo";
 import { ehRefDeTema } from "@/lib/theme-ref";
-import { linhasDeOrcamento } from "@/lib/orcamento/decoracao";
-import {
-  guestRangeLabel,
-  ceremonyTypeLabel,
-  spaceTypeLabel,
-  eventTypeName,
-} from "@/lib/orcamento/data";
+import { eventTypeName } from "@/lib/orcamento/data";
 import { log } from "@/lib/logger";
 import { camposMudados, mesmoValor } from "@/lib/rascunho-juntar";
 import { EstadoDaGravacaoNaBarra } from "./EstadoDaGravacaoNaBarra";
@@ -106,12 +89,8 @@ import { useLarguraDaZona } from "./useMedida";
 import { useFotoComPlanoB } from "@/lib/useFotoComPlanoB";
 import AEnviarAProposta from "./AEnviarAProposta";
 import PerguntaAntesDoEnvio from "./PerguntaAntesDoEnvio";
+import * as contrato from "@/lib/orcamento/envio/contrato";
 import { passoParaCorrigir, usePerguntasDoEnvio } from "./usePerguntasDoEnvio";
-import {
-  avisoDeConteudoIncompleto,
-  cortesDoCabecalho,
-  normalizaCortes,
-} from "./conteudo-incompleto";
 import { guardarPdfVisto, lerPdfVisto, type PdfVisto } from "./pdf-visto";
 import { BotaoWhatsApp } from "./ui/BotaoWhatsApp";
 
@@ -189,6 +168,7 @@ import NotasInternas from "./NotasInternas";
 import { MenuDeAccoes } from "./ui/MenuDeAccoes";
 import AvisoDataOcupada from "./AvisoDataOcupada";
 import { estadoDasSeccoes, oQueFaltaParaEnviar, podeEnviar } from "@/lib/proposal-progress";
+import { pareceEmail } from "@/lib/parece-email";
 import { hojeNoEstudio } from "@/lib/fuso";
 import {
   FRASE_DO_ESTADO,
@@ -207,7 +187,6 @@ import {
   ordemDoDesenho,
   paginasDoTema,
   planoDaProposta,
-  realinharChavesDosTemas,
   temasComPagina,
 } from "@/lib/pdf-editorial/plano";
 import { NOME_DA_DISPOSICAO, disposicaoDoTema, type Disposicao } from "@/lib/pdf-editorial/mosaico";
@@ -303,7 +282,6 @@ import {
   tipoDoEventoDoPedido,
 } from "@/lib/proposal-evento";
 import {
-  baseParaOEstudio,
   degrauDosAdicionais,
   precoDoPedidoParaBase,
   type ContextoDoPreco,
@@ -312,14 +290,57 @@ import { ESTADO, PRESSAO } from "./ui/movimento";
 import { useEnvioAdiado } from "./ui/envio-adiado";
 import { useAvisoDeQualidade } from "./AvisoDeQualidade";
 import { lugarDaChave } from "@/lib/qualidade-da-foto";
+import {
+  baseDoPedidoParaOEcra,
+  buildRef,
+  initialDoc,
+  mapImagePaths,
+  seedDefaults,
+  type StudioDoc,
+} from "@/lib/orcamento/estudio/documento-inicial";
+import { escreverODocumento } from "@/lib/orcamento/estudio/escrever-o-documento";
+import {
+  semAsFotosNasPaginas,
+  semOTema,
+  temasLevadosPelasLinhas,
+} from "@/lib/orcamento/estudio/temas-e-fotos";
+import {
+  avisoDeConteudoIncompleto,
+  textoDaGravacao,
+  textoDoTotal,
+  type EstadoDaGravacaoNoEcra,
+} from "@/lib/orcamento/estudio/textos-do-estudio";
+import {
+  contagemDePrecos,
+  modoDoAdicional,
+  textoDoAdicional,
+  type ModoDeIvaDoAdicional,
+} from "@/lib/orcamento/estudio/precos-e-iva";
+import {
+  gravarRascunhoNoServidor,
+  mandarPrecoAoPedido,
+  type ResultadoDaGravacao,
+  type ResultadoDoPreco,
+} from "@/lib/orcamento/estudio/gravar";
+
+/*
+ * A lógica pura do estúdio vive em `lib/orcamento/estudio/` (fase 1 de
+ * `docs/ESTRUTURA-DO-CODIGO.md`). O que este ficheiro exportava continua a
+ * sair daqui, para nenhum teste nem chamador ter de mudar.
+ */
+export { semAsFotosNasPaginas, semOTema, temasLevadosPelasLinhas };
+export { avisoDeConteudoIncompleto, textoDaGravacao, textoDoTotal };
+export type { EstadoDaGravacaoNoEcra };
+export { contagemDePrecos, modoDoAdicional, textoDoAdicional };
+export type { ModoDeIvaDoAdicional };
+export { gravarRascunhoNoServidor, mandarPrecoAoPedido };
+export type { ResultadoDaGravacao, ResultadoDoPreco };
 
 /**
  * Visual editor for the studio's multi-page proposal PDF. Produces a
  * {@link ProposalDoc}-shaped payload (minus the fixed boilerplate, which the
  * server fills via {@link withProposalDefaults}) and previews / e-mails it.
  */
-type StudioDoc = Parameters<typeof withProposalDefaults>[0];
-
 /**
  * ════════════════════════════════════════════════════════════════════════════
  * O painel «O que vai sair» aparece a partir daqui.
@@ -470,113 +491,6 @@ const AVISO_DO_BOARD =
   // cinzento sem ninguém perceber porquê.
   "mb-2 text-xs leading-relaxed whitespace-normal [overflow-wrap:anywhere]";
 
-/* ── Os campos que o estúdio semeia a partir do pedido ─────────────────────
- *
- * O tipo, a data e a referência nascem escritos por NÓS, em português — e é
- * exactamente por isso que o gerador do PDF os sabe reescrever na língua do
- * casal quando ninguém lhes mexeu (ver «OS CAMPOS QUE O NOSSO CÓDIGO ESCREVEU»,
- * em `proposal-doc-textos.ts`). Esse reconhecimento é uma COMPARAÇÃO com o que
- * estas três funções produzem: uma cópia local do nome do tipo, dos meses ou da
- * forma da referência divergia um dia da de lá, e a partir desse dia a proposta
- * inglesa voltava a sair com a data em português — sem erro nenhum pelo
- * caminho. Por isso nenhuma delas escreve texto seu: pedem-no a quem o tem. */
-
-/* Nunca «Casamento» por omissão: era o que fazia um pedido «Outro» — um
- * restaurante no Halloween — abrir como um casamento (ver `proposal-evento.ts`). */
-function eventTypeLabel(q: Quote): string {
-  return tipoDoEventoDoPedido(q);
-}
-
-/** yyyy-mm-dd → "12 de setembro de 2026"; passes through anything else. */
-function formatEventDate(d?: string): string {
-  if (!d) return "";
-  const iso = /^\d{4}-\d{2}-\d{2}/.exec(d);
-  return iso ? dataDoEventoPorExtenso(iso[0]) : d;
-}
-
-function buildRef(d: StudioDoc): string {
-  return referenciaDoDocumento(d);
-}
-
-/** "Maria & Zé" a partir dos nomes que o casal deu, ou "" se não deu nenhum.
- *  Com um só nome escrito, devolve esse — meio par continua a ser melhor do que
- *  o nome de quem preencheu o formulário. */
-function nomesDoCasal(quote: Quote): string {
-  const par = [quote.partnerA, quote.partnerB].map((n) => n?.trim()).filter(Boolean);
-  return par.join(" & ");
-}
-
-function initialDoc(quote: Quote): StudioDoc {
-  const base: StudioDoc = {
-    template: "decoracao",
-    ref: "",
-    // Se o casal escreveu os dois nomes no pedido, a proposta abre dirigida a
-    // ELES. O `quote.name` é de quem escreveu — pode ser a mãe da noiva ou uma
-    // planner, e uma proposta endereçada a quem preencheu o formulário em vez
-    // de a quem casa lê-se como um erro de quem a mandou.
-    clientNames: nomesDoCasal(quote) || (quote.name ?? ""),
-    eventType: eventTypeLabel(quote),
-    eventDate: formatEventDate(quote.date),
-    /**
-     * ── O LOCAL LEVA O ESPAÇO ATRÁS ──────────────────────────────────────────
-     *
-     * «Quero que o sistema coloque logo isto no back office, nos espaços a
-     * fazer a proposta.» Fui contar o que o pedido responde contra o que a
-     * proposta recebia: das sete respostas, SEIS já chegavam sozinhas — o
-     * casal, a data, os convidados, o local, a cerimónia, e os pontos de
-     * decoração, que viram as linhas do orçamento.
-     *
-     * Faltava o ESPAÇO. O casal responde «Exterior», «Interior» ou «Interior e
-     * exterior», e essa resposta morria no pedido: quem escrevia a proposta
-     * tinha de voltar lá para se lembrar se era ao ar livre.
-     *
-     * Vai junto ao local, com um ponto a separar — «Setúbal Alentejo ·
-     * Exterior» — e não num campo novo. Uma linha a mais no documento do casal
-     * é uma decisão sobre o papel que sai; um local mais completo é a mesma
-     * linha a dizer mais. E o casal, ao ler, vê que percebemos o que respondeu.
-     *
-     * Como tudo o resto aqui, é uma SEMENTE: o campo continua editável, e o
-     * local da proposta acaba quase sempre mais preciso do que o do pedido
-     * («Herdade da Malhadinha» em vez de «Alentejo»). Quando ela o reescrever,
-     * reescreve a linha inteira, que é o que já fazia.
-     *
-     * Sem espaço respondido, fica só o local — nunca um ponto pendurado no fim.
-     */
-    location: [quote.location ?? "", spaceTypeLabel(quote.spaceType)]
-      .map((p) => p.trim())
-      .filter(Boolean)
-      .join(" · "),
-    // Sem número exacto, vale a ordem de grandeza que o casal deu ("100 a 150").
-    // Escrever "0 pax" era pior do que não escrever nada.
-    guests: quote.guests ? `${quote.guests} pax` : guestRangeLabel(quote.guestsRange),
-    // A cerimónia que o casal escolheu no pedido, já escrita no documento.
-    // O campo existe desde sempre («Civil, simbólica») e abria vazio, para ela
-    // preencher à mão a partir do que estivesse no pedido — que era exactamente
-    // onde a resposta se perdia. Continua editável: isto é uma semente, não uma
-    // trave, e um casal que muda de ideias muda-se aqui.
-    //
-    // Em português mesmo quando o pedido veio em inglês: o documento do estúdio
-    // é escrito em português.
-    // Só num casamento: «Cerimónia» numa proposta para um restaurante é um
-    // campo de outro evento.
-    ceremony: eCasamento(eventTypeLabel(quote)) ? ceremonyTypeLabel(quote.ceremonyType) : "",
-    time: "",
-    serviceGroups: [],
-    moodBoards: [],
-    cronograma: [],
-    budgetItems: [],
-    budgetExtras: [],
-    totalLabel: "Valor Total Decoração",
-    totalText: "",
-    budgetRows: [],
-    totalEstimatedText: "",
-    budgetNote: "",
-    coverImages: normaliseCoverImages(),
-  };
-  base.ref = buildRef(base);
-  return base;
-}
-
 /**
  * Passos do fluxo guiado do estúdio — os cinco do documento dela (A2). O que
  * vive em cada passo, e o estado de cada um, está em `passos-do-estudio.ts`.
@@ -594,9 +508,6 @@ type EstadoDosUrls = "a-caminho" | "pronto" | "falhou";
 /** Os passos do formulário — os quatro que vivem no contentor sempre montado. */
 const PASSOS_DO_FORMULARIO: readonly Step[] = ["evento", "servicos", "inspiracao", "orcamento"];
 
-/** Numa proposta nova/vazia, semeia um grupo de serviços com um item — para que
- *  o estúdio não abra como uma parede de botões "+ Adicionar" vazios. Nunca
- *  toca num rascunho que já tenha conteúdo. */
 /**
  * Põe a BASE (o "Preço final (sem IVA)" do pedido) no documento, respeitando o
  * modo de IVA em vigor.
@@ -605,58 +516,6 @@ const PASSOS_DO_FORMULARIO: readonly Step[] = ["evento", "servicos", "inspiracao
  * BRUTO em "incluído" — por isso o valor guardado tem de ser derivado, para a
  * base ser sempre o número do pedido nos dois modos.
  */
-/**
- * ════════════════════════════════════════════════════════════════════════════
- * O PREÇO DO PEDIDO NÃO É O NÚMERO QUE ELA ESCREVE
- * ════════════════════════════════════════════════════════════════════════════
- *
- * Com «estes valores somam-se», estes dois números são DIFERENTES:
- *
- *   · o que ela escreve em «Valor (sem IVA)» — só os serviços;
- *   · o «Preço final (sem IVA)» do pedido — o que o casal paga, ou seja os
- *     serviços MAIS os adicionais. É de lá que a Visão Geral, as Estatísticas
- *     e o dossier leem o dinheiro, e guardar lá só os serviços fazia as
- *     deslocações desaparecerem desses ecrãs em silêncio.
- *
- * Há portanto duas conversões, inversas uma da outra:
- *
- *   escrito → pedido   soma os adicionais   (`baseDoEcraParaOPedido`)
- *   pedido  → escrito  tira-os              (esta)
- *
- * ── O DEFEITO QUE ISTO VEIO FECHAR ────────────────────────────────────────
- *
- * Palavras dela: «ao voltar à mesma proposta, o valor total está diferente».
- * Numa proposta observada: 3.000 → 3.140 → 3.280 → 3.420, com uma deslocação
- * de 140 €. Três visitas, três somas.
- *
- * A causa era esta função existir e NÃO ser usada na abertura. A montagem
- * fazia `setTotalInput(textoDoTotal(quote.quotedPrice))` — punha no campo do
- * ESCRITO um número que já trazia os adicionais lá dentro. A partir daí tudo
- * o que lesse esse campo como «os serviços» voltava a somar-lhes a deslocação:
- * a gravação seguinte punha 3.140 + 140 no pedido, e a visita seguinte
- * começava daí.
- *
- * Vive no topo do módulo, e não dentro do componente, por causa disso mesmo:
- * era uma função interna que dois caminhos deviam usar e só um usava. Aqui
- * fora, os dois vêem-na e o teste também.
- */
-/**
- * A conta vive agora em `lib/preco-do-pedido`, ao lado da sua INVERSA.
- *
- * Estavam separadas — a ida aqui, a volta dentro do componente — e nada as
- * obrigava a concordar. Quando não concordam, o preço da proposta desloca-se a
- * cada abertura, e a deslocação acumula: 3.000 → 3.140 → 3.280 → 3.420, com
- * uma deslocação de 140 €. O que estava errado não era a conta; era haver duas.
- *
- * E devolve `null` — não zero — quando o preço do pedido é MENOR do que os
- * adicionais escritos. Zero era uma mentira com consequências: a volta mandava
- * 0 + 140 = 140 € para o pedido, e um pedido de 100 € passava a 140 € sem
- * ninguém lhe ter tocado. Ver o cabeçalho de lá.
- */
-function baseDoPedidoParaOEcra(base: number, d: StudioDoc): number | null {
-  return baseParaOEstudio(base, d as unknown as ContextoDoPreco);
-}
-
 function aplicarBase(d: StudioDoc, base: number): StudioDoc {
   const mode: VatMode = d.totalVatMode ?? detectVatMode(d.totalText || d.totalEstimatedText);
   const rate = d.vatRate ?? DEFAULT_VAT_RATE;
@@ -729,87 +588,6 @@ function dinheiroDoDocumento(d: Partial<StudioDoc>): Partial<StudioDoc> {
   return saida as Partial<StudioDoc>;
 }
 
-function seedDefaults(d: StudioDoc, quote: Quote): StudioDoc {
-  const quotedPrice = quote.quotedPrice;
-  // O que o casal marcou no pedido de orçamento. É a razão de ser desta
-  // funcionalidade: a proposta da Catarina Martins saiu com cinco pontos, ela
-  // pediu para refazer com três, e o trabalho teve de ser todo repetido. Se o
-  // casal já disse o que quer, a proposta abre com esses pontos e mais nenhum.
-  const linhas = linhasDeOrcamento(quote.decorPoints ?? []);
-  let next = d;
-  if (next.serviceGroups.length === 0) {
-    next = {
-      ...next,
-      serviceGroups: [
-        linhas.length > 0
-          ? {
-              letter: "a)",
-              title: "Decoração Floral e Decoração",
-              items: linhas.map((label) => ({ label, desc: "" })),
-            }
-          : { letter: "a)", title: "", items: [{ label: "", desc: "" }] },
-      ],
-    };
-  }
-  // O quadro "3. Orçamento Proposto" com as mesmas linhas. Sem preços: o valor
-  // continua a ser um só, no total, tal como nas propostas dela.
-  if (next.budgetItems.length === 0 && linhas.length > 0) {
-    next = { ...next, budgetItems: [...linhas] };
-  }
-  /**
-   * ── OS ADICIONAIS SOMAM, NAS PROPOSTAS NOVAS ─────────────────────────────
-   *
-   * Palavras dela, a olhar para o quadro que dizia «Subtotal 2.860 +
-   * Deslocação 140 = Total 3.000»: «não quero que a parte dos serviços apareça
-   * como base somada à deslocação; quero que seja três mil mais a deslocação da
-   * equipa, que dá três mil e cento e quarenta».
-   *
-   * O selector por proposta continua a existir, e continua a poder ser mudado
-   * nos dois sentidos. O que muda é o lado para que ele nasce virado, porque
-   * ter de o trocar em cada proposta transforma a decisão dela num passo que se
-   * esquece — e um passo esquecido aqui é uma deslocação que a casa não cobra.
-   *
-   * ── E AS PROPOSTAS QUE JÁ EXISTEM ────────────────────────────────────────
-   * Não mudam. Isto só escreve quando o campo AINDA NÃO EXISTE no documento, e
-   * o `seedDefaults` só corre quando não há rascunho gravado. Uma proposta já
-   * enviada continua a ler-se exactamente como o casal a recebeu, e um rascunho
-   * a meio mantém a regra com que nasceu — quem a quiser mudar tem o selector.
-   */
-  if (next.budgetExtrasSomam === undefined) {
-    next = { ...next, budgetExtrasSomam: true };
-  }
-  // O valor vem do "Preço final (sem IVA)" do pedido, e é o mesmo número —
-  // não há aqui um segundo. A condição `== null` que aqui estava era a origem
-  // do defeito: uma vez semeado, o estúdio deixava de acompanhar o pedido e os
-  // dois números separavam-se em silêncio. Agora semeia-se SEMPRE, e o efeito
-  // de sincronização trata das alterações posteriores.
-  if (typeof quotedPrice === "number" && quotedPrice > 0) {
-    // `totalAmount` NÃO é o preço do pedido: é a base em «acrescer» e o BRUTO
-    // em «IVA incluído». Escrever aqui o líquido cru fazia uma proposta já em
-    // «IVA incluído» perder 23% em silêncio — o número do pedido passava a ser
-    // lido como se já trouxesse o imposto dentro.
-    const modo: VatMode = next.totalVatMode ?? "acrescer";
-    // Pela mesma razão da abertura: o preço do pedido traz os adicionais lá
-    // dentro e este campo significa só os serviços. Num pedido virgem não há
-    // adicionais e a conversão não faz nada — mas um pedido cujo rascunho foi
-    // limpo TEM preço com adicionais somados, e sem isto voltava a nascer
-    // inflacionado.
-    const escrito = baseDoPedidoParaOEcra(quotedPrice, next);
-    // `null` = a conta não dá (o preço do pedido é menor do que os adicionais).
-    // Deixa-se o documento como está: o aviso de desalinhamento já diz o que se
-    // passa, e inventar um zero aqui fazia o preço do PEDIDO subir na gravação
-    // seguinte.
-    if (escrito != null) {
-      next = {
-        ...next,
-        totalAmount: totalAmountParaBase(escrito, modo, next.vatRate ?? DEFAULT_VAT_RATE),
-        totalVatMode: modo,
-      };
-    }
-  }
-  return next;
-}
-
 /**
  * Quantos passos atrás o Cmd+Z consegue ir.
  *
@@ -828,26 +606,6 @@ function move<T>(arr: T[], i: number, dir: -1 | 1): T[] {
   return copy;
 }
 
-/**
- * Reescreve TODAS as posições de foto do documento (capas + mood boards) com
- * `f`, que devolve o caminho novo ou `null` para a foto sair.
- *
- * Um só sítio a andar por dentro do documento à procura de fotos, porque as
- * duas operações do estado provisório — trocar o marcador pelo caminho
- * definitivo e tirar o marcador que ficou sem foto — têm de tratar os DOIS
- * sítios da mesma maneira, e falhar um deles deixaria um `pending:` para trás.
- *
- * Numa capa, "sair" é ficar `""` e NÃO encolher o array: é a posição que decide
- * o lado onde a foto é impressa. Num mood board é ordem, e sai mesmo.
- *
- * Devolve o mesmo objeto quando nada muda — uma entrega que já não encontra o
- * seu lugar (a foto foi removida à mão entretanto) não pode marcar o rascunho
- * como alterado.
- */
-/**
- * Os mood boards que saem com as linhas/grupos APAGADOS entre `d` e `next`
- * (pelo id: renomear não conta). Ver `temasQueSaemComAsLinhas`.
- */
 /** Os ids das linhas e grupos que estavam em `antes` e não estão em `next`. */
 function idsTirados(antes: StudioDoc["serviceGroups"], next: StudioDoc["serviceGroups"]): string[] {
   const ficam = new Set(next.flatMap((g) => [g.id, ...g.items.map((it) => it.id)]));
@@ -855,161 +613,6 @@ function idsTirados(antes: StudioDoc["serviceGroups"], next: StudioDoc["serviceG
     .flatMap((g) => [g.id, ...g.items.map((it) => it.id)])
     .filter((id): id is string => !!id && !ficam.has(id));
 }
-
-export function temasLevadosPelasLinhas(d: StudioDoc, next: StudioDoc["serviceGroups"]): number[] {
-  if (next === d.serviceGroups || !d.moodBoards.length) return [];
-  const gruposQueFicam = new Set(next.map((g) => g.id).filter(Boolean));
-  const linhasQueFicam = new Set(next.flatMap((g) => g.items.map((it) => it.id)).filter(Boolean));
-  const tiradas: string[] = [];
-  for (const g of d.serviceGroups) {
-    if (g.id && !gruposQueFicam.has(g.id)) tiradas.push(g.title ?? "");
-    for (const it of g.items) if (it.id && !linhasQueFicam.has(it.id)) tiradas.push(it.label ?? "");
-  }
-  if (!tiradas.length) return [];
-  return temasQueSaemComAsLinhas(tiradas, rubricasDosServicos(next), d.moodBoards);
-}
-
-/**
- * As `fotosDasPaginas` que só foram LIMPAS a partir do estado anterior (as
- * chaves continuam nas posições dele) — ver o `setDoc` do estúdio.
- */
-const fotosLimpasDoAnterior = new WeakSet<object>();
-/** Cada `fotosDasPaginas` com os temas com que ficou gravada. */
-const paresGravados = new WeakMap<object, readonly unknown[]>();
-function marcarLimpas<T extends object | undefined>(fp: T): T {
-  if (fp) fotosLimpasDoAnterior.add(fp);
-  return fp;
-}
-
-/**
- * A escrita do documento do estúdio. Só se realinham as chaves das fotos das
- * páginas quando ainda estão nas posições do estado anterior: o gesto não lhes
- * tocou, ou só as limpou (`fotosLimpasDoAnterior`). Um par (temas, fotos) que
- * já esteve gravado junto — o que um «Anular» repõe — passa direito.
- */
-function escreverODocumento(prev: StudioDoc, u: SetStateAction<StudioDoc>): StudioDoc {
-  const next = typeof u === "function" ? u(prev) : u;
-  if (next === prev) return prev;
-  const fp = next.fotosDasPaginas;
-  const jaCoerente = !!fp && paresGravados.get(fp) === next.moodBoards;
-  const nasPosicoesDeAntes =
-    !jaCoerente && (fp === prev.fotosDasPaginas || (!!fp && fotosLimpasDoAnterior.has(fp)));
-  const final = nasPosicoesDeAntes
-    ? (realinharChavesDosTemas(prev as ProposalDoc, next as ProposalDoc) as StudioDoc)
-    : next;
-  if (final.fotosDasPaginas) paresGravados.set(final.fotosDasPaginas, final.moodBoards);
-  return final;
-}
-
-/**
- * ── TIRAR UM TEMA TIRA-O DO PDF TODO (pedido de 12/11) ──────────────────────
- *
- * «Os noivos não querem cocktail; ela tirou o mood board, e o cocktail
- * continuou no PDF.» As fotografias que ela escolheu para as páginas
- * (`fotosDasPaginas`: índice, notas, separadores, paleta…) guardam-se à parte
- * do tema — e ficavam lá depois de o tema sair. Agora, as do tema apagado que
- * não estão em mais nenhum tema saem dessas páginas também, e cada lugar que
- * fica vazio volta a escolher sozinho, entre os temas que ficaram. A capa não
- * se toca: é escolhida à parte, à vista, na «Fotografia da capa».
- */
-export function semOTema(d: StudioDoc, bi: number): StudioDoc {
-  const sai = d.moodBoards[bi];
-  const moodBoards = d.moodBoards.filter((_, i) => i !== bi);
-  if (!sai) return { ...d, moodBoards };
-  return semSeparadoresSemCapitulo(semAsFotosNasPaginas({ ...d, moodBoards }, sai.images));
-}
-
-/**
- * Num casamento, o separador de um capítulo que deixou de existir
- * («separador:cocktail» sem tema de cocktail) sai das escolhas — senão, se ela
- * voltasse a pôr um cocktail, a foto antiga reaparecia sem ninguém a ter
- * escolhido outra vez (auditoria de 12/11, n.º 9).
- */
-function semSeparadoresSemCapitulo(d: StudioDoc): StudioDoc {
-  const fp = d.fotosDasPaginas;
-  if (!fp || !eCasamento(d.eventType)) return d;
-  const ficam = new Set<string>(d.moodBoards.map((b) => grupoNoCasamento(b, d.moodBoards)));
-  let mudou = false;
-  const novas: NonNullable<StudioDoc["fotosDasPaginas"]> = {};
-  for (const [chave, e] of Object.entries(fp)) {
-    const grupo = /^separador:(cerimonia|cocktail|jantar|complementos|ambiente)(:\d+)?$/.exec(
-      chave,
-    )?.[1];
-    if (grupo && !ficam.has(grupo)) {
-      mudou = true;
-      continue;
-    }
-    novas[chave] = e;
-  }
-  return mudou ? { ...d, fotosDasPaginas: marcarLimpas(novas) } : d;
-}
-
-/**
- * As fotografias `saem` deixam as páginas escolhidas (`fotosDasPaginas`) —
- * salvo as que ainda estão nalgum tema de `d`. Cada lugar que fica vazio
- * volta ao automático. É o que tirar uma foto de um tema (ou o tema inteiro)
- * faz às páginas onde ela a tinha posto (auditoria de 12/11, n.º 2).
- */
-export function semAsFotosNasPaginas(d: StudioDoc, saem: readonly string[]): StudioDoc {
-  if (!d.fotosDasPaginas || !saem.length) return d;
-  const ficam = new Set(d.moodBoards.flatMap((b) => b.images));
-  const tirar = new Set(saem.filter((p) => p && !ficam.has(p)));
-  if (!tirar.size) return d;
-  const limpo = mapImagePaths({ ...d, moodBoards: [], coverImages: [] }, (p) =>
-    tirar.has(p) ? null : p,
-  );
-  return { ...d, fotosDasPaginas: marcarLimpas(limpo.fotosDasPaginas) };
-}
-
-function mapImagePaths(d: StudioDoc, f: (path: string) => string | null): StudioDoc {
-  let changed = false;
-  const cover = normaliseCoverImages(d.coverImages).map((p) => {
-    if (!p) return p;
-    const next = f(p);
-    if (next === p) return p;
-    changed = true;
-    return next ?? "";
-  });
-  const boards = d.moodBoards.map((b) => {
-    let touched = false;
-    const images: string[] = [];
-    for (const p of b.images) {
-      const next = f(p);
-      if (next !== p) touched = true;
-      if (next !== null) images.push(next);
-    }
-    if (!touched) return b;
-    changed = true;
-    return { ...b, images };
-  });
-  // As que ela escolheu para as páginas do PDF (`fotosDasPaginas`): como num
-  // mood board, a que sai deixa a página com menos uma (e, sem nenhuma, a
-  // página volta a escolher sozinha).
-  let paginas = d.fotosDasPaginas;
-  if (paginas) {
-    const novas: NonNullable<StudioDoc["fotosDasPaginas"]> = {};
-    for (const [chave, e] of Object.entries(paginas)) {
-      const fotos: string[] = [];
-      const focos: ({ x: number; y: number } | null)[] = [];
-      let mexeu = false;
-      e.fotos.forEach((p, k) => {
-        const next = f(p);
-        if (next !== p) mexeu = true;
-        if (next !== null) {
-          fotos.push(next);
-          focos.push(e.focos?.[k] ?? null);
-        }
-      });
-      if (mexeu) changed = true;
-      if (fotos.length) novas[chave] = mexeu ? { fotos, ...(e.focos ? { focos } : {}) } : e;
-    }
-    paginas = novas;
-  }
-  return changed ? { ...d, coverImages: cover, moodBoards: boards, fotosDasPaginas: paginas } : d;
-}
-
-// ── O que o PDF não leva ── (ver `conteudo-incompleto.ts`; os testes leem-no daqui)
-export { avisoDeConteudoIncompleto, cortesDoCabecalho };
 
 /**
  * O título do mood board (e a sua caixa inglesa) no cabeçalho do cartão: ao
@@ -1028,492 +631,14 @@ const TITULO_DO_BOARD =
 export { porqueFalhouOEnvio };
 
 /**
- * ════════════════════════════════════════════════════════════════════════════
- * OS TRÊS ESTADOS DO INDICADOR DE GRAVAÇÃO
- * ════════════════════════════════════════════════════════════════════════════
- *
- * Tinha dois — «a guardar…» e «guardado às 14:32» — e o segundo era dito
- * também quando a gravação no servidor tinha falhado, porque a cópia local
- * tinha corrido bem e mais nada era verificado. «Guardado» é a palavra que faz
- * uma pessoa fechar o portátil descansada, e foi exactamente isso que
- * aconteceu: uma proposta inteira ficou num `localStorage` e o ecrã disse, o
- * tempo todo, que estava guardada.
- *
- * O terceiro estado tem de ser LIDO, não decifrado. Por isso não é um visto de
- * outra cor: são as palavras «só neste computador», por extenso, também no
- * telemóvel — é a única forma de a informação mudar o que a pessoa faz a
- * seguir.
- */
-/**
- * ── E O QUARTO, QUE É O DO DEPLOYMENT ─────────────────────────────────────
- *
- * `nao-dura-ao-deploy` é o desfecho do meio, e não é uma subtileza: a gravação
- * CHEGOU ao servidor (não é `so-neste-computador` — noutro computador a
- * proposta abre), e mesmo assim o próximo deploy leva-a, porque em produção sem
- * base de dados o rascunho fica no disco da função.
- *
- * Precisa de palavras próprias exactamente por isso. «Guardado» era falso pelo
- * lado do tempo, e «só neste computador» seria falso pelo lado do sítio —
- * mandaria alguém copiar o trabalho para outra máquina, que é o gesto que não
- * resolve nada aqui.
- */
-export type EstadoDaGravacaoNoEcra =
-  | "a-guardar"
-  | "so-neste-computador"
-  | "nao-dura-ao-deploy"
-  | "guardado";
-
-export function textoDaGravacao(
-  estado: EstadoDaGravacaoNoEcra,
-  gravadoEm: Date | null,
-): { curto: string; longo: string; leitor: string } {
-  if (estado === "a-guardar") {
-    return { curto: "…", longo: "a guardar…", leitor: "a guardar" };
-  }
-  const horas = gravadoEm ? quandoGravado(gravadoEm) : "";
-  if (estado === "so-neste-computador") {
-    // A hora entra na frase porque a pergunta seguinte dela é sempre «desde
-    // quando?» — é o que lhe diz quanto trabalho está em risco.
-    return {
-      curto: "⚠ guardado só neste computador",
-      longo: horas ? `guardado só neste computador às ${horas}` : "guardado só neste computador",
-      leitor: "atenção: o rascunho está guardado só neste computador e não chegou ao servidor",
-    };
-  }
-  if (estado === "nao-dura-ao-deploy") {
-    // A hora fica, como no estado de cima e pela mesma razão. O que muda é a
-    // segunda metade da frase: o problema não é ONDE está, é ATÉ QUANDO.
-    return {
-      curto: "⚠ guardado até ao próximo deploy",
-      longo: horas
-        ? `guardado às ${horas}, num sítio que o próximo deploy apaga`
-        : "guardado num sítio que o próximo deploy apaga",
-      leitor: "atenção: o rascunho está guardado num sítio que o próximo deploy apaga",
-    };
-  }
-  return { curto: "✓", longo: `guardado às ${horas}`, leitor: "rascunho guardado no servidor" };
-}
-
-/**
- * ════════════════════════════════════════════════════════════════════════════
- * QUANTAS LINHAS JÁ TÊM PREÇO — E PORQUE É QUE ISSO PRECISA DE SER DITO
- * ════════════════════════════════════════════════════════════════════════════
- *
- * Palavras dela, sobre o `placeholder="900"` que estava no campo do preço: «um
- * número redondo e plausível como placeholder num campo de preço é perigoso —
- * mais cedo ou mais tarde alguém pensa que já está preenchido». Tinha razão, e
- * o caso já tinha acontecido: uma proposta de 2.460,00 € com QUATRO serviços
- * sem preço nenhum mostrava «900» a cinzento em todos eles, e a única coisa
- * legível no orçamento inteiro era uma deslocação de 75,00 €.
- *
- * O placeholder saiu. Mas tirar a mentira não chega — é preciso dizer a
- * verdade, e a verdade é um número: quantas das linhas têm mesmo preço. Um
- * contador responde à pergunta de uma vez, sem obrigar a percorrer o formulário
- * a contar caixas vazias.
- *
- * `incompleta` é o caso que faz uma soma mentir sem parecer: UMAS linhas com
- * preço e outras sem. Nem tudo por orçamentar (aí não há soma nenhuma, e a
- * biblioteca devolve `null`), nem tudo orçamentado — o meio, que é onde a soma
- * dá um número plausível que está errado por baixo.
- */
-export function contagemDePrecos(precos: (number | null)[]): {
-  comPreco: number;
-  total: number;
-  semPreco: number;
-  incompleta: boolean;
-  frase: string;
-} {
-  const total = precos.length;
-  const comPreco = precos.filter((p) => p !== null).length;
-  const semPreco = total - comPreco;
-  return {
-    comPreco,
-    total,
-    semPreco,
-    // Só há soma incompleta quando há mesmo uma soma a fazer: zero linhas com
-    // preço é «ainda não orçamentei», não «orçamentei mal».
-    incompleta: comPreco > 0 && semPreco > 0,
-    frase: `${comPreco} de ${total} ${total === 1 ? "linha" : "linhas"} com preço`,
-  };
-}
-
-/**
- * ════════════════════════════════════════════════════════════════════════════
- * O IVA QUE UM VALOR ADICIONAL DECLARA — PERGUNTADO À BIBLIOTECA, NÃO ADIVINHADO
- * ════════════════════════════════════════════════════════════════════════════
- *
- * Os valores adicionais são texto («896,00 €», «895,00 € + IVA») e esse texto é
- * impresso no PDF tal e qual. Quem decide o que ele quer dizer é
- * `somaDosExtrasSemIva`, em `proposal-budget.ts`: uma linha que diz «+ IVA» é
- * líquida, uma que diz «IVA incluído» é bruta, e uma calada segue o modo do
- * documento.
- *
- * Para o ecrã poder mostrar essa escolha num selector é preciso LER de volta o
- * que a linha declara — e isso podia ser feito com uma cópia da expressão
- * regular que está lá dentro. Não é: uma segunda cópia diverge no dia em que
- * alguém acrescentar uma forma de escrever «sem IVA», e o selector passaria a
- * mostrar uma coisa e a soma a fazer outra, em silêncio.
- *
- * Em vez disso pergunta-se à própria função, duas vezes, com contextos
- * opostos. Uma linha CALADA responde de maneira diferente conforme o contexto
- * (é essa a definição de calada); uma linha que declara responde o mesmo às
- * duas. E o valor devolvido diz qual das duas declarações é.
- */
-export type ModoDeIvaDoAdicional = "documento" | "acrescer" | "incluido";
-
-export function modoDoAdicional(valueText: string, vatRate: number): ModoDeIvaDoAdicional {
-  const cru = normalizarValor(valueText);
-  // Sem número legível («a definir») não há IVA nenhum a declarar.
-  if (cru === null || cru === 0) return "documento";
-  const linha = [{ label: "", valueText }];
-  const comoLiquido = somaDosExtrasSemIva(linha, { mode: "acrescer", vatRate });
-  const comoBruto = somaDosExtrasSemIva(linha, { mode: "incluido", vatRate });
-  if (comoLiquido !== comoBruto) return "documento";
-  // Responde o mesmo aos dois contextos: a linha declara. Se o que responde é
-  // o próprio número escrito, declarou-se líquida («+ IVA»); se responde menos,
-  // declarou-se bruta e a função converteu-a («IVA incluído»).
-  return Math.abs(comoLiquido - cru) < 0.005 ? "acrescer" : "incluido";
-}
-
-/**
- * ════════════════════════════════════════════════════════════════════════════
- * O NÚMERO ESCRITO NO CAMPO DO TOTAL — COM VÍRGULA, SEMPRE
- * ════════════════════════════════════════════════════════════════════════════
- *
- * O campo do total é TEXTO (aceita «1.500» e «1 500 €» a meio de serem
- * escritos) e é relido com `parseMoneyText`, que segue o português: o ponto é
- * separador de MILHARES, a vírgula é o decimal.
- *
- * Quem escrevia neste campo por código usava `String(n)`, e o JavaScript
- * escreve os decimais com PONTO. `String(3355.98)` dava «3355.98», que
- * `parseMoneyText` relê como 335 598 — cem vezes mais. Media-se assim:
- *
- *     parseMoneyText(String(3355.98))  →  335598
- *     parseMoneyText("3355,98")        →  3355.98
- *
- * Aconteceu de verdade no botão «Usar X €»: com uma proposta de 2.460,00 € e
- * uma deslocação de 75,00 € lida com IVA incluído, a sugestão é 3.355,98 € e o
- * campo ficava com 335.598,00 € — e esse número seguia para o preço final do
- * pedido, para o sinal e para a fatura. O mesmo valia para qualquer total com
- * cêntimos escrito por um valor adicional, por uma versão reposta ou por uma
- * proposta copiada.
- *
- * Um número inteiro sai como sempre saiu («2460»), para não mudar o que ela vê
- * no caso normal.
- */
-export function textoDoTotal(base: number): string {
-  return Number.isInteger(base) ? String(base) : String(base).replace(".", ",");
-}
-
-/**
- * O texto que fica GRAVADO num valor adicional — o mesmo que o PDF imprime.
- *
- * O campo do valor passou a ser numérico (ela escrevia «1.500», «1500» e
- * «1 500 €» conforme a pressa, e as três tinham de dar o mesmo número), mas o
- * documento continua a guardar TEXTO: é o que o gerador desenha, e é lá que
- * mora a informação de «+ IVA» que não se pode perder. Este é o único sítio
- * onde os dois se juntam.
- *
- * Um valor que não se consegue ler («a definir», «sob consulta») fica exactamente
- * como foi escrito: é uma frase que o casal tem de ver na proposta, não um
- * número que se possa formatar.
- */
-export function textoDoAdicional(escrito: string, modo: ModoDeIvaDoAdicional): string {
-  const valor = normalizarValor(escrito);
-  if (valor === null) return escrito;
-  if (modo === "acrescer") return `${eur(valor)} + IVA`;
-  if (modo === "incluido") return `${eur(valor)} (IVA incluído)`;
-  return eur(valor);
-}
-
-/**
- * ════════════════════════════════════════════════════════════════════════════
- * O RASCUNHO NO SERVIDOR — E O QUE SE FAZ QUANDO ELE NÃO LÁ CHEGA
- * ════════════════════════════════════════════════════════════════════════════
- *
- * Esta gravação era um `fetch` seco: `if (!res.ok) return`, e um `catch` vazio
- * com o comentário «offline — a cópia local guarda o trabalho até haver rede».
- * A cópia local guarda mesmo — mas só naquele computador. Uma colaboradora
- * montou uma proposta inteira com esta chamada a falhar de cada vez, o
- * indicador a dizer «guardado às 14:32» o tempo todo, e quem a foi abrir noutra
- * máquina encontrou o ecrã vazio.
- *
- * Duas coisas mudam. A primeira é REPETIR: uma gravação que morre por causa de
- * uma ligação que caiu não pode morrer à primeira. É o mesmo desenho de
- * `proposal-storage.descarregar` e da segunda tentativa do envio — tentativas
- * com pausa curta e crescente, e um tecto de tempo por tentativa para um pedido
- * pendurado não segurar o resto. A segunda é DIZER o que aconteceu, que é a
- * parte que faltava por inteiro.
- *
- * O que não se repete: um 4xx (o pedido é que está errado — sessão expirada,
- * rascunho grande demais) e um 503 marcado como `permanente` (a instalação não
- * tem a tabela, ou a chave não a pode escrever). Nesses, tentar outra vez dá
- * exactamente a mesma resposta e só atrasa o aviso.
- */
-/**
  * Quanto tempo a pergunta do envio tem de estar à vista antes de o «Confirmar»
  * aceitar um clique. Um duplo clique são ~120 ms entre os dois; 400 ms tira o
  * segundo de lá com folga e é menos do que alguém demora a ler a frase.
  */
 const CONFIRMAR_ENVIO_APOS_MS = 400;
 
-const GRAVACAO_TENTATIVAS = 3;
-const GRAVACAO_PAUSA_MS = 400;
-const GRAVACAO_TECTO_MS = 10000;
-
-export type ResultadoDaGravacao =
-  | {
-      estado: "guardado";
-      updatedAt?: string;
-      overwrote?: boolean;
-      previousBy?: string;
-      /**
-       * A gaveta onde ficou o trabalho que esta gravação esmagou.
-       *
-       * ── PORQUE É QUE ISTO ESTAVA A SER DEITADO FORA ─────────────────────
-       *
-       * O servidor guarda, desde sempre, a versão que ia desaparecer numa
-       * chave irmã, e devolve o nome dela aqui. O estúdio lia o `overwrote` e
-       * o `previousBy` — e ignorava estes dois. Resultado: o aviso dizia «ficou
-       * a tua versão» e mais nada, portanto quem o lia concluía, com toda a
-       * razão, que as duas horas da outra pessoa tinham acabado.
-       *
-       * Não tinham. Estavam guardadas num sítio que nenhuma parte do produto
-       * conseguia abrir — a lista de gavetas que a leitura aceita não tinha
-       * esta lá dentro. Metade da regra da casa («se falhar, não perder
-       * trabalho») cumprida, e a metade que se vê por cumprir.
-       */
-      resgate?: string;
-      /** Quando é que essa versão tinha sido gravada — é a hora que dá à
-       *  pessoa a noção do que está em jogo antes de decidir. */
-      resgateEm?: string;
-      /** O servidor juntou esta gravação com a de outra pessoa, campo a campo
-       *  (achado n.º 6 — ver `rascunho-juntar.ts`), e `doc` é como ficou. */
-      juntou?: boolean;
-      doc?: Record<string, unknown>;
-      /**
-       * O sítio onde ficou sobrevive a um deploy?
-       *
-       * ── PORQUE É QUE ISTO NÃO PODE FICAR DE FORA ────────────────────────
-       *
-       * Há um terceiro desfecho entre «guardado» e «não guardado», e é o que
-       * fez desaparecer uma proposta montada: produção sem Supabase escreve o
-       * rascunho no `data/app-state.json`, que em Vercel é o disco da função. A
-       * escrita ACONTECE — por isso a rota responde 200 e isto não é um
-       * `so-local` —, e o próximo deploy apaga-a. A rota diz-o desde sempre
-       * (`duradouro: false`, com a frase em `aviso`); era esta leitura que
-       * faltava, e sem ela o indicador escrevia «guardado às 14:32» por cima do
-       * trabalho de horas de alguém.
-       *
-       * As fotos em si não se perdem — os bytes estão no bucket. O que se perde
-       * é a MONTAGEM: quais entraram, por que ordem, em que mood board.
-       *
-       * `undefined` quando o servidor não o disse. Só um `false` explícito
-       * alarma: inventar um alarme a partir de uma ausência era pôr um aviso
-       * permanente em instalações sãs, que é como se ensina a ignorá-lo.
-       */
-      duradouro?: boolean;
-      /** A frase do servidor para o caso de cima — diz o que fazer e nomeia as
-       *  variáveis que o resolvem. Vem escrita de lá para não haver duas
-       *  versões da mesma verdade. */
-      aviso?: string;
-      /**
-       * O estado do pedido MUDOU com esta gravação (6/11: o primeiro rascunho
-       * põe-no em «A preparar proposta»). Só vem quando mudou — o caso normal
-       * de um autosave é não vir nada.
-       */
-      estadoDoPedido?: QuoteStatus;
-    }
-  /** Não ficou no servidor. O trabalho está no ecrã e na cópia local — e é isso
-   *  mesmo que a pessoa tem de ouvir, com estas palavras. */
-  | {
-      estado: "so-local";
-      porque?: string;
-      /** O servidor recusou porque a sessão caiu (401) — não é avaria nenhuma:
-       *  basta entrar outra vez (achado n.º 34). */
-      sessaoExpirada?: boolean;
-    };
-
 function ehObjecto(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === "object" && !Array.isArray(v);
-}
-
-/** Um `fetch` com tecto de tempo próprio. Sem ele, uma rede que aceita a
- *  ligação e nunca responde deixa a gravação pendurada para sempre — e o
- *  indicador ficaria eternamente em «a guardar…», que é outra maneira de
- *  mentir. */
-async function fetchComTecto(url: string, init: RequestInit, ms: number): Promise<Response> {
-  const abortador = new AbortController();
-  const t = setTimeout(() => abortador.abort(), ms);
-  try {
-    return await fetch(url, { ...init, signal: abortador.signal });
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-/**
- * Grava o rascunho no servidor, repetindo enquanto fizer sentido, e devolve a
- * VERDADE sobre onde ele ficou. Nunca lança.
- */
-export async function gravarRascunhoNoServidor(
-  quoteId: string,
-  corpo: {
-    doc: unknown;
-    baseUpdatedAt: string | null;
-    campos?: string[];
-    base?: Record<string, unknown>;
-  },
-): Promise<ResultadoDaGravacao> {
-  let porque: string | undefined;
-  let sessaoExpirada = false;
-  for (let tentativa = 1; tentativa <= GRAVACAO_TENTATIVAS; tentativa++) {
-    try {
-      const res = await fetchComTecto(
-        `/api/orcamento/${quoteId}/proposta-rascunho`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(corpo),
-        },
-        GRAVACAO_TECTO_MS,
-      );
-      const dados = await res.json().catch(() => null);
-      if (res.ok) {
-        return {
-          estado: "guardado",
-          updatedAt: typeof dados?.updatedAt === "string" ? dados.updatedAt : undefined,
-          overwrote: Boolean(dados?.overwrote),
-          previousBy: typeof dados?.previousBy === "string" ? dados.previousBy : undefined,
-          resgate: typeof dados?.resgate === "string" ? dados.resgate : undefined,
-          resgateEm: typeof dados?.resgateEm === "string" ? dados.resgateEm : undefined,
-          juntou: dados?.juntou === true,
-          doc:
-            dados?.juntou === true && dados.doc && typeof dados.doc === "object"
-              ? (dados.doc as Record<string, unknown>)
-              : undefined,
-          duradouro: typeof dados?.duradouro === "boolean" ? dados.duradouro : undefined,
-          aviso: typeof dados?.aviso === "string" ? dados.aviso : undefined,
-          estadoDoPedido:
-            typeof dados?.estadoDoPedido === "string"
-              ? (dados.estadoDoPedido as QuoteStatus)
-              : undefined,
-        };
-      }
-      // O 503 da gravação manda `erro` (a frase do motivo); as outras recusas
-      // da rota (400, 401, 413, 500) mandam `error`. Só se lia o primeiro, e
-      // «Rascunho demasiado grande» nunca chegava ao ecrã (auditoria 13/11,
-      // estúdio n.º 16).
-      porque =
-        typeof dados?.erro === "string"
-          ? dados.erro
-          : typeof dados?.error === "string"
-            ? dados.error
-            : undefined;
-      sessaoExpirada = res.status === 401;
-      // Um 4xx é o pedido que está errado, e repeti-lo dá o mesmo. Um 503
-      // `permanente` é a instalação que está incompleta — também dá o mesmo.
-      if (res.status < 500 || dados?.permanente === true) break;
-    } catch {
-      // Rede em baixo, ou o tecto de tempo. É exactamente o caso que a
-      // repetição existe para apanhar.
-      porque = undefined;
-    }
-    if (tentativa < GRAVACAO_TENTATIVAS) {
-      await new Promise((r) => setTimeout(r, GRAVACAO_PAUSA_MS * tentativa));
-    }
-  }
-  return { estado: "so-local", porque, ...(sessaoExpirada ? { sessaoExpirada } : {}) };
-}
-
-/**
- * ════════════════════════════════════════════════════════════════════════════
- * O PREÇO QUE FICAVA SÓ NO ESTÚDIO
- * ════════════════════════════════════════════════════════════════════════════
- *
- * Isto era um `fetch` seco com um `catch` vazio, e o comentário dizia «a
- * gravação seguinte volta a tentar». NÃO HÁ GRAVAÇÃO SEGUINTE: esta chamada só
- * parte quando alguém MEXE no valor. Se a rede piscar na única vez que ela
- * escreve o preço, ninguém volta a tentar nada.
- *
- * O que se via, e está na auditoria da casa (2.3): o Estúdio e o PDF a dizerem
- * 9.500 €, e o cartão do pedido, a margem, as Estatísticas e as facturas a
- * dizerem 8.000 €. Sem aviso nenhum, porque o `catch` estava vazio. É a queixa
- * dela — «o valor enviado para o cliente tem de ser o valor que fica na
- * proposta» — com a causa por baixo.
- *
- * Duas coisas mudam, e são as mesmas do rascunho aqui em cima, de propósito:
- *
- *  · REPETIR. Uma gravação que morre porque a ligação caiu não pode morrer à
- *    primeira. Mesmas tentativas, mesma pausa crescente, mesmo tecto por
- *    tentativa.
- *  · DIZER. Quando nem à terceira chega, o ecrã passa a saber e a mostrar — com
- *    os dois valores à vista e um botão para tentar outra vez.
- *
- * O que NÃO se repete é o mesmo que ali: um 4xx é o pedido que está errado
- * (sessão caída, sobretudo), e repeti-lo dá exactamente a mesma resposta. Aí
- * `valeTentarDeNovo` vem `false` e o ecrã não oferece um botão que não pode
- * funcionar — é a regra que o `AvisoDeFalha` já segue.
- *
- * Nunca lança: quem chama está no meio da escrita de uma proposta.
- */
-export type ResultadoDoPreco =
-  | {
-      estado: "gravado";
-      /**
-       * O pedido actualizado, para propagar ao resto do ecrã. Falta quando o
-       * servidor respondeu 200 com um corpo que não se leu — gravou na mesma,
-       * e é isso que decide o estado; o que não há é número novo para
-       * espalhar.
-       */
-      quote?: Quote;
-    }
-  | { estado: "falhou"; porque?: string; valeTentarDeNovo: boolean };
-
-export async function mandarPrecoAoPedido(
-  quoteId: string,
-  base: number | null,
-): Promise<ResultadoDoPreco> {
-  let porque: string | undefined;
-  let valeTentarDeNovo = true;
-  for (let tentativa = 1; tentativa <= GRAVACAO_TENTATIVAS; tentativa++) {
-    try {
-      const res = await fetchComTecto(
-        `/api/orcamento/${quoteId}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          // `null` e não `undefined`: apagar o preço tem de chegar ao servidor,
-          // e `undefined` desaparece no JSON (o merge parcial mantinha o valor
-          // antigo). É a mesma razão que está escrita na Gestão do pedido.
-          body: JSON.stringify({ quotedPrice: base }),
-        },
-        GRAVACAO_TECTO_MS,
-      );
-      if (res.ok) {
-        // Um 200 com corpo ilegível é um 200: o servidor gravou. Insistir aqui
-        // punha um alarme vermelho por cima de trabalho que está são — e ela
-        // deixava de acreditar no alarme quando ele for verdade.
-        const atualizado = (await res.json().catch(() => null)) as Quote | null;
-        return atualizado ? { estado: "gravado", quote: atualizado } : { estado: "gravado" };
-      } else {
-        const dados = await res.json().catch(() => null);
-        porque = typeof dados?.error === "string" ? dados.error : undefined;
-        if (res.status < 500) {
-          valeTentarDeNovo = false;
-          break;
-        }
-      }
-    } catch {
-      // Rede em baixo, ou o tecto de tempo. É exactamente o caso que a
-      // repetição existe para apanhar.
-      porque = undefined;
-    }
-    if (tentativa < GRAVACAO_TENTATIVAS) {
-      await new Promise((r) => setTimeout(r, GRAVACAO_PAUSA_MS * tentativa));
-    }
-  }
-  return { estado: "falhou", porque, valeTentarDeNovo };
 }
 
 interface Props {
@@ -7701,14 +6826,15 @@ export default function ProposalStudio({
     const blob = await res.blob();
     // A geração que acabou de acontecer ensina a próxima estimativa: quantas
     // fotos, quanto tempo, quantos bytes. Medido, não estimado.
-    if (res.headers.get("X-Pdf-Da-Memoria") !== "1") {
+    const { CABECALHOS_DA_PRE_VISUALIZACAO: CABECALHO } = contrato;
+    if (res.headers.get(CABECALHO.pdfDaMemoria) !== "1") {
       apontarGeracao(totalDeFotos, Date.now() - comecou, blob.size);
     }
     return {
       blob,
-      chave: rascunho ? null : res.headers.get("X-Chave-Do-Pdf"),
-      emFalta: Number(res.headers.get("X-Fotos-Em-Falta") ?? "0"),
-      cortes: res.headers.get("X-Conteudo-Cortado"),
+      chave: rascunho ? null : res.headers.get(CABECALHO.chaveDoPdf),
+      emFalta: Number(res.headers.get(CABECALHO.fotosEmFalta) ?? "0"),
+      cortes: res.headers.get(CABECALHO.conteudoCortado),
     };
   }
 
@@ -7786,7 +6912,7 @@ export default function ProposalStudio({
       const chave = rascunho ? null : pdf.chave;
       if (chave) setPdfVisto({ chave, retrato, confirmado: false, emFalta: pdf.emFalta });
       const emFalta = pdf.emFalta;
-      const cortes = cortesDoCabecalho(pdf.cortes);
+      const cortes = contrato.cortesDoCabecalho(pdf.cortes);
       const aviso = avisoDeConteudoIncompleto(emFalta, cortes);
       if (aviso) {
         toast(`PDF gerado, mas ${aviso}. Verifica antes de enviar.`, "error");
@@ -8020,7 +7146,7 @@ export default function ProposalStudio({
         return;
       }
       if (res.status === 409 && data?.precisaConfirmarCortes) {
-        const cortes = normalizaCortes(data.truncations);
+        const cortes = contrato.normalizaCortes(data.truncations);
         perguntas.perguntar({ tipo: "cortes", cortes, retrato: retratoDoEnvio });
         return;
       }
@@ -8046,7 +7172,7 @@ export default function ProposalStudio({
       // menos é o problema que originou esta contagem; saber que o email saiu
       // é secundário quando o documento que ele leva está incompleto.
       const emFalta = Number(data?.missingImages ?? 0);
-      const aviso = avisoDeConteudoIncompleto(emFalta, normalizaCortes(data?.truncations));
+      const aviso = avisoDeConteudoIncompleto(emFalta, contrato.normalizaCortes(data?.truncations));
       /**
        * ══════════════════════════════════════════════════════════════════════
        * «ENVIADA» SÓ QUANDO FOI MESMO ENVIADA
@@ -8184,12 +7310,11 @@ export default function ProposalStudio({
   /**
    * Há destinatário para esta proposta?
    *
-   * A MESMA regra do servidor (ver a rota do envio): um endereço com arroba e
-   * um ponto no domínio. Não é uma validação a sério — é a que distingue «não
-   * há email nenhum» de «há». Se as duas discordassem, o ecrã dizia que ia
-   * seguir e o servidor não o mandava.
+   * A MESMA regra do servidor (`pareceEmail`): distingue «não há email nenhum»
+   * de «há». Se as duas discordassem, o ecrã dizia que ia seguir e o servidor
+   * não o mandava.
    */
-  const emailDoCliente = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(quote.email ?? "");
+  const emailDoCliente = pareceEmail(quote.email);
 
   // Sugestões e a validade por omissão. Uma leitura só, ao abrir; se falhar,
   // o estúdio funciona como antes — nenhuma destas coisas é indispensável.

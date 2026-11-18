@@ -11,12 +11,11 @@ import type { DocTruncation } from "@/lib/proposal-doc-pdf";
 import {
   blocosFixosNaLingua,
   camposDoEventoNaLingua,
-  IDIOMA_POR_OMISSAO,
   isoDaDataPorExtenso,
   rotuloDoTotalNaLingua,
   textosDaProposta,
-  type IdiomaDaProposta,
 } from "@/lib/proposal-doc-textos";
+import { IDIOMA_POR_OMISSAO, type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import { chaveDeRubrica, ordemDeSaida } from "@/lib/proposal-ordem";
 import { eurDocumento, milharesComPonto, montanteNaLingua, round2 } from "@/lib/money";
 import {

@@ -1,5 +1,5 @@
 import type { ProposalDoc } from "@/lib/proposal-doc";
-import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import { type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import type { FotoDaProposta } from "@/lib/proposta-fotos";
 import {
   descricaoNaLingua,

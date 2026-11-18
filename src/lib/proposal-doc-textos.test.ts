@@ -15,9 +15,9 @@ import {
   referenciaDoDocumento,
   textosDaProposta,
   type BlocosFixos,
-  type IdiomaDaProposta,
   type TextosDoDocumento,
 } from "./proposal-doc-textos";
+import { type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import { TEXTO_DO_MOODBOARD } from "./proposal-geometria";
 import { SITE } from "./site";
 

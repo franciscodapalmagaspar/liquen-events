@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { PDFDocument, PDFPage, type PDFFont } from "pdf-lib";
 import { renderProposalDocPdf, renderProposalDocPdfWithReport } from "./proposal-doc-pdf";
 import { withProposalDefaults, type ProposalDoc } from "./proposal-doc";
-import type { IdiomaDaProposta } from "./proposal-doc-textos";
+import { type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════

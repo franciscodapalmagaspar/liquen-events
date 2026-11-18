@@ -37,6 +37,21 @@ const SO_PARA_DENTRO_DE_CASA: Readonly<Record<string, string>> = {
     "esta rota manda DUAS mensagens: a confirmação ao cliente (que passa pelo `buildClientConfirmation` → `assinaturaDeEmail`, e leva a assinatura) e o aviso do lead à equipa, que é para dentro de casa. Ver `client-confirmation.ts`.",
 };
 
+/**
+ * O correio que chega JÁ EMOLDURADO de outro ficheiro, e quem o emoldura.
+ *
+ * Fase 5 de `docs/ESTRUTURA-DO-CODIGO.md`: o envio da proposta partiu-se em
+ * etapas, e quem escreve o email (`email-da-proposta.ts`, que passa pelo
+ * `emailAoCliente`) deixou de ser quem o manda (`mandar-o-email.ts`, que só
+ * recebe o `EmailDaProposta` pronto). Aqui a guarda é o TIPO: o
+ * `mandarOEmail` só aceita um `EmailEmoldurado`, que só o `emoldurar` (por
+ * cima do `emailAoCliente`) cria — um email montado à mão não compila. Este
+ * mapa diz à guarda de texto onde está esse ficheiro, para ela o ler também.
+ */
+const EMOLDURADO_POR: Readonly<Record<string, string>> = {
+  "src/lib/orcamento/envio/mandar-o-email.ts": "src/lib/orcamento/envio/email-da-proposta.ts",
+};
+
 const REPO = process.cwd();
 
 /** Os ficheiros que chamam o `sendMail`, lidos do próprio código. */
@@ -62,13 +77,15 @@ describe("todo o correio ao cliente leva a assinatura da casa", () => {
 
   it("encontrou mesmo os caminhos de correio (controlo positivo)", () => {
     expect(ficheiros.length).toBeGreaterThan(5);
-    expect(ficheiros).toContain("src/app/api/orcamento/[id]/proposta-doc/route.ts");
+    // O envio da proposta saiu da rota na fase 5 de `docs/ESTRUTURA-DO-CODIGO.md`.
+    expect(ficheiros).toContain("src/lib/orcamento/envio/mandar-o-email.ts");
   });
 
   for (const ficheiro of ficheiros) {
     it(`${ficheiro}`, () => {
-      const fonte = readFileSync(path.join(REPO, ficheiro), "utf8");
-      const usa = fonte.includes("emailAoCliente");
+      const quemEscreve = EMOLDURADO_POR[ficheiro] ?? ficheiro;
+      const fonte = readFileSync(path.join(REPO, quemEscreve), "utf8");
+      const usa = fonte.includes("emailAoCliente(");
       const razao = SO_PARA_DENTRO_DE_CASA[ficheiro];
       expect(
         usa || !!razao,
@@ -85,7 +102,10 @@ describe("todo o correio ao cliente leva a assinatura da casa", () => {
    * próxima pessoa lê uma decisão sobre um caminho que já não existe.
    */
   it("a lista de excepções não tem entradas mortas", () => {
-    for (const ficheiro of Object.keys(SO_PARA_DENTRO_DE_CASA)) {
+    for (const ficheiro of [
+      ...Object.keys(SO_PARA_DENTRO_DE_CASA),
+      ...Object.keys(EMOLDURADO_POR),
+    ]) {
       expect(ficheiros, `\`${ficheiro}\` já não manda correio — tire-o da lista`).toContain(
         ficheiro,
       );
