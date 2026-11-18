@@ -778,7 +778,7 @@ export interface Proposal {
    * contrário, e ninguém escreve "pt" por cima delas: ver `idiomaDaProposta`
    * em `@/lib/proposta-idioma`, que é o único sítio onde essa leitura se faz.
    */
-  idioma?: import("@/lib/proposal-doc-textos").IdiomaDaProposta;
+  idioma?: import("@/lib/orcamento/listas-fechadas").IdiomaDaProposta;
   /**
    * ── A VERSÃO DESTE DOCUMENTO ──────────────────────────────────────────────
    *

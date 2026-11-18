@@ -9,7 +9,7 @@ import {
   type Severidade,
   type Verificacao,
 } from "@/lib/orcamento/conferencia";
-import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import { type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 
 /**

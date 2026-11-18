@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import LivroDeReclamacoes from "@/components/LivroDeReclamacoes";
+import { LETRA_MIUDA } from "@/lib/letra-miuda";
 import { localizeHref } from "@/lib/i18n/config";
 import {
   LIGACOES_LEGAIS,
@@ -77,7 +78,7 @@ export default function AvisoLegal({
         display: "flex",
         flexDirection: "column",
         gap: 12,
-        fontSize: 11,
+        fontSize: LETRA_MIUDA,
         lineHeight: 1.6,
         letterSpacing: "0.01em",
         ...eixo,

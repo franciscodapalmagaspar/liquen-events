@@ -2,7 +2,7 @@ import "server-only";
 import { after } from "next/server";
 import { getState, setState } from "@/lib/app-state";
 import type { ProposalDoc } from "@/lib/proposal-doc";
-import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import { type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import { log } from "@/lib/logger";
 import type { PropostaWeb } from "./modelo";
 import { chaveDoGuardado } from "./guardado";

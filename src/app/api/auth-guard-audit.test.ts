@@ -398,9 +398,8 @@ vi.mock("sharp", () => ({ default: () => ({ metadata: async () => ({}) }) }));
 // PDF renderers — mocked so pdf-lib / sharp never load in the audit.
 vi.mock("@/lib/contract-pdf", () => H.build("contract-pdf", ["renderContractPdf"]));
 vi.mock("@/lib/proposal-pdf", () => H.build("proposal-pdf", ["renderProposalPdf"]));
-vi.mock("@/lib/proposal-doc-pdf", () => H.build("proposal-doc-pdf", ["renderProposalDocPdf"]));
 vi.mock("@/lib/proposal-doc-render", () =>
-  H.build("proposal-doc-render", ["renderStoredProposalDocPdf"]),
+  H.build("proposal-doc-render", ["renderStoredEditorialPdfWithReport"]),
 );
 
 const { calls } = H;

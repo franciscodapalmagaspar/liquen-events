@@ -2,6 +2,7 @@ import "server-only";
 import { getState, listStateByPrefix, setState, type ResultadoDeEscrita } from "./app-state";
 import type { Mapper } from "./repository";
 import { log } from "./logger";
+import type { IdiomaDaProposta } from "./orcamento/listas-fechadas";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -89,7 +90,7 @@ export interface EnvioDeProposta {
    *  o envio não passou pelo ecrã novo (o texto da casa, um envio antigo). */
   modelo: string;
   /** A língua em que o email saiu. */
-  idioma: "pt" | "en";
+  idioma: IdiomaDaProposta;
   assunto: string;
   /** O corpo TAL E QUAL, em texto — o que estava na caixa quando ela carregou
    *  em Enviar, já com a ligação da proposta resolvida. Não é o HTML: o que se

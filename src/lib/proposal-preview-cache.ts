@@ -1,5 +1,5 @@
 import "server-only";
-import type { DocTruncation } from "@/lib/proposal-doc-pdf";
+import type { DocTruncation } from "@/lib/pdf-editorial/cortes";
 import { criarCachePorBytes } from "@/lib/cache-por-bytes";
 
 /**

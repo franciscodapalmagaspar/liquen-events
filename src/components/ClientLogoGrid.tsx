@@ -63,7 +63,7 @@ function ClientLogo({ client, index }: { client: Client; index: number }) {
             />
           </span>
         ) : (
-          <span className="text-foreground text-[10px] sm:text-[11px] font-medium tracking-[0.15em] uppercase text-center leading-snug">
+          <span className="text-foreground text-miuda font-medium tracking-[0.15em] uppercase text-center leading-snug">
             {client.name}
           </span>
         )}

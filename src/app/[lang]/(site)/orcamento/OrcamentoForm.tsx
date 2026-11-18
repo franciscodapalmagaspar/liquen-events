@@ -158,7 +158,7 @@ function FloatingField({
         )}
       </label>
       {error && errorId && (
-        <p id={errorId} role="alert" className="mt-2 text-[11px] tracking-wide text-gold-text">
+        <p id={errorId} role="alert" className="mt-2 text-miuda tracking-wide text-gold-text">
           {error}
         </p>
       )}
@@ -170,7 +170,7 @@ function FloatingField({
  *  do componente) para que `EscolhaUnica`, aqui abaixo, use exactamente a mesma
  *  — duas legendas parecidas mas diferentes notam-se logo. */
 const labelCls =
-  "block text-[10.5px] font-medium text-foreground/70 tracking-[0.16em] uppercase mb-3 transition-colors duration-300 group-focus-within:text-moss-dark";
+  "block text-miuda font-medium text-foreground/70 tracking-[0.16em] uppercase mb-3 transition-colors duration-300 group-focus-within:text-moss-dark";
 
 /**
  * Grupo de escolha ÚNICA e OPCIONAL, em pastilhas — o mesmo desenho das outras
@@ -230,7 +230,7 @@ function EscolhaUnica({
                 if (!active) assentarComMola(e.currentTarget);
                 onChange(active ? "" : o.id);
               }}
-              className={`px-4 py-2 pointer-coarse:min-h-11 rounded-full text-[10px] tracking-[0.12em] uppercase border transition-[background-color,border-color,color,box-shadow,transform] duration-200 active:scale-[0.97] ${
+              className={`px-4 py-2 pointer-coarse:min-h-11 rounded-full text-miuda tracking-[0.12em] uppercase border transition-[background-color,border-color,color,box-shadow,transform] duration-200 active:scale-[0.97] ${
                 active
                   ? "bg-moss border-moss text-white shadow-sm shadow-moss/20"
                   : "border-foreground/12 text-foreground/70 hover:border-moss/40 hover:text-foreground/85"
@@ -948,7 +948,7 @@ export default function OrcamentoForm({
   // and focus switches it to solid moss.
   const ffInputCls =
     "ff-input field-line w-full bg-transparent border-b border-foreground/45 text-sm text-foreground focus:outline-none focus:border-moss";
-  const hintCls = "mt-2 text-[11px] tracking-wide text-gold-text";
+  const hintCls = "mt-2 text-miuda tracking-wide text-gold-text";
 
   // lg:pt-20 clears the tall at-rest navbar (≈164px logo lockup vs the global
   // main pt-24=96px), so the left image panel starts BELOW the header instead of
@@ -993,12 +993,12 @@ export default function OrcamentoForm({
             // `alvo-toque`: MEDIDO a 375 px com toque emulado, 72×17 px — falha
             // a altura mínima por mais de metade. É o único caminho de volta
             // ao sítio a partir do painel de imagem num tablet de toque.
-            className="alvo-toque pointer-fine:py-1 pointer-fine:-my-1 text-cream/70 text-[11px] tracking-[0.3em] uppercase hover:text-cream transition-colors inline-flex items-center gap-2 w-fit"
+            className="alvo-toque pointer-fine:py-1 pointer-fine:-my-1 text-cream/70 text-miuda tracking-[0.3em] uppercase hover:text-cream transition-colors inline-flex items-center gap-2 w-fit"
           >
             ← {to.back}
           </Link>
           <div className="my-auto">
-            <p className="text-cream/70 text-[10px] tracking-[0.5em] uppercase mb-7 flex items-center gap-3">
+            <p className="text-cream/70 text-miuda tracking-[0.5em] uppercase mb-7 flex items-center gap-3">
               <span className="w-6 h-px bg-gold/60 flex-shrink-0" />
               {to.eyebrow}
             </p>
@@ -1015,7 +1015,7 @@ export default function OrcamentoForm({
               <span className="text-moss-light">{to.titleMoss}</span>
             </p>
             <p className="text-cream/75 text-sm leading-[1.8] max-w-xs">{to.lead}</p>
-            <p className="mt-5 text-cream/55 text-[10px] tracking-[0.28em] uppercase">
+            <p className="mt-5 text-cream/55 text-miuda tracking-[0.28em] uppercase">
               {to.processHint}
             </p>
           </div>
@@ -1034,7 +1034,7 @@ export default function OrcamentoForm({
               telemóvel. */}
           <Link
             href={localizeHref("/", locale)}
-            className="alvo-toque lg:hidden text-foreground/68 text-[11px] tracking-[0.3em] uppercase hover:text-moss transition-colors inline-flex items-center gap-2 mb-8"
+            className="alvo-toque lg:hidden text-foreground/68 text-miuda tracking-[0.3em] uppercase hover:text-moss transition-colors inline-flex items-center gap-2 mb-8"
           >
             ← {to.back}
           </Link>
@@ -1057,9 +1057,7 @@ export default function OrcamentoForm({
           >
             {/* Required-fields key, before the fields so the '*' is explained
                 first (WCAG 3.3.2 Labels or Instructions). */}
-            <p className="text-foreground/68 text-[11px] leading-relaxed -mb-4">
-              {to.requiredNote}
-            </p>
+            <p className="text-foreground/68 text-miuda leading-relaxed -mb-4">{to.requiredNote}</p>
             {/* Honeypot — a bot fills it, a human never sees it. The data-*ignore
                 hints stop password managers (1Password / LastPass) from
                 autofilling it, which was silently dropping real submissions. */}
@@ -1113,7 +1111,7 @@ export default function OrcamentoForm({
                         if (!active) assentarComMola(e.currentTarget);
                         setEventType(o.label);
                       }}
-                      className={`px-4 py-2 pointer-coarse:min-h-11 rounded-full text-[10px] tracking-[0.12em] uppercase border transition-[background-color,border-color,color,box-shadow,transform] duration-200 active:scale-[0.97] ${
+                      className={`px-4 py-2 pointer-coarse:min-h-11 rounded-full text-miuda tracking-[0.12em] uppercase border transition-[background-color,border-color,color,box-shadow,transform] duration-200 active:scale-[0.97] ${
                         active
                           ? "bg-moss border-moss text-white shadow-sm shadow-moss/20"
                           : "border-foreground/12 text-foreground/70 hover:border-moss/40 hover:text-foreground/85"
@@ -1180,7 +1178,7 @@ export default function OrcamentoForm({
                           if (!active) assentarComMola(e.currentTarget);
                           alternarDecor(p.id);
                         }}
-                        className={`px-4 py-2 pointer-coarse:min-h-11 rounded-full text-[10px] tracking-[0.12em] uppercase border transition-[background-color,border-color,color,box-shadow,transform] duration-200 active:scale-[0.97] ${
+                        className={`px-4 py-2 pointer-coarse:min-h-11 rounded-full text-miuda tracking-[0.12em] uppercase border transition-[background-color,border-color,color,box-shadow,transform] duration-200 active:scale-[0.97] ${
                           active
                             ? "bg-moss border-moss text-white shadow-sm shadow-moss/20"
                             : "border-foreground/12 text-foreground/70 hover:border-moss/40 hover:text-foreground/85"
@@ -1264,7 +1262,7 @@ export default function OrcamentoForm({
                     }}
                     className="w-4 h-4 accent-moss cursor-pointer"
                   />
-                  <span className="text-[11px] tracking-wide">{to.dateFlexibleLabel}</span>
+                  <span className="text-miuda tracking-wide">{to.dateFlexibleLabel}</span>
                 </label>
               </div>
               {/* Same escape hatch as the date: "how many" is often the last
@@ -1307,14 +1305,14 @@ export default function OrcamentoForm({
                     }}
                     className="w-4 h-4 accent-moss cursor-pointer"
                   />
-                  <span className="text-[11px] tracking-wide">{to.guestsFlexibleLabel}</span>
+                  <span className="text-miuda tracking-wide">{to.guestsFlexibleLabel}</span>
                 </label>
                 {/* A ordem de grandeza. Só aparece depois de ela dizer que não
                     sabe o número — antes disso seria uma pergunta a mais num
                     formulário cuja força é ser curto. */}
                 {guestsFlexible && (
                   <div className="mt-2">
-                    <p className="mb-2 text-[11px] leading-relaxed text-foreground/70">
+                    <p className="mb-2 text-miuda leading-relaxed text-foreground/70">
                       {to.hintPessoasAprox}
                     </p>
                     <div
@@ -1336,7 +1334,7 @@ export default function OrcamentoForm({
                               // página para a tirar seria absurdo.
                               setPessoasAprox(active ? "" : r.id);
                             }}
-                            className={`px-3 py-1.5 pointer-coarse:min-h-11 rounded-full text-[10px] tracking-[0.1em] uppercase border transition-[background-color,border-color,color] duration-200 ${
+                            className={`px-3 py-1.5 pointer-coarse:min-h-11 rounded-full text-miuda tracking-[0.1em] uppercase border transition-[background-color,border-color,color] duration-200 ${
                               active
                                 ? "bg-moss border-moss text-white"
                                 : "border-foreground/12 text-foreground/70 hover:border-moss/40 hover:text-foreground/85"
@@ -1447,7 +1445,7 @@ export default function OrcamentoForm({
                 </FloatingField>
                 <p
                   id="of-email-hint"
-                  className="mt-2 text-[11px] leading-relaxed text-foreground/68"
+                  className="mt-2 text-miuda leading-relaxed text-foreground/68"
                 >
                   {to.hintEmail}
                 </p>
@@ -1483,7 +1481,7 @@ export default function OrcamentoForm({
                 coisa que se pergunta depois numa frase. */}
             {ehCasamento && nome.trim().length > 0 && (
               <div>
-                <p className="mb-3 text-[11px] tracking-[0.14em] uppercase text-foreground/70">
+                <p className="mb-3 text-miuda tracking-[0.14em] uppercase text-foreground/70">
                   {to.labelNoivos}
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-9">
@@ -1525,7 +1523,7 @@ export default function OrcamentoForm({
                     />
                   </FloatingField>
                 </div>
-                <p className="mt-2 text-[11px] text-foreground/70">{to.hintNoivos}</p>
+                <p className="mt-2 text-miuda text-foreground/70">{to.hintNoivos}</p>
               </div>
             )}
 
@@ -1620,20 +1618,20 @@ export default function OrcamentoForm({
                   id="of-confirmar-titulo"
                   ref={confirmarRef}
                   tabIndex={-1}
-                  className="text-[11px] tracking-[0.18em] uppercase text-foreground/78 outline-none"
+                  className="text-miuda tracking-[0.18em] uppercase text-foreground/78 outline-none"
                 >
                   {to.confirmarTitulo}
                 </h3>
                 <dl className="mt-4 grid gap-3">
                   <div>
-                    <dt className="text-[11px] text-foreground/68">{to.confirmarEmail}</dt>
+                    <dt className="text-miuda text-foreground/68">{to.confirmarEmail}</dt>
                     <dd className="mt-0.5 text-lg text-foreground [overflow-wrap:anywhere]">
                       {email.trim()}
                     </dd>
                   </div>
                   {temTelefone && (
                     <div>
-                      <dt className="text-[11px] text-foreground/68">{to.confirmarTelefone}</dt>
+                      <dt className="text-miuda text-foreground/68">{to.confirmarTelefone}</dt>
                       <dd className="mt-0.5 text-lg text-foreground tabular-nums">
                         {/* Gravado em E.164, mostrado como se lê («+351 912 345 678»). */}
                         {telefonesJaCarregados()?.telefoneParaLer(telefone) ?? telefone.trim()}
@@ -1658,7 +1656,7 @@ export default function OrcamentoForm({
                       setAConfirmar(false);
                       emailRef.current?.focus();
                     }}
-                    className="alvo-toque pointer-fine:py-1 pointer-fine:-my-1 text-[11px] tracking-[0.22em] uppercase text-foreground/68 hover:text-moss transition-colors"
+                    className="alvo-toque pointer-fine:py-1 pointer-fine:-my-1 text-miuda tracking-[0.22em] uppercase text-foreground/68 hover:text-moss transition-colors"
                   >
                     {to.confirmarCorrigir}
                   </button>
@@ -1703,7 +1701,7 @@ export default function OrcamentoForm({
                 // (164×17 em inglês) — falha a altura mínima por mais de
                 // metade, ao lado do botão de enviar, a acção alternativa a
                 // quem prefere WhatsApp.
-                className="alvo-toque pointer-fine:py-1 pointer-fine:-my-1 inline-flex items-center gap-2.5 text-[11px] tracking-[0.22em] uppercase text-foreground/68 hover:text-moss transition-colors"
+                className="alvo-toque pointer-fine:py-1 pointer-fine:-my-1 inline-flex items-center gap-2.5 text-miuda tracking-[0.22em] uppercase text-foreground/68 hover:text-moss transition-colors"
               >
                 <WhatsAppIcon className="w-4 h-4 flex-shrink-0" />
                 {to.ouWhatsApp}
@@ -1714,14 +1712,14 @@ export default function OrcamentoForm({
             {/* Sem JavaScript o «Enviar» fica desligado: diz porquê e por onde. */}
             <AvisoSemJavaScript
               lingua={locale === "en" ? "en" : "pt"}
-              className="-mt-3 max-w-md text-[11px] leading-relaxed text-foreground/70"
+              className="-mt-3 max-w-md text-miuda leading-relaxed text-foreground/70"
             />
 
             {/* A nota de proteção de dados logo por baixo do «Enviar»
                 (17/11, `docs/LEGAL-FORMULARIO.md`), a mesma de todos os
                 formulários; a seguir, a frase que tranquiliza no momento da
                 decisão. */}
-            <div className="mt-6 max-w-md text-[11px] leading-relaxed text-foreground/70">
+            <div className="mt-6 max-w-md text-miuda leading-relaxed text-foreground/70">
               <NotaDeProtecaoDeDados
                 lingua={locale === "en" ? "en" : "pt"}
                 classeDaLigacao="underline underline-offset-2 hover:text-foreground/80 transition-colors"

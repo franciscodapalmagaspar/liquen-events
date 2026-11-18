@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProposalDoc } from "@/lib/proposal-doc";
-import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import { type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import { nomeDoFicheiroDaProposta } from "@/lib/email-proposta-textos";
 import { MARCADOR_DA_LIGACAO, temLigacaoDaProposta } from "@/lib/email-ligacao-reservada";
 // `email-limites` e NÃO `email-corpo-escrito`: aquele é `server-only` e

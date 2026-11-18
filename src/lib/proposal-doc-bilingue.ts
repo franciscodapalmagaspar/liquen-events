@@ -64,7 +64,7 @@
  * contagens, que é o pior dos dois mundos.
  */
 
-import type { IdiomaDaProposta } from "./proposal-doc-textos";
+import { type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import type { ProposalDoc } from "./proposal-doc";
 import {
   camposDoDocumento,

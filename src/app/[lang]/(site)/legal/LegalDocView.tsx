@@ -31,7 +31,7 @@ export default function LegalDocView({
     <section className="bg-surface">
       <div className="max-w-3xl mx-auto px-6 lg:px-8 pt-40 pb-24 lg:pb-32">
         <AnimateIn>
-          <p className="text-foreground/68 text-[10px] tracking-[0.4em] uppercase mb-6">
+          <p className="text-foreground/68 text-miuda tracking-[0.4em] uppercase mb-6">
             {doc.updated}
           </p>
           <h1

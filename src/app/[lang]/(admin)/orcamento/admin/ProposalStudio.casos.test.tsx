@@ -7,16 +7,13 @@ import { useState } from "react";
 import { ToastProvider } from "./Toast";
 import ProposalStudio, { porqueFalhouOEnvio } from "./ProposalStudio";
 import {
-  avisoDeConteudoIncompleto,
-  cortesDoCabecalho,
-} from "@/lib/orcamento/estudio/conteudo-incompleto";
-import {
   contagemDePrecos,
   modoDoAdicional,
   textoDoAdicional,
 } from "@/lib/orcamento/estudio/precos-e-iva";
-import { textoDoTotal } from "@/lib/orcamento/estudio/textos-do-estudio";
+import { avisoDeConteudoIncompleto, textoDoTotal } from "@/lib/orcamento/estudio/textos-do-estudio";
 import { totaisDaProposta } from "@/lib/proposal-budget";
+import { cortesDoCabecalho } from "@/lib/orcamento/envio/contrato";
 // A MESMA geometria que o gerador usa. As caixas esperadas não se escrevem à
 // mão: sai daqui o que a página desenha, e é com isso que a grelha do estúdio
 // tem de concordar.

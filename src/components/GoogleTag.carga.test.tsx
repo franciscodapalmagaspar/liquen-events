@@ -204,6 +204,15 @@ describe("GoogleTag — sem «Aceitar», a biblioteca da Google não entra", () 
 
 /** Achados da revisão independente (17/11). */
 describe("GoogleTag — a escolha feita a meio da visita, aqui ou noutro separador", () => {
+  /**
+   * Outro separador escreveu no `localStorage`. O componente só lê a `key` do
+   * evento `storage`, por isso ela vai como propriedade do evento e não no
+   * segundo argumento de `new StorageEvent(…)`: as definições do CodeQL ainda
+   * dão ao `StorageEvent` um construtor sem argumentos e contavam esse como
+   * argumento a mais (`js/superfluous-trailing-arguments`, lote de 17/11).
+   */
+  const outroSeparadorEscreveu = (key: string) =>
+    window.dispatchEvent(Object.assign(new Event("storage"), { key }));
   const fila = () =>
     (window as unknown as { dataLayer: IArguments[] }).dataLayer.map((a) => Array.from(a));
   const ultimoUpdate = () =>
@@ -217,7 +226,7 @@ describe("GoogleTag — a escolha feita a meio da visita, aqui ou noutro separad
     aplicarConsentimentoGoogle(false); // a recusa que ficou desta visita
     expect((window as unknown as Record<string, unknown>)[`ga-disable-${GA4_ID}`]).toBe(true);
     localStorage.setItem("liquen-consent", "granted");
-    window.dispatchEvent(new StorageEvent("storage", { key: "liquen-consent" }));
+    outroSeparadorEscreveu("liquen-consent");
     expect(gtagsNoDocumento()).toHaveLength(1);
     expect(ultimoUpdate()).toMatchObject({ analytics_storage: "granted" });
     expect((window as unknown as Record<string, unknown>)[`ga-disable-${GA4_ID}`]).toBe(false);
@@ -228,7 +237,7 @@ describe("GoogleTag — a escolha feita a meio da visita, aqui ou noutro separad
     try {
       render(<GoogleTag />); // com consentimento (beforeEach): fica à espera do gesto
       localStorage.setItem("liquen-consent", "denied");
-      window.dispatchEvent(new StorageEvent("storage", { key: "liquen-consent" }));
+      outroSeparadorEscreveu("liquen-consent");
       window.dispatchEvent(new Event("pointerdown"));
       vi.advanceTimersByTime(60_000);
       expect(gtagsNoDocumento()).toHaveLength(0);
@@ -269,7 +278,7 @@ describe("GoogleTag — a escolha feita a meio da visita, aqui ou noutro separad
     expect(localStorage.getItem(meta.META_CLICK_KEY)).toContain("IwAR_outro_separador");
     render(<GoogleTag />);
     localStorage.setItem("liquen-consent", "denied");
-    window.dispatchEvent(new StorageEvent("storage", { key: "liquen-consent" }));
+    outroSeparadorEscreveu("liquen-consent");
     expect(localStorage.getItem(meta.META_CLICK_KEY)).toBeNull();
     localStorage.setItem("liquen-consent", "granted");
     meta.aoMudarConsentimento(true);

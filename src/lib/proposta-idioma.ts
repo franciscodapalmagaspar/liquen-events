@@ -2,7 +2,7 @@ import {
   ehIdiomaDaProposta,
   IDIOMA_POR_OMISSAO,
   type IdiomaDaProposta,
-} from "./proposal-doc-textos";
+} from "@/lib/orcamento/listas-fechadas";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════

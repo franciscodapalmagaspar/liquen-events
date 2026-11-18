@@ -9,6 +9,14 @@ import type { AcontecimentoDoPedido } from "@/lib/orcamento/estado-do-pedido";
 import { eur } from "@/lib/money";
 import { nascerContratoDoGanho } from "@/lib/contrato-do-ganho";
 import { log } from "@/lib/logger";
+import {
+  ESTADOS_DA_PROPOSTA,
+  MOTIVOS_DE_RECUSA,
+  VERSOES_ESCOLHIDAS,
+} from "@/lib/orcamento/listas-fechadas";
+import { observar } from "@/lib/fronteira/observar";
+import { ehUmDe } from "@/lib/todos-os-valores";
+import { esquemaDoCorpoDaProposta } from "@/lib/fronteira/corpos-das-rotas";
 
 export const runtime = "nodejs";
 
@@ -120,15 +128,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return NextResponse.json({ error: "Corpo inválido" }, { status: 400 });
     }
-    const VALID_STATUS = ["rascunho", "enviada", "em_negociacao", "aceite", "rejeitada"];
-    if ("status" in body && !VALID_STATUS.includes(body.status)) {
+    if ("status" in body && !ehUmDe(ESTADOS_DA_PROPOSTA, body.status)) {
       return NextResponse.json({ error: "Estado inválido" }, { status: 400 });
     }
     // Lista fechada e contável — a razão está em `MotivoDeRecusa`. Aceitar
     // texto livre aqui esvaziava a única pergunta que isto serve para
     // responder: perdemos por preço quantas vezes?
-    const VALID_MOTIVO = ["preco", "data", "escolheram-outro", "sem-resposta", "outro"];
-    if ("lostReason" in body && body.lostReason && !VALID_MOTIVO.includes(body.lostReason)) {
+    if ("lostReason" in body && body.lostReason && !ehUmDe(MOTIVOS_DE_RECUSA, body.lostReason)) {
       return NextResponse.json({ error: "Motivo inválido" }, { status: 400 });
     }
     // O seguimento é uma data do calendário, não um carimbo de tempo. Uma
@@ -142,7 +148,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (
       "versaoEscolhida" in body &&
       body.versaoEscolhida &&
-      !["base", "extras"].includes(body.versaoEscolhida)
+      !ehUmDe(VERSOES_ESCOLHIDAS, body.versaoEscolhida)
     ) {
       return NextResponse.json({ error: "Versão inválida" }, { status: 400 });
     }
@@ -164,6 +170,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         return NextResponse.json({ error: "Nota inválida" }, { status: 400 });
       }
     }
+    // A fronteira, em modo de observar (fase 6): diz o que não bate, não recusa.
+    // Depois das guardas: o que a rota já recusou não vale o trabalho.
+    observar(esquemaDoCorpoDaProposta, body, "o corpo do PATCH propostas/[id]", { id });
     const allowed = [
       "status",
       "respondedAt",

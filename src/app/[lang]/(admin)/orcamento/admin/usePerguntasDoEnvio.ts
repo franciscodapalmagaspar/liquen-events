@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import type { Corte } from "@/lib/orcamento/estudio/conteudo-incompleto";
+import type { Corte } from "@/lib/orcamento/envio/contrato";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════

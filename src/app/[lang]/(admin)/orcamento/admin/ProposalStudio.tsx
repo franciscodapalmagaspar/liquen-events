@@ -50,13 +50,12 @@ import {
   type MoodBoard,
   type VatMode,
 } from "@/lib/proposal-doc";
+import { camposDoEventoNaLingua, isoDaDataPorExtenso } from "@/lib/proposal-doc-textos";
 import {
   IDIOMA_POR_OMISSAO,
-  camposDoEventoNaLingua,
   ehIdiomaDaProposta,
-  isoDaDataPorExtenso,
   type IdiomaDaProposta,
-} from "@/lib/proposal-doc-textos";
+} from "@/lib/orcamento/listas-fechadas";
 import { fotosQueDaoCor } from "@/lib/pdf-editorial/grupos";
 import { ordemDeSaida, eAOrdemEscrita, aplicarOrdem, ORDEM_EXPLICITA } from "@/lib/proposal-ordem";
 import {
@@ -90,12 +89,8 @@ import { useLarguraDaZona } from "./useMedida";
 import { useFotoComPlanoB } from "@/lib/useFotoComPlanoB";
 import AEnviarAProposta from "./AEnviarAProposta";
 import PerguntaAntesDoEnvio from "./PerguntaAntesDoEnvio";
+import * as contrato from "@/lib/orcamento/envio/contrato";
 import { passoParaCorrigir, usePerguntasDoEnvio } from "./usePerguntasDoEnvio";
-import {
-  avisoDeConteudoIncompleto,
-  cortesDoCabecalho,
-  normalizaCortes,
-} from "@/lib/orcamento/estudio/conteudo-incompleto";
 import { guardarPdfVisto, lerPdfVisto, type PdfVisto } from "./pdf-visto";
 import { BotaoWhatsApp } from "./ui/BotaoWhatsApp";
 
@@ -173,6 +168,7 @@ import NotasInternas from "./NotasInternas";
 import { MenuDeAccoes } from "./ui/MenuDeAccoes";
 import AvisoDataOcupada from "./AvisoDataOcupada";
 import { estadoDasSeccoes, oQueFaltaParaEnviar, podeEnviar } from "@/lib/proposal-progress";
+import { pareceEmail } from "@/lib/parece-email";
 import { hojeNoEstudio } from "@/lib/fuso";
 import {
   FRASE_DO_ESTADO,
@@ -309,6 +305,7 @@ import {
   temasLevadosPelasLinhas,
 } from "@/lib/orcamento/estudio/temas-e-fotos";
 import {
+  avisoDeConteudoIncompleto,
   textoDaGravacao,
   textoDoTotal,
   type EstadoDaGravacaoNoEcra,
@@ -6814,14 +6811,15 @@ export default function ProposalStudio({
     const blob = await res.blob();
     // A geração que acabou de acontecer ensina a próxima estimativa: quantas
     // fotos, quanto tempo, quantos bytes. Medido, não estimado.
-    if (res.headers.get("X-Pdf-Da-Memoria") !== "1") {
+    const { CABECALHOS_DA_PRE_VISUALIZACAO: CABECALHO } = contrato;
+    if (res.headers.get(CABECALHO.pdfDaMemoria) !== "1") {
       apontarGeracao(totalDeFotos, Date.now() - comecou, blob.size);
     }
     return {
       blob,
-      chave: rascunho ? null : res.headers.get("X-Chave-Do-Pdf"),
-      emFalta: Number(res.headers.get("X-Fotos-Em-Falta") ?? "0"),
-      cortes: res.headers.get("X-Conteudo-Cortado"),
+      chave: rascunho ? null : res.headers.get(CABECALHO.chaveDoPdf),
+      emFalta: Number(res.headers.get(CABECALHO.fotosEmFalta) ?? "0"),
+      cortes: res.headers.get(CABECALHO.conteudoCortado),
     };
   }
 
@@ -6899,7 +6897,7 @@ export default function ProposalStudio({
       const chave = rascunho ? null : pdf.chave;
       if (chave) setPdfVisto({ chave, retrato, confirmado: false, emFalta: pdf.emFalta });
       const emFalta = pdf.emFalta;
-      const cortes = cortesDoCabecalho(pdf.cortes);
+      const cortes = contrato.cortesDoCabecalho(pdf.cortes);
       const aviso = avisoDeConteudoIncompleto(emFalta, cortes);
       if (aviso) {
         toast(`PDF gerado, mas ${aviso}. Verifica antes de enviar.`, "error");
@@ -7133,7 +7131,7 @@ export default function ProposalStudio({
         return;
       }
       if (res.status === 409 && data?.precisaConfirmarCortes) {
-        const cortes = normalizaCortes(data.truncations);
+        const cortes = contrato.normalizaCortes(data.truncations);
         perguntas.perguntar({ tipo: "cortes", cortes, retrato: retratoDoEnvio });
         return;
       }
@@ -7159,7 +7157,7 @@ export default function ProposalStudio({
       // menos é o problema que originou esta contagem; saber que o email saiu
       // é secundário quando o documento que ele leva está incompleto.
       const emFalta = Number(data?.missingImages ?? 0);
-      const aviso = avisoDeConteudoIncompleto(emFalta, normalizaCortes(data?.truncations));
+      const aviso = avisoDeConteudoIncompleto(emFalta, contrato.normalizaCortes(data?.truncations));
       /**
        * ══════════════════════════════════════════════════════════════════════
        * «ENVIADA» SÓ QUANDO FOI MESMO ENVIADA
@@ -7297,12 +7295,11 @@ export default function ProposalStudio({
   /**
    * Há destinatário para esta proposta?
    *
-   * A MESMA regra do servidor (ver a rota do envio): um endereço com arroba e
-   * um ponto no domínio. Não é uma validação a sério — é a que distingue «não
-   * há email nenhum» de «há». Se as duas discordassem, o ecrã dizia que ia
-   * seguir e o servidor não o mandava.
+   * A MESMA regra do servidor (`pareceEmail`): distingue «não há email nenhum»
+   * de «há». Se as duas discordassem, o ecrã dizia que ia seguir e o servidor
+   * não o mandava.
    */
-  const emailDoCliente = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(quote.email ?? "");
+  const emailDoCliente = pareceEmail(quote.email);
 
   // Sugestões e a validade por omissão. Uma leitura só, ao abrir; se falhar,
   // o estúdio funciona como antes — nenhuma destas coisas é indispensável.

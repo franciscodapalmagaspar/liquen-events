@@ -1,6 +1,6 @@
 import "server-only";
 import type { PDFDocument, PDFImage, PDFPage, RGB } from "pdf-lib";
-import type { DocTruncation } from "@/lib/proposal-doc-pdf";
+import type { DocTruncation } from "./cortes";
 import type { IdiomaDaProposta, TextosDoDocumento } from "@/lib/proposal-doc-textos";
 import { PAGINA_H, PAGINA_W } from "@/lib/proposal-geometria";
 import { embedImagem } from "./embutir";
@@ -59,7 +59,7 @@ export interface Contexto {
   rodape: string;
   /** O logótipo na versão creme, com transparência (é uma forma recortada). */
   logo: PDFImage | null;
-  /** O que o desenho cortou — o mesmo relatório do gerador antigo. */
+  /** O que o desenho cortou — ver `DocTruncation`. */
   cortes: DocTruncation[];
   /** Fotografias (pela origem) que chegaram e não se conseguiram desenhar. */
   naoDesenhadas: Set<string>;

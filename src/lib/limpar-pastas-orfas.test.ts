@@ -119,6 +119,19 @@ describe("as fotografias de pedidos que já não existem (10/11)", () => {
     expect(r).toMatchObject({ apagadas: 1, emEspera: 0, pastasApagadas: ["LIQ-APAGADO-1/"] });
   });
 
+  it("o registo leva a data já validada, no formato de sempre, e não o texto gravado (CodeQL, lote de 17/11)", async () => {
+    const { log } = await import("@/lib/logger");
+    vi.mocked(log.info).mockClear();
+    // Uma data gravada noutro formato (só o dia), mas válida e antiga.
+    st.estado[CHAVE] = { "LIQ-APAGADO-1": "2026-11-01" };
+    await limparPastasDePedidosApagados(dia9);
+    expect(st.apagadas).toEqual(["LIQ-APAGADO-1"]);
+    expect(log.info).toHaveBeenCalledWith(
+      "limpeza: pasta de pedido apagado saiu do armazenamento",
+      { pasta: "LIQ-APAGADO-1", ficheiros: 2, candidataDesde: "2026-11-01T00:00:00.000Z" },
+    );
+  });
+
   it("se entretanto alguma coisa passou a mencioná-la, sai da espera e fica", async () => {
     await limparPastasDePedidosApagados(dia1);
     st.tabelas.tasks = [{ nota: "ver LIQ-APAGADO-1/b.jpg" }];

@@ -1,10 +1,60 @@
 /*
- * As frases do estúdio: o estado da gravação e o número do total. O que o PDF
- * não leva vive em `conteudo-incompleto.ts`, ao lado.
+ * As frases do estúdio: o que o PDF não leva, o estado da gravação e o número do total.
  *
- * Saiu tal e qual do `ProposalStudio.tsx` (fase 1 de `docs/ESTRUTURA-DO-CODIGO.md`).
+ * Saiu tal e qual do `ProposalStudio.tsx` (fase 1 de `docs/ESTRUTURA-DO-CODIGO.md`);
+ * o componente reexporta o que já exportava, para nenhum chamador mudar.
  */
 import { quandoGravado } from "@/lib/quando-gravado";
+import type { Corte } from "@/lib/orcamento/envio/contrato";
+
+// ── O que o PDF não leva ──
+//
+// Há duas maneiras de uma proposta seguir para o cliente incompleta, e a
+// Catarina tem de ver as DUAS antes de a enviar:
+//
+//  1. a foto não chegou — o servidor não a conseguiu ir buscar (`missingImages`);
+//  2. o conteúdo chegou e NÃO COUBE — a sétima foto de um mood board, a
+//     terceira linha do "Local", uma descrição comprida de mais (`truncations`).
+//
+// O caso 2 era completamente mudo: as fotos eram carregadas, descarregadas com
+// sucesso, e simplesmente nunca desenhadas. Vem agora do gerador já com o sítio
+// e a quantidade; aqui só se escreve a frase.
+
+/* A forma de um corte, a sua guarda e o cabeçalho que o traz são do
+ * contrato da rota (`orcamento/envio/contrato.ts`): importam-se de lá. */
+
+/** "Mood board «Cerimónia»: 3 fotos não entram no PDF". */
+export function fraseDeCorte(c: Corte): string {
+  if (c.unit === "fotos") {
+    return `${c.where}: ${c.dropped === 1 ? "1 foto não entra" : `${c.dropped} fotos não entram`} no PDF`;
+  }
+  return `${c.where}: ${c.dropped === 1 ? "1 linha cortada" : `${c.dropped} linhas cortadas`}`;
+}
+
+/**
+ * A frase única do aviso, ou `null` quando o documento vai completo.
+ *
+ * As duas perdas aparecem JUNTAS porque, para quem vai carregar em "Enviar", o
+ * problema é o mesmo — o documento vai incompleto — mas ficam DISTINTAS na
+ * frase, porque a correcção não é a mesma: uma foto que não chegou tenta-se de
+ * novo, um mood board com fotos a mais tem de perder fotos.
+ */
+export function avisoDeConteudoIncompleto(emFalta: number, cortes: Corte[]): string | null {
+  const partes: string[] = [];
+  if (emFalta > 0) {
+    // "buscá-la OU desenhá-la": a contagem cobre as duas avarias — a foto que
+    // não se conseguiu ir buscar ao armazenamento e a que se foi buscar e não
+    // se conseguiu imprimir (um WebP antigo da biblioteca, bytes corrompidos).
+    // Para quem envia é a mesma perda e a mesma correcção: recarregar a foto.
+    partes.push(
+      emFalta === 1
+        ? "1 foto não entrou (não foi possível ir buscá-la ou desenhá-la)"
+        : `${emFalta} fotos não entraram (não foi possível ir buscá-las ou desenhá-las)`,
+    );
+  }
+  for (const c of cortes) partes.push(fraseDeCorte(c));
+  return partes.length ? partes.join("; ") : null;
+}
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
