@@ -102,6 +102,14 @@ const jaRegistados = new Set<string>();
 const TECTO_DE_REGISTADOS = 500;
 
 /**
+ * Já verificados nesta versão. Uma lista lê todos os pedidos de cada vez, e
+ * verificar o mesmo pedido, sem mudanças, em cada pedido HTTP era processador
+ * gasto para nada (regra 7). A `versao` é o carimbo de alteração do registo.
+ */
+const jaVerificados = new Set<string>();
+const TECTO_DE_VERIFICADOS = 5000;
+
+/**
  * Verifica `valor` e, se não tiver a forma, regista-o. Nunca lança e nunca
  * muda o valor. Devolve se passou (para os testes; quem lê não precisa).
  */
@@ -109,9 +117,17 @@ export function registarSeForaDoEsquema(
   tipo: "pedido" | "documento-do-estudio",
   id: string,
   valor: unknown,
+  /** O carimbo de alteração; sem ele verifica-se sempre. */
+  versao?: string,
 ): boolean {
+  const visto = versao ? `${tipo}|${id}|${versao}` : null;
+  if (visto && jaVerificados.has(visto)) return true;
   const schema = tipo === "pedido" ? pedidoLidoSchema : documentoLidoSchema;
   const r = schema.safeParse(valor);
+  if (visto) {
+    if (jaVerificados.size >= TECTO_DE_VERIFICADOS) jaVerificados.clear();
+    jaVerificados.add(visto);
+  }
   if (r.success) return true;
   const problemas = formaDosProblemas(r.error);
   const chave = `${tipo}|${id}|${problemas.join(",")}`;

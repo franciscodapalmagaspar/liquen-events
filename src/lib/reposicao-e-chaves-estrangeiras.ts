@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { log } from "./logger";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -59,6 +60,39 @@ export function soltarLigacoesOrfas<T extends Record<string, unknown>>(
   return { linhas: out, soltas };
 }
 
+/**
+ * O mesmo que {@link soltarLigacoesOrfas}, para um conjunto da reposição, e com
+ * o registo de quantas linhas perderam a ligação (sem valores de clientes).
+ */
+export function semLigacoesAPedidosQueNaoExistem<T extends Record<string, unknown>>(
+  linhas: readonly T[],
+  campo: string,
+  pedidosQueExistem: ReadonlySet<string>,
+  conjunto: string,
+): T[] {
+  const r = soltarLigacoesOrfas(linhas, campo, pedidosQueExistem);
+  if (r.soltas > 0) {
+    log.warn("restauro: linhas da cópia com um pedido que já não existe entram sem a ligação", {
+      dataset: conjunto,
+      soltas: r.soltas,
+    });
+  }
+  return r.linhas;
+}
+
+/** Os ids dos pedidos que existem, lidos da base na primeira vez que se pedem. */
+export type IdsDosPedidos = () => Promise<ReadonlySet<string>>;
+
+/**
+ * Uma leitura só por reposição: as tarefas, as faturas e os contratos usam o
+ * mesmo conjunto. Só se lê quando o primeiro deles o pede — depois de os
+ * pedidos terem sido repostos, porque vêm antes na ordem da reposição.
+ */
+export function idsDosPedidosUmaVez(sb: SupabaseClient, tabela: string): IdsDosPedidos {
+  let lidos: Promise<ReadonlySet<string>> | null = null;
+  return () => (lidos ??= lerIds(sb, tabela, "id").then((ids) => new Set(ids)));
+}
+
 /** Todos os valores de uma coluna, página a página. */
 export async function lerIds(
   sb: SupabaseClient,
@@ -84,13 +118,14 @@ export async function lerIds(
  * estão nos dois lados (regra 1 do topo). O resultado final é o mesmo de
  * «apagar tudo e inserir», desde que `linhas` traga TODAS as colunas que a
  * inserção traria — quem chama acrescenta as que a base preencheria sozinha.
+ * Devolve quantas linhas apagou.
  */
 export async function substituirSemApagarOsQueFicam(
   sb: SupabaseClient,
   tabela: string,
   coluna: string,
   linhas: readonly Record<string, unknown>[],
-): Promise<void> {
+): Promise<number> {
   const saem = idsQueSaem(
     await lerIds(sb, tabela, coluna),
     linhas.map((l) => String(l[coluna])),
@@ -110,4 +145,5 @@ export async function substituirSemApagarOsQueFicam(
       });
     if (error) throw error;
   }
+  return saem.length;
 }

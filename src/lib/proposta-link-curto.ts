@@ -79,15 +79,7 @@ import {
  * 16 caracteres em vez de duzentos.
  */
 
-/**
- * ── ONDE VIVEM AS GAVETAS (P7, 18/11) ─────────────────────────────────────
- *
- * Na tabela `ligacoes_de_proposta` (ver `ligacoes-de-proposta-tabela.ts`), e,
- * enquanto o P7 não chegar ao tempo (4), TAMBÉM no `app_state`: escreve-se nos
- * dois, lê-se da tabela e, quando ela não sabe, do `app_state`. Um link antigo
- * abre sempre pelo mesmo código, venha a resposta de onde vier.
- */
-
+/** P7 (18/11): as gavetas vivem também na tabela — ver `ligacoes-de-proposta-tabela.ts`. */
 /** O prefixo das gavetas, no armazenamento de estado partilhado. */
 const PREFIXO = "ligacao-proposta:";
 
@@ -309,8 +301,7 @@ export async function criarLigacaoCurta(
         proposta: ligacao.propostaId,
       });
     }
-    // E a tabela (P7). Nunca lança, e falhar não estraga nada: o app_state,
-    // gravado acima, continua a abrir o link.
+    // E a tabela (P7). Nunca lança; falhar não estraga o link (o app_state abre-o).
     await gravarLigacaoNaTabela({ codigo, ...ligacao });
     return codigo;
   } catch (e) {
@@ -344,9 +335,7 @@ export async function lerLigacaoCurta(
   }
   try {
     const g = (await lerLigacaoDaTabela(codigo)) ?? (await getState<LigacaoCurta>(chave(codigo)));
-    if (!g?.propostaId) return null;
-    if (g.revogadaEm) return null;
-    if (g.expiraEm && Date.parse(g.expiraEm) < Date.now()) return null;
+    if (!g?.propostaId || !aindaAbre(g)) return null;
     // `criadaEm` sai daqui porque o corte de links precisa de saber a idade
     // deste endereço: morre o que foi emitido ANTES do corte, e esta é a única
     // fonte dessa data para a porta do código curto.
@@ -378,25 +367,29 @@ function aindaAbre(l: { revogadaEm?: string; expiraEm?: string }): boolean {
 async function codigoJaEmitido(propostaId: string): Promise<string | null> {
   const id = String(propostaId ?? "").trim();
   if (!id) return null;
-  // A tabela primeiro (P7). Um código dela que já não serve (expirado ou
-  // cortado) não decide nada: o app_state pode ter um mais novo, cunhado antes
-  // de a tabela existir.
-  const daTabela = await codigoAtualDaTabela(id);
-  if (daTabela && aindaAbre(daTabela) && pareceCodigoCurto(daTabela.codigo)) {
-    return daTabela.codigo;
-  }
+  // Até ao tempo (4) do P7, o inverso do app_state MANDA: é a última escrita, e
+  // a tabela pode ter ficado para trás (uma gravação nela que falhou). A tabela
+  // só responde quando o app_state não sabe — não tem inverso, ou não respondeu.
+  let inverso: string | null = null;
   try {
     const guardado = await getState<{ codigo?: string }>(`${PREFIXO_INVERSO}${id}`);
-    const codigo = String(guardado?.codigo ?? "");
-    if (!pareceCodigoCurto(codigo)) return null;
-    const ligacao = await getState<LigacaoCurta>(chave(codigo));
-    if (!ligacao?.propostaId || !aindaAbre(ligacao)) return null;
-    return codigo;
+    inverso = guardado?.codigo ? String(guardado.codigo) : null;
   } catch {
-    // Uma leitura que falha não é «não há código». Mas o desfecho é o mesmo, e
-    // cunhar outro é melhor do que não haver endereço nenhum.
-    return null;
+    inverso = null;
   }
+  if (inverso) {
+    if (!pareceCodigoCurto(inverso)) return null;
+    const ligacao =
+      (await lerLigacaoDaTabela(inverso)) ??
+      (await getState<LigacaoCurta>(chave(inverso)).catch(() => null));
+    // Uma leitura que falha não é «não há código», mas o desfecho é o mesmo:
+    // cunhar outro é melhor do que não haver endereço nenhum.
+    return ligacao?.propostaId && aindaAbre(ligacao) ? inverso : null;
+  }
+  const daTabela = await codigoAtualDaTabela(id);
+  return daTabela && aindaAbre(daTabela) && pareceCodigoCurto(daTabela.codigo)
+    ? daTabela.codigo
+    : null;
 }
 
 /**

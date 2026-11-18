@@ -85,3 +85,13 @@ describe("o documento do estúdio lido (P6, só registo)", () => {
     expect(String(avisos[0].ctx.problemas)).toContain("moodBoards:");
   });
 });
+
+describe("o custo: cada versão de um registo verifica-se uma vez", () => {
+  it("a mesma versão não volta a ser verificada; uma versão nova volta", () => {
+    expect(registarSeForaDoEsquema("pedido", "LIQ-V", PEDIDO, "2026-11-18T10:00:00Z")).toBe(true);
+    // Mesma versão: não se volta a olhar (o valor nem chega ao esquema).
+    expect(registarSeForaDoEsquema("pedido", "LIQ-V", null, "2026-11-18T10:00:00Z")).toBe(true);
+    // Versão nova: verifica-se outra vez.
+    expect(registarSeForaDoEsquema("pedido", "LIQ-V", null, "2026-11-18T11:00:00Z")).toBe(false);
+  });
+});

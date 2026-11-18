@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  idsDosPedidosUmaVez,
   idsQueSaem,
   soltarLigacoesOrfas,
   substituirSemApagarOsQueFicam,
@@ -91,5 +92,30 @@ describe("substituirSemApagarOsQueFicam", () => {
     const { sb, tabela } = supabaseFalso(muitos);
     await substituirSemApagarOsQueFicam(sb, "quotes", "id", [{ id: "Q00007" }]);
     expect([...tabela.keys()]).toEqual(["Q00007"]);
+  });
+});
+
+describe("idsDosPedidosUmaVez", () => {
+  it("lê os pedidos uma vez por reposição, por mais conjuntos que os peçam", async () => {
+    let leituras = 0;
+    const sb = {
+      from: () => ({
+        select: () => ({
+          order: () => ({
+            range: async () => {
+              leituras++;
+              return { data: [{ id: "Q1" }], error: null };
+            },
+          }),
+        }),
+      }),
+    } as unknown as SupabaseClient;
+    const pedidos = idsDosPedidosUmaVez(sb, "quotes");
+    expect(leituras).toBe(0);
+    const [a, b, c] = await Promise.all([pedidos(), pedidos(), pedidos()]);
+    expect([...a]).toEqual(["Q1"]);
+    expect(b).toBe(a);
+    expect(c).toBe(a);
+    expect(leituras).toBe(1);
   });
 });

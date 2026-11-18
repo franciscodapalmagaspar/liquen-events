@@ -135,4 +135,23 @@ describe("os códigos curtos na tabela (P7)", () => {
     });
     expect(await enderecoDaProposta(PROPOSTA, "LIQ-1")).toMatch(/-novo00000000$/);
   });
+
+  it("até ao tempo (4), o inverso do app_state manda: a tabela pode ter ficado para trás", async () => {
+    // A gravação na tabela falhou quando se cunhou o código novo: a tabela
+    // ainda tem o antigo (válido) como atual; o app_state tem o novo.
+    tabela.linhas.set("antigo000000", {
+      codigo: "antigo000000",
+      propostaId: PROPOSTA,
+      criadaEm: "2026-11-01T00:00:00Z",
+      expiraEm: daqui(10).toISOString(),
+    });
+    tabela.atual.set(PROPOSTA, "antigo000000");
+    gaveta.set(`ligacao-de-proposta:${PROPOSTA}`, { codigo: "recente00000" });
+    gaveta.set("ligacao-proposta:recente00000", {
+      propostaId: PROPOSTA,
+      criadaEm: "2026-11-17T00:00:00Z",
+      expiraEm: daqui(30).toISOString(),
+    });
+    expect(await enderecoDaProposta(PROPOSTA, "LIQ-1")).toMatch(/-recente00000$/);
+  });
 });

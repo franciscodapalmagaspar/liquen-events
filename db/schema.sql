@@ -1334,6 +1334,8 @@ security invoker
 set search_path = ''
 as $$
 begin
+  -- Em fila por proposta (P7b, 18/11): duas gravações ao mesmo tempo não colidem no índice único.
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('ligacoes_de_proposta:' || p_proposal_id::text, 0));
   insert into public.ligacoes_de_proposta (codigo, proposal_id, criada_em, expira_em, atual)
   values (p_codigo, p_proposal_id, p_criada_em, p_expira_em, false)
   on conflict (codigo) do nothing;

@@ -5,8 +5,13 @@ import { registarSeForaDoEsquema } from "./esquemas-de-leitura";
 import { createRepository, type Mapper } from "./repository";
 
 /** P6: o documento do estúdio verificado com esquema, em modo de só registar. */
-function docLido(id: string, doc: unknown): Proposal["doc"] {
-  registarSeForaDoEsquema("documento-do-estudio", id, doc);
+function docLido(id: string, doc: unknown, versao: unknown): Proposal["doc"] {
+  registarSeForaDoEsquema(
+    "documento-do-estudio",
+    id,
+    doc,
+    typeof versao === "string" ? versao : undefined,
+  );
   return doc as Proposal["doc"];
 }
 
@@ -88,7 +93,9 @@ export const mapper: Mapper<Proposal> = {
     // mantém `getProposal` a devolver exatamente o que devolvia antes desta
     // coluna existir, e o portal do cliente a esconder o botão do PDF em vez de
     // oferecer um documento que não há.
-    ...(r.doc && typeof r.doc === "object" ? { doc: docLido(String(r.id), r.doc) } : {}),
+    ...(r.doc && typeof r.doc === "object"
+      ? { doc: docLido(String(r.id), r.doc, r.updated_at) }
+      : {}),
     ...(r.pdf_sha256 ? { pdfSha256: String(r.pdf_sha256) } : {}),
     ...(r.pdf_bytes != null ? { pdfBytes: Number(r.pdf_bytes) } : {}),
     // Simétrico do `toRow`, com uma exigência a mais: só se lê o que é MESMO

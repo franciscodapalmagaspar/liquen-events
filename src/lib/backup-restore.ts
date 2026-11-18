@@ -9,9 +9,10 @@ import { log } from "./logger";
 import { MAX_PROPOSAL_DOC_BYTES } from "./proposal-doc";
 import { isMissingTable, type Mapper } from "./repository";
 import {
-  lerIds,
-  soltarLigacoesOrfas,
+  idsDosPedidosUmaVez,
+  semLigacoesAPedidosQueNaoExistem,
   substituirSemApagarOsQueFicam,
+  type IdsDosPedidos,
 } from "./reposicao-e-chaves-estrangeiras";
 import { mapper as quotesMapper, listQuotes } from "./quotes-store";
 import { mapper as proposalsMapper, listAllProposals } from "./proposals-store";
@@ -1519,14 +1520,20 @@ export async function applyRestore(file: ValidBackup, plan: RestorePlan): Promis
   const applied: RestoreOutcome[] = [];
   const failed: DatasetFailure[] = [];
   const sb = getSupabase();
+  // Lidos uma vez, quando o primeiro conjunto com ligação ao pedido precisa
+  // deles — já depois de os pedidos serem repostos, que vêm primeiro.
+  const pedidos = sb ? idsDosPedidosUmaVez(sb, quotesMapper.table) : null;
 
   for (const target of RESTORE_TARGETS) {
     const rows = file.rows.get(target.key);
     const planned = plan.datasets.find((d) => d.key === target.key);
     if (!rows || planned?.skipped) continue;
     try {
+      // Para os pedidos, «apagados» é o que o plano mostrou (os que a cópia
+      // substitui), embora só saiam os que a cópia não traz — ver
+      // `semApagarOsQueFicam`. O número no ecrã não muda com o P5.
       const deleted = planned?.current ?? 0;
-      await replaceAll(sb, target, rows);
+      await replaceAll(sb, target, rows, pedidos);
       applied.push({ key: target.key, label: target.label, deleted, inserted: rows.length });
     } catch (err) {
       log.error("restauro: conjunto NÃO foi reposto", err, {
@@ -1553,6 +1560,7 @@ async function replaceAll(
   sb: SupabaseClient | null,
   target: RestoreTarget<AnyRow>,
   rows: AnyRow[],
+  pedidos: IdsDosPedidos | null = null,
 ): Promise<void> {
   // Sem Supabase: em produção isto é RECUSADO — gravar num ficheiro efémero
   // apagaria a base e diria que tinha reposto (a mesma recusa de
@@ -1586,10 +1594,15 @@ async function replaceAll(
     // apagava o trabalho de etiquetar e depois não conseguia repor as fotos que
     // as etiquetas apontavam.
     const colunaDaChave = target.mapper.idColumn ?? "id";
-    // Lido ANTES de apagar: um pedido que falta à base não aparece a meio.
-    const linhas = target.ligacaoAoPedido
-      ? await soltarOrfas(sb, target, rows, target.ligacaoAoPedido)
-      : rows;
+    const linhas =
+      target.ligacaoAoPedido && pedidos
+        ? semLigacoesAPedidosQueNaoExistem(
+            rows,
+            target.ligacaoAoPedido,
+            await pedidos(),
+            target.key,
+          )
+        : rows;
     // `toRow` primeiro (é a tradução oficial do store) e por cima as colunas
     // que ele deixa à base de dados preencher — ver `extraColumns`.
     const convertidas = linhas.map((r) => ({
@@ -1615,24 +1628,6 @@ async function replaceAll(
   const file = path.join(process.cwd(), "data", target.mapper.fileName);
   await fs.mkdir(path.dirname(file), { recursive: true });
   await fs.writeFile(file, JSON.stringify(rows, null, 2));
-}
-
-/** Ver `RestoreTarget.ligacaoAoPedido`. Os pedidos já foram repostos (vêm antes). */
-async function soltarOrfas(
-  sb: SupabaseClient,
-  target: RestoreTarget<AnyRow>,
-  rows: AnyRow[],
-  campo: string,
-): Promise<AnyRow[]> {
-  const pedidos = new Set(await lerIds(sb, quotesMapper.table, quotesMapper.idColumn ?? "id"));
-  const { linhas, soltas } = soltarLigacoesOrfas(rows, campo, pedidos);
-  if (soltas > 0) {
-    log.warn("restauro: linhas da cópia com um pedido que já não existe entram sem a ligação", {
-      dataset: target.key,
-      soltas,
-    });
-  }
-  return linhas;
 }
 
 /** Grava os contadores no valor planeado e CONFIRMA que ficaram lá. */

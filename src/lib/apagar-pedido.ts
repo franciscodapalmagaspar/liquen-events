@@ -165,6 +165,12 @@ export async function apagarPedidoSemContrato(
   // pedido, sem chave estrangeira: apagar o pedido deixava-as para trás, com
   // os dados pessoais que esta função existe para apagar. A Reciclagem guarda-
   // as no retrato do pedido ANTES de chamar isto, e repõe-nas com ele.
+  //
+  // Desde o P5 (17/11) a base apaga-as sozinha com o pedido (`on delete
+  // cascade`). Por isso, se alguma ficou por apagar aqui, o pedido NÃO sai:
+  // senão a cascata levava-as sem que este relatório nem a Reciclagem o
+  // soubessem. Uma segunda tentativa sabe o que ainda falta.
+  let tarefasFicaram = false;
   try {
     const tarefas = (await listTasks()).filter((t) => (t.quoteId ?? "").trim() === id);
     for (const t of tarefas) {
@@ -173,11 +179,13 @@ export async function apagarPedidoSemContrato(
         contou.tarefas++;
         saiu.tarefas.push(t.id);
       } catch (e) {
+        tarefasFicaram = true;
         falhou.push(`a tarefa ${t.id} não foi apagada`);
         log.error("apagar-pedido: tarefa não apagada", e, { pedido: id, tarefa: t.id });
       }
     }
   } catch (e) {
+    tarefasFicaram = true;
     falhou.push("não consegui listar as tarefas deste pedido");
     log.error("apagar-pedido: listagem de tarefas falhou", e, { pedido: id });
   }
@@ -236,6 +244,12 @@ export async function apagarPedidoSemContrato(
   }
 
   // ── E o pedido, por último ───────────────────────────────────────────────
+  if (tarefasFicaram) {
+    log.warn("apagar-pedido: ficaram tarefas — o pedido não sai (a cascata levá-las-ia)", {
+      pedido: id,
+    });
+    return { apagado: false, contou, falhou, saiu };
+  }
   try {
     await deleteQuote(id);
   } catch (e) {

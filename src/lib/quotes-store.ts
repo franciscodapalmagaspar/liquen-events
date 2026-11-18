@@ -49,8 +49,14 @@ export const mapper: Mapper<Quote> = {
   // P6: verificado com esquema, em modo de só registar (`esquemas-de-leitura.ts`).
   fromRow: (r) => {
     // A leitura só pede `data` (`selectColumns`): o id vem de lá.
-    const id = (r.data as { id?: unknown } | null)?.id;
-    registarSeForaDoEsquema("pedido", typeof id === "string" ? id : "", r.data);
+    const q = r.data as { id?: unknown; lastUpdated?: unknown; submittedAt?: unknown } | null;
+    const versao = q?.lastUpdated ?? q?.submittedAt;
+    registarSeForaDoEsquema(
+      "pedido",
+      typeof q?.id === "string" ? q.id : "",
+      r.data,
+      typeof versao === "string" ? versao : undefined,
+    );
     return r.data as Quote;
   },
   order: { column: "created_at", ascending: false },

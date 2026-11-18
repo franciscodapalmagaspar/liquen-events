@@ -37,6 +37,8 @@ const dados = vi.hoisted(() => ({
   pedidoRebenta: false,
   tarefas: [] as { id: string; quoteId?: string }[],
   tarefasApagadas: [] as string[],
+  tarefasRebentam: false,
+  tarefaQueFalha: null as string | null,
   /** As chaves de rascunho que existem (`draft:<chave>`). */
   estado: new Map<string, unknown>(),
 }));
@@ -80,8 +82,12 @@ vi.mock("@/lib/proposal-storage", () => ({
   },
 }));
 vi.mock("@/lib/tasks-store", () => ({
-  listTasks: async () => dados.tarefas,
+  listTasks: async () => {
+    if (dados.tarefasRebentam) throw new Error("base em baixo");
+    return dados.tarefas;
+  },
   deleteTask: async (id: string) => {
+    if (dados.tarefaQueFalha === id) throw new Error("recusado");
     dados.tarefasApagadas.push(id);
   },
 }));
@@ -128,6 +134,8 @@ beforeEach(() => {
   dados.pedidoRebenta = false;
   dados.tarefas = [];
   dados.tarefasApagadas = [];
+  dados.tarefasRebentam = false;
+  dados.tarefaQueFalha = null;
 });
 
 describe("apagar um pedido sem contrato", () => {
@@ -284,5 +292,27 @@ describe("o que ficou por apagar é DITO", () => {
     dados.pedidoRebenta = true;
     dados.propostaQueFalha = "p1";
     await expect(apagarPedidoSemContrato("q1")).resolves.toBeTruthy();
+  });
+});
+
+describe("P5: as tarefas caem em cascata com o pedido", () => {
+  it("uma tarefa que não saiu faz o pedido ficar — a cascata levava-a sem ninguém saber", async () => {
+    dados.tarefas = [
+      { id: "t1", quoteId: "q1" },
+      { id: "t2", quoteId: "q1" },
+    ];
+    dados.tarefaQueFalha = "t2";
+    const r = await apagarPedidoSemContrato("q1");
+    expect(r.apagado).toBe(false);
+    expect(dados.pedidosApagados).toEqual([]);
+    expect(r.saiu.tarefas).toEqual(["t1"]);
+    expect(r.falhou).toContain("a tarefa t2 não foi apagada");
+  });
+
+  it("sem conseguir listar as tarefas, o pedido também fica", async () => {
+    dados.tarefasRebentam = true;
+    const r = await apagarPedidoSemContrato("q1");
+    expect(r.apagado).toBe(false);
+    expect(dados.pedidosApagados).toEqual([]);
   });
 });
