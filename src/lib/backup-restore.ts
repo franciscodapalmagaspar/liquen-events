@@ -604,8 +604,10 @@ const asTarget = <T>(t: RestoreTarget<T>): RestoreTarget<AnyRow> =>
  *
  * A ordem não é decorativa: `proposals.quote_id` é uma chave estrangeira
  * (db/schema.sql). Inserir uma proposta antes do pedido dela rebenta com
- * violação de integridade referencial. Os conjuntos são apagados pela ordem
- * INVERSA, pela mesma razão.
+ * violação de integridade referencial. Cada conjunto é escrito por inteiro
+ * antes do seguinte (ver `reposicao/escrever-conjunto.ts`: os pedidos são
+ * escritos por cima e só sai o que a cópia não traz; os outros apagam e
+ * inserem).
  */
 export const RESTORE_TARGETS: readonly RestoreTarget<AnyRow>[] = [
   asTarget({
@@ -1511,7 +1513,7 @@ export interface ApplyResult {
  * escrito a frase de confirmação — a rota trata dessa sequência, e de fazer a
  * cópia do estado actual antes de chamar isto.
  *
- * Cada conjunto é apagado e reescrito. Um conjunto que falhe NÃO trava os
+ * Cada conjunto é reescrito (ver `reposicao/escrever-conjunto.ts`). Um conjunto que falhe NÃO trava os
  * outros (parar a meio deixaria a base num estado ainda pior do que continuar)
  * mas sai em `failed` PELO NOME, e a rota devolve isso ao ecrã.
  */
@@ -1556,7 +1558,7 @@ export async function applyRestore(file: ValidBackup, plan: RestorePlan): Promis
   return { applied, failed, counters: plan.counters, countersFailed };
 }
 
-/** Apaga tudo e reescreve. A conversão é a do `mapper` do store, sempre. */
+/** Reescreve um conjunto. A conversão é a do `mapper` do store, sempre. */
 async function replaceAll(
   sb: SupabaseClient | null,
   target: RestoreTarget<AnyRow>,

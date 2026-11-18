@@ -265,6 +265,14 @@ export async function apagarPedidoSemContrato(
       falhou.push("nasceu um contrato neste pedido enquanto se apagava");
       return { apagado: false, contou, falhou, saiu };
     }
+    // E uma PROPOSTA (uma criada noutro ecrã, ou uma que não saiu lá em cima):
+    // o `set null` deixava-a solta, com o nome do casal, e uma segunda
+    // tentativa já não a encontrava pelo pedido.
+    const propostasVivas = await listProposalsForQuote(id);
+    if (propostasVivas.length > 0) {
+      falhou.push(`ficaram ${propostasVivas.length} proposta(s) neste pedido`);
+      return { apagado: false, contou, falhou, saiu };
+    }
     const novas = await listTasksForQuote(id);
     if (novas.length > 0) {
       falhou.push(`apareceram ${novas.length} tarefa(s) novas neste pedido`);

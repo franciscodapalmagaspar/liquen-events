@@ -21,7 +21,10 @@ export const mapper: Mapper<Proposal> = {
   getId: (p) => p.id,
   toRow: (p) => ({
     id: p.id,
-    quote_id: p.quoteId,
+    // Vazio é «sem pedido»: '' não é id de pedido nenhum, e a chave estrangeira
+    // (`set null`) recusava-o — uma proposta que ficou solta não se podia gravar
+    // nem repor. O `fromRow` lê null como ''.
+    quote_id: p.quoteId || null,
     client_name: p.clientName,
     client_email: p.clientEmail,
     currency: p.currency,

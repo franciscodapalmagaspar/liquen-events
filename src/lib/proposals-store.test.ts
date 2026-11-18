@@ -157,6 +157,14 @@ describe("mapper — toRow / fromRow round-trip", () => {
     expect(row.responded_at).toBeNull();
   });
 
+  it("P5: uma proposta solta (sem pedido) grava quote_id null, nunca '' (a chave recusava-o)", () => {
+    // Ida e volta: a base devolve null, o fromRow lê '', e o toRow tem de
+    // voltar a escrever null — senão a proposta solta não se gravava nem repunha.
+    const solta = mapper.fromRow({ ...mapper.toRow(mk()), quote_id: null, id: "p" });
+    expect(solta.quoteId).toBe("");
+    expect(mapper.toRow(solta).quote_id).toBeNull();
+  });
+
   it("defaults an unknown/absent status to rascunho on read", () => {
     expect(mapper.fromRow({ id: "x" }).status).toBe("rascunho");
   });

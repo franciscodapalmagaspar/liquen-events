@@ -56,6 +56,7 @@ vi.mock("@/lib/proposals-store", () => ({
   deleteProposal: async (id: string) => {
     if (dados.propostaQueFalha === id) throw new Error("recusado");
     dados.apagadas.push(id);
+    dados.propostas = dados.propostas.filter((p) => p.id !== id);
   },
 }));
 vi.mock("@/lib/contracts-store", () => ({
@@ -268,8 +269,12 @@ describe("o que ficou por apagar é DITO", () => {
     const r = await apagarPedidoSemContrato("q1");
     expect(r.contou.propostas).toBe(1);
     expect(r.falhou.join(" ")).toContain("p2");
-    // E o resto continua: uma falha não pode travar o apagamento inteiro.
-    expect(r.apagado).toBe(true);
+    // O resto continua (fotografias, rascunhos), mas o PEDIDO fica (P5): com a
+    // proposta p2 ainda lá, apagá-lo deixava-a solta pelo `set null`, com o
+    // nome do casal, e uma segunda tentativa já não a encontrava.
+    expect(r.apagado).toBe(false);
+    expect(dados.pedidosApagados).toEqual([]);
+    expect(r.falhou).toContain("ficaram 1 proposta(s) neste pedido");
   });
 
   it("uma fotografia que ficou no bucket aparece na lista", async () => {
