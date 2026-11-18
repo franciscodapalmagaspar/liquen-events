@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { FolhaOuDialogo } from "../../ui";
 import { ESTADO, PRESSAO } from "../../ui/movimento";
+import { accoesDaFoto } from "./accoes-da-foto";
+import { BarraDoRatoDaFoto } from "./BarraDoRatoDaFoto";
+import { FolhaDasAccoesDaFoto } from "./FolhaDasAccoesDaFoto";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -129,70 +131,19 @@ export function AccoesDaFoto({
   onRemover: () => void;
 }) {
   const [folhaAberta, setFolhaAberta] = useState(false);
-  /* SEM `alvo-toque`, e é o coração da correcção: esta barra só existe onde há
-     rato (`com-rato`), e ali o mínimo de 44 px nunca se aplicaria de qualquer
-     maneira. O que ele fazia era garantir que, no dia em que a media query
-     falhasse, sete ícones de 24 px se tornassem sete quadrados de 44 — que é a
-     coluna de 328 px medida em cima. */
-  const botao =
-    "flex h-6 w-6 items-center justify-center rounded-md bg-black/55 text-[11px] leading-none text-white hover:bg-black/75 disabled:opacity-30";
-
-  /* A MESMA lista para os dois caminhos. Duas listas seriam duas versões da
-     verdade — a acção acrescentada num sítio e esquecida no outro é a forma
-     mais barata de o telemóvel voltar a ficar para trás. */
-  const accoes: {
-    id: string;
-    rotulo: string;
-    glifo: string;
-    onAccao: () => void;
-    desativada?: boolean;
-    activa?: boolean;
-    destrutiva?: boolean;
-  }[] = [
-    {
-      id: "recuar",
-      rotulo: "Mover para trás",
-      glifo: "←",
-      onAccao: onRecuar,
-      desativada: !podeRecuar,
-    },
-    {
-      id: "avancar",
-      rotulo: "Mover para a frente",
-      glifo: "→",
-      onAccao: onAvancar,
-      desativada: !podeAvancar,
-    },
-    { id: "ampliar", rotulo: "Ver em grande", glifo: "⤢", onAccao: onAmpliar },
-    { id: "substituir", rotulo: "Trocar por outra fotografia", glifo: "⇄", onAccao: onSubstituir },
-    ...(principal !== undefined
-      ? [
-          {
-            id: "principal",
-            rotulo: principal
-              ? "Deixar de ser a fotografia do cartão"
-              : "Fotografia do cartão (a primeira do tema no PDF)",
-            glifo: "★",
-            onAccao: onPrincipal,
-            activa: principal,
-          },
-        ]
-      : []),
-    {
-      id: "seleccionar",
-      rotulo: seleccionada ? "Retirar da selecção" : "Escolher para mover em conjunto",
-      glifo: "✓",
-      onAccao: onSeleccionar,
-      activa: seleccionada,
-    },
-    {
-      id: "remover",
-      rotulo: "Remover fotografia",
-      glifo: "×",
-      onAccao: onRemover,
-      destrutiva: true,
-    },
-  ];
+  const accoes = accoesDaFoto({
+    podeRecuar,
+    podeAvancar,
+    principal,
+    seleccionada,
+    onRecuar,
+    onAvancar,
+    onAmpliar,
+    onSubstituir,
+    onPrincipal,
+    onSeleccionar,
+    onRemover,
+  });
 
   return (
     <>
@@ -218,50 +169,12 @@ export function AccoesDaFoto({
         </svg>
       </button>
 
-      <FolhaOuDialogo
-        aberto={folhaAberta}
-        onFechar={() => setFolhaAberta(false)}
-        titulo={nome}
-        descricao="O que se pode fazer a esta fotografia."
-        largura="sm"
-      >
-        <div className="flex flex-col">
-          {accoes.map((a, i) => {
-            // Um traço antes da primeira que apaga: é o que impede o toque
-            // distraído em «Remover» quando se queria a linha de cima.
-            const primeiraDestrutiva =
-              a.destrutiva && !accoes.slice(0, i).some((x) => x.destrutiva);
-            return (
-              <button
-                key={a.id}
-                type="button"
-                disabled={a.desativada}
-                onClick={() => {
-                  setFolhaAberta(false);
-                  a.onAccao();
-                }}
-                className={`alvo-toque !justify-start flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm  disabled:opacity-30 ${
-                  a.destrutiva
-                    ? "text-[var(--bo-perigo)] hover:bg-[var(--bo-perigo)]/[0.07]"
-                    : "text-[var(--bo-text)] hover:bg-[var(--bo-tinta-6)]"
-                } ${primeiraDestrutiva ? "mt-1 border-t border-[var(--bo-hairline)] pt-3" : ""} ${ESTADO} ${PRESSAO}`}
-              >
-                <span
-                  aria-hidden="true"
-                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[13px] ${
-                    a.activa
-                      ? "bg-sage-600 text-white"
-                      : "bg-[var(--bo-tinta-6)] text-[var(--bo-text-muted)]"
-                  }`}
-                >
-                  {a.glifo}
-                </span>
-                {a.rotulo}
-              </button>
-            );
-          })}
-        </div>
-      </FolhaOuDialogo>
+      <FolhaDasAccoesDaFoto
+        aberta={folhaAberta}
+        aoFechar={() => setFolhaAberta(false)}
+        nome={nome}
+        accoes={accoes}
+      />
 
       {/* ── O CAMINHO DO RATO: DUAS ACÇÕES, E O RESTO A UM TOQUE ───────────
           Palavras dela: «controlos sobrepostos à imagem». Eram seis círculos
@@ -279,49 +192,14 @@ export function AccoesDaFoto({
 
           `hidden com-rato:flex`: não existe até haver rato — nem desenhada nem
           a apanhar toques. */}
-      <div
-        className={`pointer-events-none absolute inset-x-0 bottom-0 z-20 hidden flex-wrap items-center justify-center gap-0.5 p-1 opacity-0 ${ESTADO} group-hover/foto:opacity-100 focus-within:opacity-100 com-rato:flex`}
-      >
-        <span className="pointer-events-auto flex flex-wrap items-center justify-center gap-0.5">
-          <button
-            type="button"
-            className={`${botao} ${ESTADO} ${PRESSAO}`}
-            onClick={onRecuar}
-            disabled={!podeRecuar}
-            aria-label="Mover para trás"
-          >
-            <span aria-hidden="true">←</span>
-          </button>
-          <button
-            type="button"
-            className={`${botao} ${ESTADO} ${PRESSAO}`}
-            onClick={onAvancar}
-            disabled={!podeAvancar}
-            aria-label="Mover para a frente"
-          >
-            <span aria-hidden="true">→</span>
-          </button>
-          {/* A MESMA folha do dedo, e não uma segunda lista: a acção
-              acrescentada num sítio e esquecida no outro é a forma mais barata
-              de os dois caminhos divergirem. */}
-          {/* SEM tom de estado: a célula já diz o que está ligado — anel verde
-              à volta quando está escolhida, etiqueta «principal» no canto. Um
-              «⋯» verde ler-se-ia como se o próprio botão estivesse ligado. */}
-          <button
-            type="button"
-            className={`${botao} ${ESTADO} ${PRESSAO}`}
-            onClick={() => setFolhaAberta(true)}
-            aria-haspopup="dialog"
-            aria-label={`Mais acções de ${nome}`}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-              <circle cx="5" cy="12" r="1.8" />
-              <circle cx="12" cy="12" r="1.8" />
-              <circle cx="19" cy="12" r="1.8" />
-            </svg>
-          </button>
-        </span>
-      </div>
+      <BarraDoRatoDaFoto
+        nome={nome}
+        podeRecuar={podeRecuar}
+        podeAvancar={podeAvancar}
+        onRecuar={onRecuar}
+        onAvancar={onAvancar}
+        aoAbrirAFolha={() => setFolhaAberta(true)}
+      />
     </>
   );
 }

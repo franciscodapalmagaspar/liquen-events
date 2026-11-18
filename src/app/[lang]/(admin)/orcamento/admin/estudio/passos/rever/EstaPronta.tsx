@@ -5,26 +5,18 @@ import { type StudioDoc } from "@/lib/orcamento/estudio/documento-inicial";
 import type { Quote } from "@/lib/orcamento/types";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import type { ProposalMoney } from "@/lib/proposal-doc";
-import { camposPorTraduzir, escreverEn } from "@/lib/proposal-doc-bilingue";
-import { type IdiomaDaProposta } from "@/lib/proposal-doc-textos";
-import {
-  corrigirGralha,
-  corrigirTudo,
-  gralhasDoDocumento,
-  tirarSimbolos,
-  type CampoPublicado,
-} from "@/lib/proposal-ortografia";
 import type { FotoEscolhidaEmFalta } from "@/lib/proposta-fotos-verificacao-tipos";
+import { type IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import type { CampoPublicado } from "@/lib/proposal-ortografia";
 import Conferencia from "../../../Conferencia";
 import FotosEmFalta from "../../../FotosEmFalta";
-import Gralhas from "../../../Gralhas";
-import PorTraduzir from "../../../PorTraduzir";
 import type { useToast } from "../../../Toast";
 import { type PdfVisto } from "../../../pdf-visto";
-import { Button } from "../../../ui";
 import type { CanalDeEnvio } from "../../envio/canal-de-envio";
 import { Section } from "../../formulario/Section";
 import type { Step } from "../../tipos";
+import { AntesDeEnviar } from "./AntesDeEnviar";
+import { RevisaoDoTexto } from "./RevisaoDoTexto";
 
 interface PropsEstaPronta {
   aoSaberQueFaltam: (refs: string[]) => void;
@@ -129,52 +121,14 @@ export function EstaPronta({
           pdfVisto={pdfConfirmado}
           onIr={(v) => irParaAFalta(v.seccao, v.campo)}
         />
-        {/* ── ANTES DE ENVIAR: VER O PDF FINAL (14/10) ───────────────
-                «Quero que haja algo que antes de enviar para os clientes
-                obrigue os colaboradores da Líquen a verificar se está tudo
-                bem.» A escolha dela foi «Ver o PDF primeiro». O PDF final
-                só sai sem erros (B1); depois de descarregado, pede-se a
-                confirmação; e mudar o documento depois de o ver volta a
-                pedir as duas coisas. O servidor confere a mesma chave. */}
-        <div
-          data-testid="ver-antes-de-enviar"
-          data-campo="pdf-visto"
-          className="mt-4 flex flex-col items-start gap-2 rounded-xl border border-[var(--bo-hairline-strong)] bg-[var(--bo-tinta-3)] px-3 py-3"
-        >
-          <p className="bo-eyebrow text-[var(--bo-text-muted)]">Antes de enviar</p>
-          {temErros ? (
-            <p className="text-xs leading-relaxed text-[var(--bo-tinta-72)]">
-              Primeiro corrige o que está na lista acima — o PDF final só sai sem erros. Depois
-              descarrega-o e vê-o com atenção.
-            </p>
-          ) : !pdfVistoAgora ? (
-            <>
-              <p className="text-xs leading-relaxed text-[var(--bo-tinta-72)]">
-                {pdfVisto
-                  ? "A proposta mudou depois de veres o PDF. Descarrega-o outra vez e vê-o antes de enviar."
-                  : "Descarrega o PDF final e vê-o com atenção, página a página — é exactamente o que o cliente vai receber."}
-              </p>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => void preview()}
-                disabled={busy !== null}
-              >
-                {busy === "preview" ? "A gerar o PDF…" : "Descarregar o PDF final"}
-              </Button>
-            </>
-          ) : (
-            <label className="alvo-toque flex cursor-pointer items-start gap-2 text-sm leading-snug text-[var(--bo-text)]">
-              <input
-                type="checkbox"
-                checked={!!pdfVisto?.confirmado}
-                onChange={(e) => confirmarPdfVisto(e.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-sage-600"
-              />
-              <span>Vi a proposta e está tudo certo</span>
-            </label>
-          )}
-        </div>
+        <AntesDeEnviar
+          busy={busy}
+          confirmarPdfVisto={confirmarPdfVisto}
+          pdfVisto={pdfVisto}
+          pdfVistoAgora={pdfVistoAgora}
+          preview={preview}
+          temErros={temErros}
+        />
         {/* ── AS FOTOGRAFIAS ESTÃO MESMO LÁ? ─────────────────────────
                 Primeiro de todos os avisos deste passo, e é de propósito: é
                 o único que fala de uma coisa que já não se vê no ecrã. As
@@ -191,62 +145,13 @@ export function EstaPronta({
           onRefsQueFaltam={aoSaberQueFaltam}
         />
 
-        {/* Os acentos que faltam nos campos que saem impressos. Aqui, ao
-                pé da Conferência, e não a meio de escrever: a palavra ainda
-                está a ser escrita quando o aviso apareceria. */}
-        <Gralhas
-          doc={doc as ProposalDoc}
-          onCorrigir={(g) => {
-            setDoc((d) => corrigirGralha(d, g));
-            // A palavra muda num campo que pode estar a catorze páginas
-            // daqui, dentro de uma secção que não se está a ver. No sítio
-            // do clique só se vê a linha sair desta lista — e uma linha a
-            // desaparecer não diz o que ficou escrito lá em cima.
-            //
-            // Com as duas palavras e o campo, é a mesma prestação de
-            // contas que o «Corrigir as N» ao lado já fazia com o número.
-            toast(`«${g.escrita}» passou a «${g.sugerida}» — ${g.rotulo}.`, "info");
-          }}
-          onIr={(g) => irParaCampo(g.campo)}
-          onTirarSimbolos={(s) => {
-            setDoc((d) => tirarSimbolos(d, s));
-            toast(`Tirei ${s.simbolos.join(" ")} — ${s.rotulo}.`, "info");
-          }}
-          onIrAosSimbolos={(s) => irParaCampo(s.campo)}
-          onCorrigirTudo={() => {
-            const quantas = gralhasDoDocumento(doc as ProposalDoc).length;
-            setDoc((d) => corrigirTudo(d));
-            toast(
-              quantas === 1 ? "1 palavra corrigida." : `${quantas} palavras corrigidas.`,
-              "info",
-            );
-          }}
+        <RevisaoDoTexto
+          doc={doc}
+          idiomaDoPdf={idiomaDoPdf}
+          irParaCampo={irParaCampo}
+          setDoc={setDoc}
+          toast={toast}
         />
-        {/* ── O QUE VAI SAIR EM PORTUGUÊS ─────────────────────────────
-                Logo a seguir às Gralhas, e SÓ com «Inglês» escolhido: numa
-                proposta portuguesa não há nada por traduzir, e uma secção
-                vazia a dizê-lo era ruído no ecrã de toda a gente. */}
-        {idiomaDoPdf === "en" && (
-          <PorTraduzir
-            doc={doc as ProposalDoc}
-            onFicarEmPortugues={(c) => setDoc((d) => escreverEn(d, c.campo, c.texto))}
-            onFicarTodosEmPortugues={() => {
-              const faltam = camposPorTraduzir(doc as ProposalDoc);
-              setDoc((d) => {
-                let saida = d;
-                for (const c of faltam) saida = escreverEn(saida, c.campo, c.texto);
-                return saida;
-              });
-              toast(
-                faltam.length === 1
-                  ? "1 campo fica em português."
-                  : `${faltam.length} campos ficam em português.`,
-                "info",
-              );
-            }}
-            onIr={(c) => irParaCampo(c.campo, "en")}
-          />
-        )}
       </Section>
     </div>
   );

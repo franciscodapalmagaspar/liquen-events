@@ -2,22 +2,17 @@
 
 import type { Dispatch, SetStateAction } from "react";
 import { type StudioDoc } from "@/lib/orcamento/estudio/documento-inicial";
-import {
-  LADO_MINIMO_DA_CAPA,
-  perdaNaFolha,
-  problemaDaCapa,
-  ASPETO_DA_FOLHA,
-} from "@/lib/pdf-editorial/regra-da-capa";
+import { ASPETO_DA_FOLHA } from "@/lib/pdf-editorial/regra-da-capa";
 import { isPendingImage } from "@/lib/proposal-doc";
 import { PERDA_QUE_SE_AVISA } from "@/lib/proposal-geometria";
 import { ArrastarParaEnquadrar } from "../../../ArrastarParaEnquadrar";
-import { aquecerBiblioteca } from "../../../theme-picker-cache";
 import { ESTADO, PRESSAO } from "../../../ui/movimento";
-import { ADD_BTN } from "../../classes";
 import { Section } from "../../formulario/Section";
 import { Thumb } from "../../fotos/Thumb";
-import { UploadArea } from "../../fotos/UploadArea";
 import type { DestinoDaFoto, EstadoDosUrls, Step } from "../../tipos";
+import { AvisosDaCapa } from "./AvisosDaCapa";
+import { CapaPorEscolher } from "./CapaPorEscolher";
+import { estadoDaCapa } from "./estado-da-capa";
 
 interface PropsSeccaoDaCapa {
   aspetosDasFotos: Record<string, number>;
@@ -93,60 +88,29 @@ export function SeccaoDaCapa({
       {(() => {
         const idx = idxDaCapa;
         const path = doc.coverImages?.[idx];
-        const aspeto = path ? aspetosDasFotos[path] : undefined;
-        const problema = tamanhoDaCapa
-          ? problemaDaCapa(tamanhoDaCapa.w, tamanhoDaCapa.h)
-          : aspeto && aspeto < 1
-            ? "ao-alto"
-            : null;
-        /** Ela disse «usa esta na mesma»: vai, recortada como aqui. */
-        const mesmoAssim = !!problema && !!doc.capaMesmoAssim;
-        /** A fotografia que se vê aqui NÃO é a que vai para o PDF. */
-        const naoVai = !!problema && !mesmoAssim;
-        const perda = aspeto && (!problema || mesmoAssim) ? perdaNaFolha(aspeto) : 0;
         if (!path) {
           return (
-            <div className="max-w-md">
-              <UploadArea
-                label="Fotografia da capa"
-                progresso={uploading[`cover-${idx}`]}
-                multiple={false}
-                curto
-                onFiles={(files) =>
-                  handleUpload(`cover-${idx}`, files.slice(0, 1), (paths) =>
-                    setCoverAt(idx, paths[0]),
-                  )
-                }
-              />
-              <button
-                type="button"
-                className={`${ADD_BTN} mt-1.5 ${ESTADO} ${PRESSAO}`}
-                onClick={() => setPicker({ kind: "cover", idx })}
-                // Ao passar o rato já se vai buscar o que o diálogo
-                // precisa. `focus` para o teclado, `touchstart` para o
-                // telemóvel, onde não há hover nenhum.
-                onPointerEnter={aquecerBiblioteca}
-                onFocus={aquecerBiblioteca}
-                onTouchStart={aquecerBiblioteca}
-              >
-                Da biblioteca de temas
-              </button>
-              <p className="mt-2 text-caption text-[var(--bo-text-muted)]">
-                Uma fotografia deitada, a cobrir a primeira página e a última.
-              </p>
-            </div>
+            <CapaPorEscolher
+              idx={idx}
+              progresso={uploading[`cover-${idx}`]}
+              aoCarregar={(files) =>
+                handleUpload(`cover-${idx}`, files.slice(0, 1), (paths) =>
+                  setCoverAt(idx, paths[0]),
+                )
+              }
+              setPicker={setPicker}
+            />
           );
         }
-        /**
-         * O enquadramento que se VÊ é o que sai: o escolhido à mão, ou
-         * o que o PDF escolheria sozinho (perguntado ao servidor), ou o
-         * centro enquanto a resposta não chega.
-         */
-        const focoVisto = doc.focoDaCapa ??
-          (focoAutoDaCapa?.caminho === path ? focoAutoDaCapa.foco : undefined) ?? {
-            x: 0.5,
-            y: 0.5,
-          };
+        const aspeto = aspetosDasFotos[path];
+        const { problema, mesmoAssim, naoVai, perda, focoVisto } = estadoDaCapa({
+          path,
+          aspeto,
+          tamanho: tamanhoDaCapa,
+          capaMesmoAssim: doc.capaMesmoAssim,
+          focoDaCapa: doc.focoDaCapa,
+          focoAuto: focoAutoDaCapa,
+        });
         return (
           <div className="max-w-md">
             <ArrastarParaEnquadrar
@@ -206,56 +170,15 @@ export function SeccaoDaCapa({
                 Voltar ao enquadramento automático
               </button>
             )}
-            {mesmoAssim && (
-              <p
-                role="status"
-                className="mt-2 flex items-start gap-1.5 rounded-xl border border-[var(--bo-hairline-strong)] bg-[var(--bo-tinta-3)] px-3 py-2 text-xs leading-relaxed text-[var(--bo-tinta-72)]"
-              >
-                <span>
-                  {problema === "ao-alto"
-                    ? "Vai para a capa recortada para ficar deitada, como aqui. "
-                    : "Vai para a capa, e numa página inteira pode ver-se o grão. "}
-                  <button
-                    type="button"
-                    className={`alvo-toque relative font-medium underline underline-offset-2 ${ESTADO} ${PRESSAO}`}
-                    onClick={() => patch({ capaMesmoAssim: undefined })}
-                  >
-                    Usar a melhor deitada dos temas
-                  </button>
-                </span>
-              </p>
-            )}
-            {naoVai && (
-              <p
-                role="status"
-                className="mt-2 flex items-start gap-1.5 rounded-xl border border-[var(--bo-aviso-tom)]/35 bg-[var(--bo-aviso-tom)]/[0.06] px-3 py-2 text-xs leading-relaxed text-[var(--bo-tinta-72)]"
-              >
-                <span aria-hidden="true">⚠</span>
-                <span>
-                  {problema === "ao-alto"
-                    ? "É ao alto, e a capa é deitada. "
-                    : `É pequena para a capa (${Math.max(tamanhoDaCapa?.w ?? 0, tamanhoDaCapa?.h ?? 0)} px; pede ${LADO_MINIMO_DA_CAPA}). `}
-                  Por isso o PDF usa a melhor fotografia deitada dos temas, e não esta.{" "}
-                  <button
-                    type="button"
-                    className={`alvo-toque relative font-medium underline underline-offset-2 ${ESTADO} ${PRESSAO}`}
-                    onClick={() => patch({ capaMesmoAssim: true })}
-                  >
-                    Usar esta na mesma
-                  </button>
-                  {" · "}
-                  <button
-                    type="button"
-                    className={`alvo-toque relative font-medium underline underline-offset-2 ${ESTADO} ${PRESSAO}`}
-                    onClick={() => setPicker({ kind: "cover", idx })}
-                    onPointerEnter={aquecerBiblioteca}
-                    onFocus={aquecerBiblioteca}
-                  >
-                    Trocar
-                  </button>
-                </span>
-              </p>
-            )}
+            <AvisosDaCapa
+              idx={idx}
+              mesmoAssim={mesmoAssim}
+              naoVai={naoVai}
+              problema={problema}
+              patch={patch}
+              setPicker={setPicker}
+              tamanhoDaCapa={tamanhoDaCapa}
+            />
           </div>
         );
       })()}

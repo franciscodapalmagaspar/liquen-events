@@ -1,17 +1,16 @@
 "use client";
 
 import { useEstudio } from "./contexto";
-
-import { AvisoDoValorEnviado } from "./ecra/versoes/AvisoDoValorEnviado";
-import { CabecalhoDoEstudio } from "./ecra/CabecalhoDoEstudio";
-
-import { BarraDeBaixo } from "./ecra/barra/BarraDeBaixo";
-
-import { JanelasDoEstudio } from "./ecra/JanelasDoEstudio";
-import { PassoDeRever } from "./ecra/rever/PassoDeRever";
-import { CorpoDoEstudio } from "./ecra/CorpoDoEstudio";
-import { PassosDoEstudio } from "./ecra/PassosDoEstudio";
-import { AvisosDoEstudio } from "./ecra/AvisosDoEstudio";
+import {
+  AvisoDoValorEnviado,
+  AvisosDoEstudio,
+  BarraDeBaixo,
+  CabecalhoDoEstudio,
+  CorpoDoEstudio,
+  JanelasDoEstudio,
+  PassoDeRever,
+  PassosDoEstudio,
+} from "./ecra";
 
 /** O ecrã do «Fazer proposta»: só desenha o que o estúdio (o contexto) lhe dá. */
 export function EcraDoEstudio() {
