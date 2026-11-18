@@ -252,6 +252,21 @@ export async function apagarPedidoSemContrato(
   }
 
   // ── E o pedido, por último ───────────────────────────────────────────────
+  //
+  // Antes, as tarefas outra vez: a cascata do P5 leva as do pedido, e uma
+  // criada noutro ecrã enquanto o resto saía sumia-se sem relatório nem
+  // Reciclagem. Se apareceu alguma, o pedido fica e a próxima tentativa leva-a.
+  try {
+    const novas = (await listTasks()).filter((t) => (t.quoteId ?? "").trim() === id);
+    if (novas.length > 0) {
+      falhou.push(`apareceram ${novas.length} tarefa(s) novas neste pedido`);
+      return { apagado: false, contou, falhou, saiu };
+    }
+  } catch (e) {
+    falhou.push("não consegui confirmar as tarefas antes de apagar o pedido");
+    log.error("apagar-pedido: segunda listagem de tarefas falhou", e, { pedido: id });
+    return { apagado: false, contou, falhou, saiu };
+  }
   try {
     await deleteQuote(id);
   } catch (e) {

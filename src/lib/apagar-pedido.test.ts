@@ -89,6 +89,7 @@ vi.mock("@/lib/tasks-store", () => ({
   deleteTask: async (id: string) => {
     if (dados.tarefaQueFalha === id) throw new Error("recusado");
     dados.tarefasApagadas.push(id);
+    dados.tarefas = dados.tarefas.filter((t) => t.id !== id);
   },
 }));
 vi.mock("@/lib/logger", () => ({
@@ -325,5 +326,22 @@ describe("P5: as tarefas caem em cascata com o pedido", () => {
     const r = await apagarPedidoSemContrato("q1");
     expect(r.apagado).toBe(false);
     expect(dados.pedidosApagados).toEqual([]);
+  });
+});
+
+describe("P5: uma tarefa criada a meio do apagar", () => {
+  it("faz o pedido ficar, em vez de a cascata a levar sem ninguém saber", async () => {
+    dados.tarefas = [{ id: "t1", quoteId: "q1" }];
+    // Enquanto as fotografias saem, alguém cria uma tarefa para este pedido.
+    dados.fotos = [{ path: "q1/a.jpg" }];
+    const original = dados.removidas.push.bind(dados.removidas);
+    dados.removidas.push = (...p: string[]) => {
+      dados.tarefas = [...dados.tarefas, { id: "t-nova", quoteId: "q1" }];
+      return original(...p);
+    };
+    const r = await apagarPedidoSemContrato("q1");
+    expect(r.apagado).toBe(false);
+    expect(dados.pedidosApagados).toEqual([]);
+    expect(r.falhou).toContain("apareceram 1 tarefa(s) novas neste pedido");
   });
 });

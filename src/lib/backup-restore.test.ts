@@ -232,6 +232,8 @@ function fakeSupabase() {
             if (column) db.deleteColumns.set(table, column);
             db.writes.push(`delete:${table}`);
             db.tables.set(table, []);
+            // A cascata da FK `ligacoes_de_proposta.proposal_id` (P7), como no Postgres.
+            if (table === "proposals") db.tables.set("ligacoes_de_proposta", []);
             return { error: null };
           };
           return {
@@ -1651,5 +1653,24 @@ describe("reposição com as chaves estrangeiras para os pedidos (P5)", () => {
     expect(rowsOf("tasks")[0].quote_id).toBe("LIQ-AAA-1");
     expect(rowsOf("invoices")[0].quote_id).toBe("LIQ-AAA-1");
     expect(rowsOf("contracts")[0].quote_id).toBe("LIQ-AAA-1");
+  });
+});
+
+describe("reposição das propostas com os códigos curtos (P7)", () => {
+  it("os códigos das propostas repostas voltam; os de propostas que a cópia não traz não", async () => {
+    seedBusiness();
+    const antes = await buildBackupPayload();
+    const viva = "11111111-1111-4111-8111-111111111111";
+    rowsOf("ligacoes_de_proposta").push(
+      { codigo: "k7m2q9xdabcd", proposal_id: viva, atual: true },
+      { codigo: "orfao0000000", proposal_id: "99999999-9999-4999-8999-999999999999", atual: true },
+    );
+    const file = mustValidate(antes);
+    const result = await applyRestore(file, await planRestore(file));
+
+    expect(result.failed).toEqual([]);
+    expect(rowsOf("ligacoes_de_proposta")).toEqual([
+      { codigo: "k7m2q9xdabcd", proposal_id: viva, atual: true },
+    ]);
   });
 });

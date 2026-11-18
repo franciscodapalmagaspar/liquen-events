@@ -2,6 +2,7 @@ import "server-only";
 import { promises as fs } from "fs";
 import path from "path";
 import { z } from "zod";
+import { ESTADOS_DO_PEDIDO } from "./orcamento/estado-do-pedido";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabase } from "./supabase";
 import { getState, setState } from "./app-state";
@@ -12,6 +13,8 @@ import {
   idsDosPedidosUmaVez,
   semLigacoesAPedidosQueNaoExistem,
   substituirSemApagarOsQueFicam,
+  comDependentesGuardados,
+  type DependenteEmCascata,
   type IdsDosPedidos,
 } from "./reposicao-e-chaves-estrangeiras";
 import { mapper as quotesMapper, listQuotes } from "./quotes-store";
@@ -198,7 +201,7 @@ const nomeDoPedido = z.string().trim().min(1).max(300).nullish();
 
 const quoteSchema = z.looseObject({
   id,
-  status: z.enum(["pendente", "em_revisao", "a_preparar", "cotado", "aceite", "rejeitado"]),
+  status: z.enum(ESTADOS_DO_PEDIDO),
   name: nomeDoPedido,
   email: text(300),
   submittedAt: stamp,
@@ -603,6 +606,11 @@ export interface RestoreTarget<T = Record<string, unknown>> {
    * null` lhe faria —, em vez de rebentar a inserção do conjunto inteiro.
    */
   ligacaoAoPedido?: string;
+  /**
+   * Uma tabela que não vai na cópia e cai em cascata quando este conjunto é
+   * apagado: guarda-se antes e volta depois (`comDependentesGuardados`).
+   */
+  dependenteEmCascata?: DependenteEmCascata;
 }
 
 // Os `as unknown as` abaixo: o `Mapper<T>` de cada store é tipado com o tipo de
@@ -657,6 +665,13 @@ export const RESTORE_TARGETS: readonly RestoreTarget<AnyRow>[] = [
     // sem a coluna, as inserções falham TODAS e o `replaceAll` deixava as
     // propostas apagadas. Por isso pergunta-se antes.
     preflight: (rows) => assertProposalDocColumn(rows),
+    // Os códigos curtos dos links (P7) caem em cascata com as propostas e não
+    // vão na cópia: sem isto, cada reposição esvaziava a tabela.
+    dependenteEmCascata: {
+      tabela: "ligacoes_de_proposta",
+      chave: "codigo",
+      colunaDoPai: "proposal_id",
+    },
   }),
   // Os rascunhos do estúdio: a mesma proposta, num estado anterior — por isso
   // ficam aqui, a seguir às propostas, que é onde quem lê esta lista os vai
@@ -1616,12 +1631,20 @@ async function replaceAll(
       await substituirSemApagarOsQueFicam(sb, target.table, colunaDaChave, convertidas);
       return;
     }
-    const del = await sb.from(target.table).delete().not(colunaDaChave, "is", null);
-    if (del.error) throw del.error;
-    const CHUNK = 500;
-    for (let i = 0; i < convertidas.length; i += CHUNK) {
-      const { error } = await sb.from(target.table).insert(convertidas.slice(i, i + CHUNK));
-      if (error) throw error;
+    const apagarEInserir = async (): Promise<ReadonlySet<string>> => {
+      const del = await sb.from(target.table).delete().not(colunaDaChave, "is", null);
+      if (del.error) throw del.error;
+      const CHUNK = 500;
+      for (let i = 0; i < convertidas.length; i += CHUNK) {
+        const { error } = await sb.from(target.table).insert(convertidas.slice(i, i + CHUNK));
+        if (error) throw error;
+      }
+      return new Set(convertidas.map((r) => String(r[colunaDaChave])));
+    };
+    if (target.dependenteEmCascata) {
+      await comDependentesGuardados(sb, target.dependenteEmCascata, apagarEInserir);
+    } else {
+      await apagarEInserir();
     }
     return;
   }

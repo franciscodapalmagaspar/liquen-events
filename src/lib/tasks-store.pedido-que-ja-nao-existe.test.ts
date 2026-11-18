@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import type { Task } from "@/lib/orcamento/types";
 
 /**
@@ -101,5 +103,15 @@ describe("tarefa ligada a um pedido que já não existe (chave estrangeira do P5
     expect(eTarefaComPedidoQueNaoExiste({ code: "23503", message: "outra_fkey" })).toBe(false);
     expect(eTarefaComPedidoQueNaoExiste(null)).toBe(false);
     expect(eTarefaComPedidoQueNaoExiste(violacao())).toBe(true);
+  });
+});
+
+describe("o nome da restrição que a recuperação reconhece existe na base", () => {
+  it("tasks_quote_id_fkey está no db/schema.sql (renomeá-la desligava a recuperação)", () => {
+    const sql = readFileSync(path.join(process.cwd(), "db", "schema.sql"), "utf-8");
+    expect(sql).toContain("'tasks_quote_id_fkey'");
+    expect(
+      eTarefaComPedidoQueNaoExiste({ code: "23503", message: 'violates "tasks_quote_id_fkey"' }),
+    ).toBe(true);
   });
 });

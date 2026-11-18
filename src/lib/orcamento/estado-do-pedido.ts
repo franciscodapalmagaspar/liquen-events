@@ -114,6 +114,23 @@ export const ORDEM_DOS_ESTADOS = [
 ] as const satisfies readonly QuoteStatus[];
 
 /**
+ * TODOS os estados, numa lista só: a escada e o `rejeitado`. Os esquemas de
+ * escrita (`validation.ts`), de leitura (`esquemas-de-leitura.ts`) e da cópia
+ * (`backup-restore.ts`) leem daqui, e um teste prende-a ao `quotes_status_chk`
+ * do db/schema.sql. Um estado novo acrescenta-se aqui e no `QuoteStatus`.
+ */
+export const ESTADOS_DO_PEDIDO = [
+  ...ORDEM_DOS_ESTADOS,
+  "rejeitado",
+] as const satisfies readonly QuoteStatus[];
+
+/** Falha a compilar se um `QuoteStatus` ficar fora de {@link ESTADOS_DO_PEDIDO}. */
+const _todosOsEstados: Exclude<QuoteStatus, (typeof ESTADOS_DO_PEDIDO)[number]> extends never
+  ? true
+  : never = true;
+void _todosOsEstados;
+
+/**
  * Os rótulos que ela lê no quadro. Vivem aqui porque é aqui que se escreve a
  * linha do histórico: se o histórico dissesse «pendente → cotado» e a coluna
  * dissesse «Novo» e «Proposta enviada», eram duas linguagens para a mesma

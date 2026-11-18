@@ -1,4 +1,6 @@
-import { z } from "zod";
+import type { z } from "zod";
+import { pedidoLidoSchema } from "./orcamento/pedido.esquema";
+import { documentoLidoSchema } from "./proposal-doc.esquema";
 import { log } from "./logger";
 
 /**
@@ -11,7 +13,8 @@ import { log } from "./logger";
  * `jsonb` com uma forma inesperada entrava na aplicação e dava um `undefined`
  * silencioso três ecrãs depois.
  *
- * Estes esquemas são ESTRUTURAIS — os tipos de cada chave de topo e das
+ * Os esquemas vivem ao lado do que descrevem (`orcamento/pedido.esquema.ts`,
+ * `proposal-doc.esquema.ts`) e são ESTRUTURAIS — os tipos de cada chave de topo e das
  * coleções que se percorrem —, e não as regras de negócio da escrita (tetos,
  * comprimentos), que numa leitura só dariam alarmes falsos. Todas as chaves
  * desconhecidas passam (`looseObject`): um documento antigo ou mais novo do que
@@ -28,67 +31,6 @@ import { log } from "./logger";
  * `priceBreakdown`, que o tipo `Quote` diz obrigatório — por isso aqui é
  * opcional, e o tipo mente (fica registado no documento, não se corrige aqui).
  */
-
-const texto = z.string().nullish();
-const numero = z.number().nullish();
-const lista = z.array(z.unknown()).nullish();
-const objeto = z.record(z.string(), z.unknown()).nullish();
-
-export const pedidoLidoSchema = z.looseObject({
-  id: z.string(),
-  submittedAt: z.string(),
-  status: z.enum(["pendente", "em_revisao", "a_preparar", "cotado", "aceite", "rejeitado"]),
-  priceBreakdown: objeto,
-  name: texto,
-  email: texto,
-  lastUpdated: texto,
-  adminNotes: texto,
-  followUpAt: texto,
-  contractRef: texto,
-  quotedPrice: numero,
-  messages: lista,
-  checklist: lista,
-  productionPlan: lista,
-  payments: z.array(z.looseObject({ amount: z.number() })).nullish(),
-  timeline: lista,
-  eventSuppliers: lista,
-  tags: z.array(z.string()).nullish(),
-  guestList: lista,
-  activityLog: lista,
-  naoDuplicados: lista,
-  escolhasDoCasal: lista,
-  mapaDeMesas: objeto,
-  folhaDaTimeline: objeto,
-  faturasMoloni: objeto,
-  possivelSpam: objeto,
-});
-
-export const documentoLidoSchema = z.looseObject({
-  template: z.enum(["decoracao", "organizacao"]).nullish(),
-  ref: z.string(),
-  clientNames: z.string(),
-  eventType: z.string(),
-  eventDate: z.string(),
-  location: z.string(),
-  guests: z.string(),
-  serviceGroups: z.array(z.unknown()),
-  moodBoards: z.array(z.record(z.string(), z.unknown())),
-  budgetItems: z.array(z.string()),
-  cronograma: lista,
-  budgetItemsEn: lista,
-  budgetAmounts: lista,
-  budgetCosts: lista,
-  budgetScales: lista,
-  budgetOpcional: lista,
-  budgetRows: lista,
-  paletaDela: lista,
-  fotosDasPaginas: objeto,
-  focoDaCapa: objeto,
-  traducoesFeitas: objeto,
-  kmDeslocacao: numero,
-  carrinhasDeslocacao: numero,
-  convidadosPorMesa: numero,
-});
 
 /** O que fica no registo de uma leitura fora do esquema: caminhos e códigos. */
 export function formaDosProblemas(erro: z.ZodError): string[] {

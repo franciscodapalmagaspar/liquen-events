@@ -105,6 +105,66 @@ export function idsDosPedidosUmaVez(
     ));
 }
 
+/**
+ * Uma tabela que cai em cascata quando o conjunto que a reposição apaga sai —
+ * e que não vai na cópia, por isso não voltava. Hoje só os códigos curtos das
+ * propostas (`ligacoes_de_proposta` → `proposals`, P7).
+ */
+export interface DependenteEmCascata {
+  tabela: string;
+  /** A coluna da chave primária do dependente. */
+  chave: string;
+  /** A coluna com a chave estrangeira para o conjunto reposto. */
+  colunaDoPai: string;
+}
+
+/**
+ * Guarda as linhas do dependente, deixa `repor` apagar e reinserir o conjunto
+ * (a cascata leva-as), e volta a pôr as que ainda têm pai. As de um pai que a
+ * cópia não traz ficam de fora — a chave estrangeira não as aceitava, e são o
+ * que a cascata faria a um apagar normal. Devolve quantas voltaram.
+ */
+export async function comDependentesGuardados(
+  sb: SupabaseClient,
+  dependente: DependenteEmCascata,
+  repor: () => Promise<ReadonlySet<string>>,
+): Promise<number> {
+  const guardadas = await lerTudo(sb, dependente.tabela, dependente.chave);
+  const pais = await repor();
+  const voltam = guardadas.filter((l) => pais.has(String(l[dependente.colunaDoPai])));
+  for (let i = 0; i < voltam.length; i += LINHAS_POR_ESCRITA) {
+    const { error } = await sb
+      .from(dependente.tabela)
+      .upsert(voltam.slice(i, i + LINHAS_POR_ESCRITA), {
+        onConflict: dependente.chave,
+        ignoreDuplicates: true,
+      });
+    if (error) throw error;
+  }
+  return voltam.length;
+}
+
+/** Todas as linhas de uma tabela, página a página (pára numa página vazia). */
+async function lerTudo(
+  sb: SupabaseClient,
+  tabela: string,
+  ordem: string,
+): Promise<Record<string, unknown>[]> {
+  const linhas: Record<string, unknown>[] = [];
+  for (let desde = 0; ; ) {
+    const { data, error } = await sb
+      .from(tabela)
+      .select("*")
+      .order(ordem, { ascending: true })
+      .range(desde, desde + PAGINA - 1);
+    if (error) throw error;
+    const pagina = (data ?? []) as unknown as Record<string, unknown>[];
+    if (pagina.length === 0) return linhas;
+    linhas.push(...pagina);
+    desde += pagina.length;
+  }
+}
+
 /** Todos os valores de uma coluna, página a página. */
 export async function lerIds(
   sb: SupabaseClient,
@@ -112,7 +172,7 @@ export async function lerIds(
   coluna: string,
 ): Promise<string[]> {
   const ids: string[] = [];
-  for (let desde = 0; ; desde += PAGINA) {
+  for (let desde = 0; ; ) {
     const { data, error } = await sb
       .from(tabela)
       .select(coluna)
@@ -121,7 +181,11 @@ export async function lerIds(
     if (error) throw error;
     const pagina = (data ?? []) as unknown as Record<string, unknown>[];
     for (const r of pagina) ids.push(String(r[coluna]));
-    if (pagina.length < PAGINA) return ids;
+    // Avança pelo que VEIO e pára numa página vazia: o tecto de linhas do
+    // PostgREST é uma definição do projeto, e uma página curta não prova que
+    // acabou (com um tecto de 500, saltar de 1000 em 1000 perdia metade).
+    if (pagina.length === 0) return ids;
+    desde += pagina.length;
   }
 }
 

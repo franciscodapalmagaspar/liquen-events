@@ -1271,7 +1271,13 @@ begin
     from pg_constraint
     where connamespace = 'public'::regnamespace and contype = 'c' and not convalidated
   loop
-    execute format('alter table %s validate constraint %I', r.tabela, r.conname);
+    -- Uma linha antiga que viole a regra não pode abortar o ficheiro a meio:
+    -- fica por validar (a regra continua a valer para as linhas novas) e diz-se.
+    begin
+      execute format('alter table %s validate constraint %I', r.tabela, r.conname);
+    exception when check_violation then
+      raise notice 'P4: % fica por validar — há linhas que a violam', r.conname;
+    end;
   end loop;
 end $$;
 
@@ -1279,19 +1285,33 @@ end $$;
 -- Tarefas saem com o pedido (o que `apagar-pedido.ts` já fazia à mão); faturas e
 -- contratos ficam, sem a ligação. Ver
 -- db/migracoes/20261117_p5_chaves_estrangeiras_para_quotes.sql.
-do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'tasks_quote_id_fkey') then
-    alter table public.tasks add constraint tasks_quote_id_fkey foreign key (quote_id)
-      references public.quotes (id) on delete cascade;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'invoices_quote_id_fkey') then
-    alter table public.invoices add constraint invoices_quote_id_fkey foreign key (quote_id)
-      references public.quotes (id) on delete set null;
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'contracts_quote_id_fkey') then
-    alter table public.contracts add constraint contracts_quote_id_fkey foreign key (quote_id)
-      references public.quotes (id) on delete set null;
-  end if;
+do $$
+declare
+  fk record;
+begin
+  for fk in
+    select * from (values
+      ('tasks',     'tasks_quote_id_fkey',     'cascade'),
+      ('invoices',  'invoices_quote_id_fkey',  'set null'),
+      ('contracts', 'contracts_quote_id_fkey', 'set null')
+    ) as v(tabela, nome, ao_apagar)
+  loop
+    -- Nasce `not valid` (como os CHECK deste ficheiro) e valida-se à parte: uma
+    -- linha órfã numa base antiga não aborta o ficheiro, fica dito.
+    if not exists (
+      select 1 from pg_constraint
+      where conname = fk.nome and conrelid = format('public.%I', fk.tabela)::regclass
+    ) then
+      execute format(
+        'alter table public.%I add constraint %I foreign key (quote_id) references public.quotes (id) on delete %s not valid',
+        fk.tabela, fk.nome, fk.ao_apagar);
+    end if;
+    begin
+      execute format('alter table public.%I validate constraint %I', fk.tabela, fk.nome);
+    exception when foreign_key_violation then
+      raise notice 'P5: % fica por validar — há linhas órfãs', fk.nome;
+    end;
+  end loop;
 end $$;
 create index if not exists tasks_quote_id_idx     on public.tasks (quote_id);
 create index if not exists contracts_quote_id_idx on public.contracts (quote_id);

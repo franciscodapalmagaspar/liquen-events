@@ -94,7 +94,7 @@ export const mapper: Mapper<Proposal> = {
     // coluna existir, e o portal do cliente a esconder o botão do PDF em vez de
     // oferecer um documento que não há.
     ...(r.doc && typeof r.doc === "object"
-      ? { doc: docLido(String(r.id), r.doc, r.updated_at) }
+      ? { doc: docLido(String(r.id), r.doc, r.updated_at ?? r.created_at) }
       : {}),
     ...(r.pdf_sha256 ? { pdfSha256: String(r.pdf_sha256) } : {}),
     ...(r.pdf_bytes != null ? { pdfBytes: Number(r.pdf_bytes) } : {}),

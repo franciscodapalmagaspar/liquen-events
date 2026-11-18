@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ESTADOS_DO_PEDIDO } from "./orcamento/estado-do-pedido";
 import { normalizarTelefone } from "./contacto-do-pedido";
 import { erroDoServidorEmPortugues } from "./erro-do-servidor";
 
@@ -483,7 +484,7 @@ const mapaDeMesasSchema = z.object({
 
 export const quoteUpdateSchema = z
   .object({
-    status: z.enum(["pendente", "em_revisao", "a_preparar", "cotado", "aceite", "rejeitado"]),
+    status: z.enum(ESTADOS_DO_PEDIDO),
     quotedPrice: z.number().finite().min(0).max(10_000_000).nullish(),
     adminNotes: trimmed(20000).nullish(),
     checklist: z.array(checklistItemSchema).max(500),

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  lerIds,
   idsDosPedidosUmaVez,
   idsQueSaem,
   soltarLigacoesOrfas,
@@ -102,9 +103,9 @@ describe("idsDosPedidosUmaVez", () => {
       from: () => ({
         select: () => ({
           order: () => ({
-            range: async () => {
+            range: async (de: number) => {
               leituras++;
-              return { data: [{ id: "Q1" }], error: null };
+              return { data: de === 0 ? [{ id: "Q1" }] : [], error: null };
             },
           }),
         }),
@@ -116,7 +117,8 @@ describe("idsDosPedidosUmaVez", () => {
     expect([...a]).toEqual(["Q1"]);
     expect(b).toBe(a);
     expect(c).toBe(a);
-    expect(leituras).toBe(1);
+    // Uma página com o pedido e a página vazia que prova o fim — uma vez só.
+    expect(leituras).toBe(2);
   });
 });
 
@@ -127,11 +129,10 @@ describe("idsDosPedidosUmaVez — uma falha passageira não fica guardada", () =
       from: () => ({
         select: () => ({
           order: () => ({
-            range: async () => {
+            range: async (de: number) => {
               leituras++;
-              return leituras === 1
-                ? { data: null, error: new Error("503") }
-                : { data: [{ id: "Q1" }], error: null };
+              if (leituras === 1) return { data: null, error: new Error("503") };
+              return { data: de === 0 ? [{ id: "Q1" }] : [], error: null };
             },
           }),
         }),
@@ -140,6 +141,26 @@ describe("idsDosPedidosUmaVez — uma falha passageira não fica guardada", () =
     const pedidos = idsDosPedidosUmaVez(sb, "quotes", "id");
     await expect(pedidos()).rejects.toThrow("503");
     expect([...(await pedidos())]).toEqual(["Q1"]);
-    expect(leituras).toBe(2);
+    expect(leituras).toBe(3);
+  });
+});
+
+describe("lerIds — o tecto de linhas do PostgREST pode ser menor do que 1000", () => {
+  it("continua a ler depois de uma página curta, até vir uma vazia", async () => {
+    // Um projeto com max-rows = 500: cada pedido de 1000 devolve só 500.
+    const todos = Array.from({ length: 1200 }, (_, i) => ({
+      id: `Q${String(i).padStart(4, "0")}`,
+    }));
+    const sb = {
+      from: () => ({
+        select: () => ({
+          order: () => ({
+            range: async (de: number) => ({ data: todos.slice(de, de + 500), error: null }),
+          }),
+        }),
+      }),
+    } as unknown as SupabaseClient;
+    const ids = await lerIds(sb, "quotes", "id");
+    expect(ids).toEqual(todos.map((t) => t.id));
   });
 });

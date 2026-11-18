@@ -79,8 +79,10 @@ import {
  * 16 caracteres em vez de duzentos.
  */
 
-/** P7 (18/11): as gavetas vivem também na tabela — ver `ligacoes-de-proposta-tabela.ts`. */
-/** O prefixo das gavetas, no armazenamento de estado partilhado. */
+/**
+ * O prefixo das gavetas, no armazenamento de estado partilhado. Desde o P7
+ * (18/11) vivem também na tabela — ver `ligacoes-de-proposta-tabela.ts`.
+ */
 const PREFIXO = "ligacao-proposta:";
 
 /**

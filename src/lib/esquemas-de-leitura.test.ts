@@ -9,8 +9,9 @@ vi.mock("./logger", () => ({
   },
 }));
 
-const { registarSeForaDoEsquema, pedidoLidoSchema, documentoLidoSchema } =
-  await import("./esquemas-de-leitura");
+const { registarSeForaDoEsquema } = await import("./esquemas-de-leitura");
+const { pedidoLidoSchema } = await import("./orcamento/pedido.esquema");
+const { documentoLidoSchema } = await import("./proposal-doc.esquema");
 
 /** Um pedido mínimo como os de produção (25 dos 47 não têm `priceBreakdown`). */
 const PEDIDO = {
@@ -79,9 +80,12 @@ describe("o documento do estúdio lido (P6, só registo)", () => {
     expect(documentoLidoSchema.safeParse(DOCUMENTO).success).toBe(true);
   });
 
-  it("um documento sem as listas que o estúdio percorre é registado", () => {
+  it("um documento sem as listas passa (o withProposalDefaults repõe-nas), com a forma errada é registado", () => {
     const { moodBoards: _sem, ...semMoodBoards } = DOCUMENTO;
-    expect(registarSeForaDoEsquema("documento-do-estudio", "p1", semMoodBoards)).toBe(false);
+    expect(registarSeForaDoEsquema("documento-do-estudio", "p0", semMoodBoards)).toBe(true);
+    expect(
+      registarSeForaDoEsquema("documento-do-estudio", "p1", { ...DOCUMENTO, moodBoards: "x" }),
+    ).toBe(false);
     expect(String(avisos[0].ctx.problemas)).toContain("moodBoards:");
   });
 });
