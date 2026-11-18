@@ -16,6 +16,7 @@ import {
   comDependentesGuardados,
   type DependenteEmCascata,
   type IdsDosPedidos,
+  type LigacaoAoPedido,
 } from "./reposicao-e-chaves-estrangeiras";
 import { mapper as quotesMapper, listQuotes } from "./quotes-store";
 import { mapper as proposalsMapper, listAllProposals } from "./proposals-store";
@@ -601,11 +602,12 @@ export interface RestoreTarget<T = Record<string, unknown>> {
    */
   semApagarOsQueFicam?: true;
   /**
-   * O campo (do domínio) com a chave estrangeira para o pedido. Uma linha da
-   * cópia cujo pedido não existe entra sem a ligação — o que o `on delete set
-   * null` lhe faria —, em vez de rebentar a inserção do conjunto inteiro.
+   * A chave estrangeira para o pedido (o campo do domínio) e o que a base faz
+   * quando o pedido sai: uma linha da cópia cujo pedido não existe leva o
+   * mesmo destino — `soltar` (`on delete set null`) ou `descartar` (`on
+   * delete cascade`) —, em vez de rebentar a inserção do conjunto inteiro.
    */
-  ligacaoAoPedido?: string;
+  ligacaoAoPedido?: LigacaoAoPedido;
   /**
    * Uma tabela que não vai na cópia e cai em cascata quando este conjunto é
    * apagado: guarda-se antes e volta depois (`comDependentesGuardados`).
@@ -671,6 +673,8 @@ export const RESTORE_TARGETS: readonly RestoreTarget<AnyRow>[] = [
       tabela: "ligacoes_de_proposta",
       chave: "codigo",
       colunaDoPai: "proposal_id",
+      tabelaDoPai: "proposals",
+      chaveDoPai: "id",
     },
   }),
   // Os rascunhos do estúdio: a mesma proposta, num estado anterior — por isso
@@ -743,7 +747,7 @@ export const RESTORE_TARGETS: readonly RestoreTarget<AnyRow>[] = [
     schema: contractSchema,
     current: listContracts,
     stamp: (c) => c.acceptedAt ?? c.createdAt,
-    ligacaoAoPedido: "quoteId",
+    ligacaoAoPedido: { campo: "quoteId", seOPedidoNaoExiste: "soltar" },
   }),
   asTarget({
     key: "invoices",
@@ -753,7 +757,7 @@ export const RESTORE_TARGETS: readonly RestoreTarget<AnyRow>[] = [
     schema: invoiceSchema,
     current: listInvoices,
     stamp: (i) => i.issuedAt,
-    ligacaoAoPedido: "quoteId",
+    ligacaoAoPedido: { campo: "quoteId", seOPedidoNaoExiste: "soltar" },
   }),
   asTarget({
     key: "suppliers",
@@ -774,7 +778,9 @@ export const RESTORE_TARGETS: readonly RestoreTarget<AnyRow>[] = [
     current: listTasks,
     stamp: (t) => t.createdAt,
     extraColumns: (t) => ({ created_at: t.createdAt }),
-    ligacaoAoPedido: "quoteId",
+    // Cascata, como na base: uma tarefa de um pedido que já saiu não volta
+    // solta (guardava o nome do casal de um pedido apagado).
+    ligacaoAoPedido: { campo: "quoteId", seOPedidoNaoExiste: "descartar" },
   }),
   asTarget({
     key: "calendarEvents",

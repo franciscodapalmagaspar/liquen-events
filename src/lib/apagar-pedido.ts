@@ -5,7 +5,7 @@ import { listContracts } from "./contracts-store";
 import { clearProposalDraft, draftKey } from "./proposal-drafts";
 import { getState } from "./app-state";
 import { listProposalImages, removeStoredObject, PROPOSAL_BUCKET } from "./proposal-storage";
-import { listTasks, deleteTask } from "./tasks-store";
+import { listTasksForQuote, deleteTask } from "./tasks-store";
 import { log } from "@/lib/logger";
 
 /**
@@ -156,7 +156,7 @@ export async function apagarPedidoSemContrato(
   // sabe o que ainda falta.
   let tarefasFicaram = false;
   try {
-    const tarefas = (await listTasks()).filter((t) => (t.quoteId ?? "").trim() === id);
+    const tarefas = await listTasksForQuote(id);
     for (const t of tarefas) {
       try {
         await deleteTask(t.id);
@@ -257,7 +257,7 @@ export async function apagarPedidoSemContrato(
   // criada noutro ecrã enquanto o resto saía sumia-se sem relatório nem
   // Reciclagem. Se apareceu alguma, o pedido fica e a próxima tentativa leva-a.
   try {
-    const novas = (await listTasks()).filter((t) => (t.quoteId ?? "").trim() === id);
+    const novas = await listTasksForQuote(id);
     if (novas.length > 0) {
       falhou.push(`apareceram ${novas.length} tarefa(s) novas neste pedido`);
       return { apagado: false, contou, falhou, saiu };

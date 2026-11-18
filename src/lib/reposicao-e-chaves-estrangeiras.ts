@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { log } from "./logger";
+import { isMissingTable } from "./repository";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -61,23 +62,38 @@ export function soltarLigacoesOrfas<T extends Record<string, unknown>>(
 }
 
 /**
- * O mesmo que {@link soltarLigacoesOrfas}, para um conjunto da reposição, e com
- * o registo de quantas linhas perderam a ligação (sem valores de clientes).
+ * Para um conjunto da reposição: as linhas cujo pedido já não existe levam o
+ * destino que a chave estrangeira lhes daria, e fica no registo quantas foram
+ * (sem valores de clientes).
  */
 export function semLigacoesAPedidosQueNaoExistem<T extends Record<string, unknown>>(
   linhas: readonly T[],
-  campo: string,
+  ligacao: LigacaoAoPedido,
   pedidosQueExistem: ReadonlySet<string>,
   conjunto: string,
 ): T[] {
-  const r = soltarLigacoesOrfas(linhas, campo, pedidosQueExistem);
-  if (r.soltas > 0) {
-    log.warn("restauro: linhas da cópia com um pedido que já não existe entram sem a ligação", {
-      dataset: conjunto,
-      soltas: r.soltas,
-    });
-  }
-  return r.linhas;
+  const r = soltarLigacoesOrfas(linhas, ligacao.campo, pedidosQueExistem);
+  if (r.soltas === 0) return r.linhas;
+  log.warn("restauro: linhas da cópia com um pedido que já não existe", {
+    dataset: conjunto,
+    linhas: r.soltas,
+    destino: ligacao.seOPedidoNaoExiste,
+  });
+  if (ligacao.seOPedidoNaoExiste === "soltar") return r.linhas;
+  return linhas.filter((l) => {
+    const v = l[ligacao.campo];
+    return typeof v !== "string" || !v.trim() || pedidosQueExistem.has(v);
+  });
+}
+
+/**
+ * A chave estrangeira de um conjunto para o pedido, e o que a base faz à
+ * linha quando o pedido sai: `soltar` (`on delete set null`) ou `descartar`
+ * (`on delete cascade`).
+ */
+export interface LigacaoAoPedido {
+  campo: string;
+  seOPedidoNaoExiste: "soltar" | "descartar";
 }
 
 /** Os ids dos pedidos que existem, lidos da base na primeira vez que se pedem. */
@@ -116,6 +132,9 @@ export interface DependenteEmCascata {
   chave: string;
   /** A coluna com a chave estrangeira para o conjunto reposto. */
   colunaDoPai: string;
+  /** A tabela e a chave do conjunto reposto (para saber que pais ficaram). */
+  tabelaDoPai: string;
+  chaveDoPai: string;
 }
 
 /**
@@ -129,64 +148,97 @@ export async function comDependentesGuardados(
   dependente: DependenteEmCascata,
   repor: () => Promise<ReadonlySet<string>>,
 ): Promise<number> {
-  const guardadas = await lerTudo(sb, dependente.tabela, dependente.chave);
-  const pais = await repor();
-  const voltam = guardadas.filter((l) => pais.has(String(l[dependente.colunaDoPai])));
-  for (let i = 0; i < voltam.length; i += LINHAS_POR_ESCRITA) {
-    const { error } = await sb
-      .from(dependente.tabela)
-      .upsert(voltam.slice(i, i + LINHAS_POR_ESCRITA), {
-        onConflict: dependente.chave,
-        ignoreDuplicates: true,
-      });
-    if (error) throw error;
+  let guardadas: Record<string, unknown>[];
+  try {
+    guardadas = await lerTudo(sb, dependente.tabela, dependente.chave);
+  } catch (e) {
+    // Uma base onde a tabela ainda não existe não tem nada a guardar.
+    if (isMissingTable(e)) return repor().then(() => 0);
+    throw e;
   }
-  return voltam.length;
+  let pais: ReadonlySet<string>;
+  try {
+    pais = await repor();
+  } catch (e) {
+    // A reposição rebentou a meio: o que a cascata já levou volta para os pais
+    // que ficaram (lidos agora), e o erro segue para o conjunto sair em `failed`.
+    const vivos = new Set(await lerIds(sb, dependente.tabelaDoPai, dependente.chaveDoPai));
+    await porDeVolta(sb, dependente, guardadas, vivos).catch(() => 0);
+    throw e;
+  }
+  return porDeVolta(sb, dependente, guardadas, pais);
 }
 
-/** Todas as linhas de uma tabela, página a página (pára numa página vazia). */
-async function lerTudo(
+/**
+ * Volta a pôr as linhas cujo pai existe. Em lote; se o lote esbarrar numa
+ * restrição (uma linha que entretanto nasceu igual, um índice único parcial
+ * como o `atual` dos códigos), linha a linha, e a que esbarra fica de fora
+ * — dita no registo, nunca a rebentar o conjunto já reposto.
+ */
+async function porDeVolta(
+  sb: SupabaseClient,
+  dependente: DependenteEmCascata,
+  guardadas: readonly Record<string, unknown>[],
+  pais: ReadonlySet<string>,
+): Promise<number> {
+  const voltam = guardadas.filter((l) => pais.has(String(l[dependente.colunaDoPai])));
+  const opcoes = { onConflict: dependente.chave, ignoreDuplicates: true };
+  let ficaram = 0;
+  for (let i = 0; i < voltam.length; i += LINHAS_POR_ESCRITA) {
+    const lote = voltam.slice(i, i + LINHAS_POR_ESCRITA);
+    const { error } = await sb.from(dependente.tabela).upsert(lote, opcoes);
+    if (!error) continue;
+    for (const linha of lote) {
+      const r = await sb.from(dependente.tabela).upsert([linha], opcoes);
+      if (r.error) ficaram++;
+    }
+  }
+  if (ficaram > 0) {
+    log.warn("restauro: linhas dependentes que não voltaram", {
+      tabela: dependente.tabela,
+      ficaram,
+    });
+  }
+  return voltam.length - ficaram;
+}
+
+/**
+ * Todas as linhas de uma tabela, por páginas, PELA CHAVE (`> última vista`) e
+ * não pela posição: uma inserção a meio da leitura não desloca a página nem faz
+ * saltar uma linha. Pára numa página vazia — o tecto de linhas do PostgREST é
+ * uma definição do projeto, e uma página curta não prova que acabou.
+ */
+async function lerPorChave(
   sb: SupabaseClient,
   tabela: string,
-  ordem: string,
+  colunas: string,
+  chave: string,
 ): Promise<Record<string, unknown>[]> {
   const linhas: Record<string, unknown>[] = [];
-  for (let desde = 0; ; ) {
-    const { data, error } = await sb
-      .from(tabela)
-      .select("*")
-      .order(ordem, { ascending: true })
-      .range(desde, desde + PAGINA - 1);
+  let ultima: string | null = null;
+  for (;;) {
+    let consulta = sb.from(tabela).select(colunas);
+    if (ultima !== null) consulta = consulta.gt(chave, ultima);
+    const { data, error } = await consulta.order(chave, { ascending: true }).limit(PAGINA);
     if (error) throw error;
     const pagina = (data ?? []) as unknown as Record<string, unknown>[];
     if (pagina.length === 0) return linhas;
     linhas.push(...pagina);
-    desde += pagina.length;
+    ultima = String(pagina[pagina.length - 1][chave]);
   }
 }
 
-/** Todos os valores de uma coluna, página a página. */
+/** Todas as linhas de uma tabela. */
+const lerTudo = (sb: SupabaseClient, tabela: string, chave: string) =>
+  lerPorChave(sb, tabela, "*", chave);
+
+/** Todos os valores de uma coluna (a chave). */
 export async function lerIds(
   sb: SupabaseClient,
   tabela: string,
   coluna: string,
 ): Promise<string[]> {
-  const ids: string[] = [];
-  for (let desde = 0; ; ) {
-    const { data, error } = await sb
-      .from(tabela)
-      .select(coluna)
-      .order(coluna, { ascending: true })
-      .range(desde, desde + PAGINA - 1);
-    if (error) throw error;
-    const pagina = (data ?? []) as unknown as Record<string, unknown>[];
-    for (const r of pagina) ids.push(String(r[coluna]));
-    // Avança pelo que VEIO e pára numa página vazia: o tecto de linhas do
-    // PostgREST é uma definição do projeto, e uma página curta não prova que
-    // acabou (com um tecto de 500, saltar de 1000 em 1000 perdia metade).
-    if (pagina.length === 0) return ids;
-    desde += pagina.length;
-  }
+  return (await lerPorChave(sb, tabela, coluna, coluna)).map((r) => String(r[coluna]));
 }
 
 /**

@@ -82,9 +82,9 @@ vi.mock("@/lib/proposal-storage", () => ({
   },
 }));
 vi.mock("@/lib/tasks-store", () => ({
-  listTasks: async () => {
+  listTasksForQuote: async (quoteId: string) => {
     if (dados.tarefasRebentam) throw new Error("base em baixo");
-    return dados.tarefas;
+    return dados.tarefas.filter((t) => t.quoteId === quoteId);
   },
   deleteTask: async (id: string) => {
     if (dados.tarefaQueFalha === id) throw new Error("recusado");

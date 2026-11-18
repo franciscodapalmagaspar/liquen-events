@@ -143,6 +143,13 @@ function fakeSupabase() {
               q.range = [desde, ate];
               return builder;
             },
+            gt(column: string, value: unknown) {
+              // A leitura por chave (`reposicao-e-chaves-estrangeiras.ts`).
+              filtered = (filtered ?? rowsOf(table)).filter(
+                (r) => String(r[column] ?? "") > String(value),
+              );
+              return builder;
+            },
             eq(column: string, value: unknown) {
               filtered = (filtered ?? rowsOf(table)).filter((r) => r[column] === value);
               return builder;
@@ -1629,7 +1636,7 @@ describe("reposição com as chaves estrangeiras para os pedidos (P5)", () => {
     expect(rowsOf("quotes")[0].updated_at).toBeNull();
   });
 
-  it("uma tarefa, fatura ou contrato da cópia com um pedido que já não existe entra SEM a ligação", async () => {
+  it("uma linha da cópia com um pedido que já não existe tem o destino que a chave lhe daria", async () => {
     seedBusiness();
     const antes = await buildBackupPayload();
     for (const key of ["tasks", "invoices", "contracts"]) {
@@ -1639,7 +1646,9 @@ describe("reposição com as chaves estrangeiras para os pedidos (P5)", () => {
     const result = await applyRestore(file, await planRestore(file));
 
     expect(result.failed).toEqual([]);
-    expect(rowsOf("tasks")[0].quote_id).toBeNull();
+    // A tarefa segue a cascata (não volta solta, com o nome do casal); a
+    // fatura e o contrato seguem o `set null`.
+    expect(rowsOf("tasks")).toEqual([]);
     expect(rowsOf("invoices")[0].quote_id).toBeNull();
     expect(rowsOf("contracts")[0].quote_id).toBeNull();
   });

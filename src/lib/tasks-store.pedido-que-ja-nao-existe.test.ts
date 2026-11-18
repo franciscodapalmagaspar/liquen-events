@@ -13,6 +13,7 @@ const db = vi.hoisted(() => ({
   /** Cada gravação que encontra um pedido daqui falha com 23503. */
   pedidosApagados: new Set<string>(),
   tentativas: 0,
+  consultas: [] as string[],
 }));
 
 const violacao = () =>
@@ -26,6 +27,10 @@ const violacao = () =>
 vi.mock("./repository", () => ({
   createRepository: () => ({
     get: async (id: string) => db.rows.get(id) ?? null,
+    where: async (col: string, val: unknown, pred: (t: Task) => boolean) => {
+      db.consultas.push(`${col}=${String(val)}`);
+      return [...db.rows.values()].filter(pred);
+    },
     create: async (t: Task) => {
       db.tentativas++;
       if (t.quoteId && db.pedidosApagados.has(t.quoteId)) throw violacao();
@@ -45,7 +50,13 @@ vi.mock("./repository", () => ({
 
 vi.mock("./logger", () => ({ log: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
-import { createTask, updateTask, reporTarefa, eTarefaComPedidoQueNaoExiste } from "./tasks-store";
+import {
+  createTask,
+  updateTask,
+  reporTarefa,
+  eTarefaComPedidoQueNaoExiste,
+  listTasksForQuote,
+} from "./tasks-store";
 
 beforeEach(() => {
   db.rows.clear();
@@ -113,5 +124,14 @@ describe("o nome da restrição que a recuperação reconhece existe na base", (
     expect(
       eTarefaComPedidoQueNaoExiste({ code: "23503", message: 'violates "tasks_quote_id_fkey"' }),
     ).toBe(true);
+  });
+});
+
+describe("listTasksForQuote", () => {
+  it("pergunta pela coluna indexada e devolve só as do pedido", async () => {
+    db.rows.set("a", { ...tarefa({ id: "a" }), quoteId: "Q1" });
+    db.rows.set("b", { ...tarefa({ id: "b" }), quoteId: "Q2" });
+    expect((await listTasksForQuote("Q1")).map((t) => t.id)).toEqual(["a"]);
+    expect(db.consultas).toContain("quote_id=Q1");
   });
 });

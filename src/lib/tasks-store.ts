@@ -107,6 +107,10 @@ async function semLigacaoSeOPedidoJaNaoExiste<R>(
 
 export const listTasks = (): Promise<Task[]> => repo.list();
 
+/** As tarefas de um pedido, pelo índice `tasks_quote_id_idx` (P5) e não a tabela toda. */
+export const listTasksForQuote = (quoteId: string): Promise<Task[]> =>
+  repo.where("quote_id", quoteId, (t) => (t.quoteId ?? "").trim() === quoteId);
+
 export async function createTask(
   input: Omit<Task, "id" | "createdAt" | "done"> & { done?: boolean },
 ): Promise<Task> {
