@@ -524,6 +524,19 @@ describe("DELETE /api/orcamento/[id]", () => {
     expect((await res.json()).error).toMatch(/registo fiscal/i);
   });
 
+  it("um pedido COM fatura responde 409 (conflito, não avaria), com a frase genérica", async () => {
+    authed.ok = true;
+    apagamento.correr.mockResolvedValueOnce({
+      apagado: false,
+      motivo: "tem-fatura",
+      contou: { propostas: 0, fotos: 0, rascunhos: 0 },
+      falhou: [],
+    });
+    const res = await DELETE(req("DELETE"), ctx("LIQ-1"));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("Não consegui apagar este pedido.");
+  });
+
   it("um pedido que não existe responde 404", async () => {
     authed.ok = true;
     apagamento.correr.mockResolvedValueOnce({

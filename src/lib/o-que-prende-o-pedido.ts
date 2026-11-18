@@ -43,9 +43,46 @@ export async function ligacoesDoPedido(pedidoId: string): Promise<LigacoesDoPedi
 }
 
 /**
- * Registos fiscais: um contrato ou uma fatura fazem RECUSAR o apagar, antes de
- * qualquer coisa sair. Puro.
+ * A pergunta do INÍCIO: só os registos fiscais (contratos e faturas), que
+ * fazem recusar antes de qualquer coisa sair. Não lê as propostas nem as
+ * tarefas (o apagar lê-as a seguir, e o `doc` das propostas é pesado). Uma
+ * leitura que falha lança {@link NaoSeiSeHaRegistoFiscal} com o motivo da
+ * leitura que falhou: na dúvida, recusa-se pelo registo que não se pôde ver.
  */
+export async function registoFiscalDoPedido(
+  pedidoId: string,
+): Promise<"tem-contrato" | "tem-fatura" | null> {
+  const [contratos, faturas] = await Promise.allSettled([
+    listContractsForQuote(pedidoId),
+    listInvoicesForQuote(pedidoId),
+  ]);
+  // O contrato primeiro: se as duas leituras falham, diz-se o do contrato.
+  if (contratos.status === "rejected") {
+    throw new NaoSeiSeHaRegistoFiscal("tem-contrato", contratos.reason);
+  }
+  if (faturas.status === "rejected") {
+    throw new NaoSeiSeHaRegistoFiscal("tem-fatura", faturas.reason);
+  }
+  return registoFiscal({
+    contratos: contratos.value.length,
+    faturas: faturas.value.length,
+    propostas: 0,
+    tarefas: 0,
+  });
+}
+
+/** Uma leitura fiscal falhou; `motivo` diz qual (contrato ou fatura). */
+export class NaoSeiSeHaRegistoFiscal extends Error {
+  readonly motivo: "tem-contrato" | "tem-fatura";
+  readonly causa: unknown;
+  constructor(motivo: "tem-contrato" | "tem-fatura", causa: unknown) {
+    super(motivo === "tem-contrato" ? "contratos por ler" : "faturas por ler");
+    this.motivo = motivo;
+    this.causa = causa;
+  }
+}
+
+/** Contrato ou fatura: recusam. Puro. */
 export function registoFiscal(l: LigacoesDoPedido): "tem-contrato" | "tem-fatura" | null {
   if (l.contratos > 0) return "tem-contrato";
   if (l.faturas > 0) return "tem-fatura";

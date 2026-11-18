@@ -256,6 +256,7 @@ describe("o que NÃO se apaga", () => {
     expect(r.apagado).toBe(false);
     expect(dados.apagadas).toEqual([]);
     expect(r.falhou.join(" ")).toMatch(/não consegui verificar/i);
+    expect(r.motivo).toBe("tem-contrato");
   });
 
   it("um pedido que não existe diz que não existe", async () => {
@@ -348,6 +349,9 @@ describe("P5: as tarefas caem em cascata com o pedido", () => {
     dados.tarefasRebentam = true;
     const r = await apagarPedidoSemContrato("q1");
     expect(r.apagado).toBe(false);
+    // Uma tarefa por ler não é um registo fiscal: nada de «tem contrato».
+    expect(r.motivo).toBeUndefined();
+    expect(r.falhou).toContain("não consegui listar as tarefas deste pedido");
     expect(dados.pedidosApagados).toEqual([]);
   });
 });
@@ -409,6 +413,9 @@ describe("P5: uma fatura também manda parar (registo fiscal, chave `set null`)"
     dados.faturasRebentam = true;
     const r = await apagarPedidoSemContrato("q1");
     expect(r.apagado).toBe(false);
+    // Recusa-se pela FATURA (o registo que não se pôde ver), não pelo contrato.
+    expect(r.motivo).toBe("tem-fatura");
+    expect(r.falhou).toContain("não consegui verificar se este pedido tem faturas");
     expect(dados.pedidosApagados).toEqual([]);
     expect(dados.rascunhosLimpos).toEqual([]);
   });

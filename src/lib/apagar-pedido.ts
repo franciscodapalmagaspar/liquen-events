@@ -1,7 +1,12 @@
 import "server-only";
 import { getQuote, deleteQuote } from "./quotes-store";
 import { listProposalsForQuote, deleteProposal } from "./proposals-store";
-import { ligacoesDoPedido, oQueAindaPrende, registoFiscal } from "./o-que-prende-o-pedido";
+import {
+  ligacoesDoPedido,
+  NaoSeiSeHaRegistoFiscal,
+  oQueAindaPrende,
+  registoFiscalDoPedido,
+} from "./o-que-prende-o-pedido";
 import { clearProposalDraft, draftKey } from "./proposal-drafts";
 import { getState } from "./app-state";
 import { listProposalImages, removeStoredObject, PROPOSAL_BUCKET } from "./proposal-storage";
@@ -33,8 +38,10 @@ import { log } from "@/lib/logger";
  * fiscais, e em Portugal têm de ser conservados anos. A própria política sabe
  * disso — por isso a promessa fala de pedidos que NÃO deram origem a contrato.
  *
- * Daí a regra deste módulo: um pedido com contrato **não é apagado**, e a
- * resposta di-lo pelo nome em vez de fingir que apagou. Quem quiser tratar
+ * Daí a regra deste módulo: um pedido com contrato — ou, desde o P5 (18/11),
+ * com fatura — **não é apagado**, e a resposta di-lo pelo nome em vez de
+ * fingir que apagou (o nome da função ficou do tempo em que só havia o
+ * contrato; as guardas estão em `o-que-prende-o-pedido.ts`). Quem quiser tratar
  * desse caso tem de o decidir com a contabilidade à frente, não com um botão.
  *
  * ── PORQUE É QUE ISTO CONTA O QUE APAGOU ──────────────────────────────────
@@ -84,6 +91,7 @@ const nadaSaiu = () => ({
 });
 
 const VAZIO = { propostas: 0, fotos: 0, rascunhos: 0, tarefas: 0 };
+const NADA_LIGADO = { contratos: 0, faturas: 0, propostas: 0, tarefas: 0 };
 
 /**
  * Apaga um pedido e tudo o que é dele, quando ele não deu origem a contrato.
@@ -134,14 +142,18 @@ export async function apagarPedidoSemContrato(
   // ecrã diz a frase genérica de sempre. As duas perguntas, e a do fim, são
   // a mesma função: `o-que-prende-o-pedido.ts`.
   try {
-    const fiscal = registoFiscal(await ligacoesDoPedido(id));
+    const fiscal = await registoFiscalDoPedido(id);
     if (fiscal) return { apagado: false, motivo: fiscal, contou, falhou, saiu };
   } catch (e) {
-    falhou.push("não consegui verificar se este pedido tem contrato ou faturas");
-    log.error("apagar-pedido: leitura dos contratos e faturas falhou — não se apaga nada", e, {
-      pedido: id,
-    });
-    return { apagado: false, motivo: "tem-contrato", contou, falhou, saiu };
+    // Recusa-se pelo registo que não se conseguiu ver (contrato ou fatura).
+    const motivo = e instanceof NaoSeiSeHaRegistoFiscal ? e.motivo : "tem-contrato";
+    falhou.push(
+      motivo === "tem-fatura"
+        ? "não consegui verificar se este pedido tem faturas"
+        : "não consegui verificar se este pedido tem contrato",
+    );
+    log.error("apagar-pedido: leitura fiscal falhou — não se apaga nada", e, { pedido: id });
+    return { apagado: false, motivo, contou, falhou, saiu };
   }
 
   // ── As tarefas do pedido (auditoria de 12/11, n.º 7) ─────────────────────
@@ -207,7 +219,7 @@ export async function apagarPedidoSemContrato(
     const ficaram = await listProposalsForQuote(id);
     if (ficaram.length > 0) {
       if (!falhou.some((f) => f.startsWith("a proposta "))) {
-        falhou.push(`ficaram ${ficaram.length} proposta(s) neste pedido`);
+        falhou.push(...oQueAindaPrende({ ...NADA_LIGADO, propostas: ficaram.length }));
       }
       return { apagado: false, contou, falhou, saiu };
     }
