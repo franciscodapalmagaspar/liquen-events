@@ -48,7 +48,7 @@ const st = vi.hoisted(() => ({
   /** A limpeza da Reciclagem: quantas tirou, e se rebentou. */
   reciclagemRebenta: false,
   reciclagemLimpezas: 0,
-  enviados: [] as { subject: string; anexos: string[] }[],
+  enviados: [] as { subject: string; anexos: string[]; conteudos: Buffer[] }[],
   /** O `sendMail` devolve `sent: false` (SMTP por configurar, conta bloqueada). */
   emailNaoSai: false,
   retencoes: 0,
@@ -154,15 +154,35 @@ vi.mock("@/lib/reciclagem", () => ({
 }));
 vi.mock("@/lib/mail", () => ({
   MAIL_TO: "dona@liquen.test",
-  sendMail: vi.fn(async (m: { subject: string; attachments?: { filename: string }[] }) => {
-    st.enviados.push({
-      subject: m.subject,
-      anexos: (m.attachments ?? []).map((a) => a.filename),
-    });
-    return { sent: !st.emailNaoSai };
+  sendMail: vi.fn(
+    async (m: { subject: string; attachments?: { filename: string; content: Buffer }[] }) => {
+      st.enviados.push({
+        subject: m.subject,
+        anexos: (m.attachments ?? []).map((a) => a.filename),
+        conteudos: (m.attachments ?? []).map((a) => a.content),
+      });
+      return { sent: !st.emailNaoSai };
+    },
+  ),
+}));
+/**
+ * A limpeza do `app_state` (P3): o plano e o apagar são da `limpar-app-state`,
+ * que tem os seus testes; aqui prova-se só a PORTA — quando a rota deixa
+ * apagar, e que a lista do que sai vai dentro da cópia.
+ */
+const limpeza = vi.hoisted(() => ({
+  planeada: null as null | { plano: { saem: unknown[]; ficam: number }; naCopia: unknown[] },
+  aplicadas: [] as { plano: unknown; dia: string }[],
+}));
+vi.mock("@/lib/limpar-app-state", () => ({
+  planearNaCopia: vi.fn(async () => limpeza.planeada),
+  aplicarLimpezaDoAppState: vi.fn(async (plano: unknown, dia: string) => {
+    limpeza.aplicadas.push({ plano, dia });
+    return { dia, aSeco: false, apagadas: 1, mudaram: 0, falharam: 0, ficam: 0 };
   }),
 }));
 
+import { gunzipSync } from "node:zlib";
 import { GET } from "./route";
 
 // Um pedido do próprio site (o `fetch` do back office); `deFora` simula um
@@ -200,6 +220,8 @@ beforeEach(() => {
   st.fotosTratadasLimpezas = 0;
   st.diagnosticosLimpezas = 0;
   st.leiturasDosPedidos = 0;
+  limpeza.planeada = null;
+  limpeza.aplicadas = [];
   vi.stubEnv("CRON_SECRET", "segredo");
   vi.clearAllMocks();
 });
@@ -471,5 +493,54 @@ describe("auditoria de 13/11: a cópia grande demais, as caches, as leituras rep
     st.payload = { ...st.payload, proposals: propostas };
     await GET(req("Bearer segredo"));
     expect(st.aquecimentoOpcoes[0]).toMatchObject({ propostas });
+  });
+});
+
+describe("a limpeza do app_state só apaga com a cópia enviada e completa (P3)", () => {
+  const naCopia = [{ key: "proposal-draft:LIQ-9", motivo: "rascunho-sem-pedido", value: { a: 1 } }];
+  const plano = { saem: [{ key: "proposal-draft:LIQ-9" }], ficam: 0 };
+  beforeEach(() => {
+    limpeza.planeada = { plano, naCopia };
+  });
+  const anexoDosDados = (): Record<string, unknown> => {
+    const i = st.enviados[0].anexos.findIndex((n) => /liquen-backup-/.test(n));
+    return JSON.parse(gunzipSync(st.enviados[0].conteudos[i]).toString("utf8"));
+  };
+
+  it("enviada e completa: aplica o plano, e a lista do que sai vai DENTRO da cópia", async () => {
+    const res = await GET(req("Bearer segredo"));
+    expect(res.status).toBe(200);
+    expect(limpeza.aplicadas).toEqual([{ plano, dia: "2026-08-11" }]);
+    expect(anexoDosDados().saiDoAppState).toEqual(naCopia);
+    expect(await res.json()).toMatchObject({ limpezaDoAppState: { apagadas: 1 } });
+  });
+
+  it("o email não saiu: não aplica", async () => {
+    st.emailNaoSai = true;
+    const res = await GET(req("Bearer segredo"));
+    expect(res.status).toBe(502);
+    expect(limpeza.aplicadas).toHaveLength(0);
+  });
+
+  it("a cópia é parcial: não aplica", async () => {
+    st.payload = { ...st.payload, incomplete: ["proposals"] };
+    const res = await GET(req("Bearer segredo"));
+    expect(res.status).toBe(200);
+    expect(limpeza.aplicadas).toHaveLength(0);
+  });
+
+  it("a cópia passa do tecto do anexo: não aplica", async () => {
+    st.anexoGigante = true;
+    const res = await GET(req("Bearer segredo"));
+    expect(res.status).toBe(507);
+    expect(limpeza.aplicadas).toHaveLength(0);
+  });
+
+  it("sem plano (uma leitura falhou), não aplica e a cópia não leva lista", async () => {
+    limpeza.planeada = null;
+    const res = await GET(req("Bearer segredo"));
+    expect(res.status).toBe(200);
+    expect(limpeza.aplicadas).toHaveLength(0);
+    expect(anexoDosDados()).not.toHaveProperty("saiDoAppState");
   });
 });
