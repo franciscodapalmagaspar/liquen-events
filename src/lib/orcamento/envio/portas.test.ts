@@ -69,11 +69,13 @@ describe("a porta da pré-visualização", () => {
   });
 
   it("o que a trava recusa não chega a ser desenhado", async () => {
-    espias.travaDoPdfFinal.mockResolvedValue(paraComRecusa(422, { error: "faltam os preços" }));
+    espias.travaDoPdfFinal.mockResolvedValue(
+      paraComRecusa(422, { error: "faltam os preços", faltas: [] }),
+    );
     const d = await atenderOEstudio(contexto({ mode: "preview", doc }));
     expect(d).toEqual({
       tipo: "recusa",
-      recusa: { status: 422, corpo: { error: "faltam os preços" } },
+      recusa: { status: 422, corpo: { error: "faltam os preços", faltas: [] } },
     });
     expect(espias.desenharOPdf).not.toHaveBeenCalled();
   });

@@ -11,6 +11,7 @@ import { TABELAS_COM_CONTEUDO } from "@/lib/limpar-pastas-orfas";
 import { chaveDoPdf } from "@/lib/proposal-pdf-chave";
 import { idiomaDaProposta } from "@/lib/proposta-idioma";
 import type { ProposalDoc } from "@/lib/proposal-doc";
+import { IDIOMAS_DA_PROPOSTA } from "@/lib/orcamento/listas-fechadas";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -195,8 +196,6 @@ const DESCARGAS_EM_PARALELO = 4;
 const RESERVA_PARA_APAGAR_MS = 3_500;
 /** O único formato que esta limpeza apaga: `<pasta>/<chave>.pdf`. */
 const CAMINHO_APAGAVEL = /^[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+\.pdf$/;
-/** As línguas em que uma proposta pode estar (`proposal-doc-textos.ts`). */
-const IDIOMAS = ["pt", "en"] as const;
 /**
  * `proposals.id` é `uuid`: um valor noutro formato num `.in("id", …)` faz o
  * PostgREST recusar o pedido inteiro (22P02) — e a releitura falhava sempre.
@@ -432,7 +431,10 @@ function osAtuais(linhas: readonly LinhaDoc[]) {
       // A língua gravada primeiro; e as outras também, que são contas de
       // processador sem leitura nenhuma — se ela mudar a língua de volta, o
       // ficheiro ainda lá está.
-      const linguas = new Set([idiomaDaProposta(p as { idioma?: unknown }), ...IDIOMAS]);
+      const linguas = new Set([
+        idiomaDaProposta(p as { idioma?: unknown }),
+        ...IDIOMAS_DA_PROPOSTA,
+      ]);
       for (const l of linguas) atuais.add(`${pasta}/${chaveDoPdf(p.doc as ProposalDoc, l)}.pdf`);
     } catch {
       semChave.add(pasta);

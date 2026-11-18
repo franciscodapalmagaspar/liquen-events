@@ -28,7 +28,11 @@ export const FOLGA_DO_EMAIL_MS = 25_000;
 /** O que uma segunda passagem do PDF costuma levar, com folga. */
 export const FOLGA_DA_SEGUNDA_PASSAGEM_MS = 15_000;
 
-/** Quantos ms sobram do orçamento de um pedido que chegou em `chegou`. */
-export function relogioDoEnvio(chegou: number): () => number {
-  return () => TECTO_DO_ENVIO_S * 1000 - (Date.now() - chegou);
+/**
+ * Quantos ms sobram do orçamento de um pedido que chega AGORA, contados pelo
+ * mesmo relógio que as etapas leem (`Contexto.agora`): um só relógio por pedido.
+ */
+export function relogioDoEnvio(agora: () => Date): () => number {
+  const chegou = agora().getTime();
+  return () => TECTO_DO_ENVIO_S * 1000 - (agora().getTime() - chegou);
 }

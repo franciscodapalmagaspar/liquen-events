@@ -102,7 +102,10 @@ async function POST_semMedida(
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
   const { id } = await params;
-  const resta = relogioDoEnvio(Date.now());
+  // O relógio de parede, por `Date.now`: um só por pedido — o que as etapas
+  // leem e o que conta o orçamento de tempo.
+  const agora = () => new Date(Date.now());
+  const resta = relogioDoEnvio(agora);
   try {
     const quote = await getQuote(id);
     if (!quote) return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
@@ -112,8 +115,7 @@ async function POST_semMedida(
         quote,
         corpo: await lerOCorpo(request),
         resta,
-        // O relógio de parede, por `Date.now` — o mesmo que conta o `resta`.
-        agora: () => new Date(Date.now()),
+        agora,
         assinatura: () => assinaturaDeQuemEnvia(request),
         depoisDaResposta,
       }),

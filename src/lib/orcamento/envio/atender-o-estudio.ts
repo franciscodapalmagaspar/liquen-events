@@ -159,12 +159,7 @@ async function enviar(c: Contexto, corpo: CorpoDoEnvio): Promise<Desfecho> {
   const { relatorio, pdfDaMemoria } = desenho;
   const { pdf, missingImages, truncations } = relatorio;
 
-  const fotos = perguntaDasFotos(
-    pedidoId,
-    missingImages,
-    corpo.fotosEmFaltaConfirmadas,
-    c.agora().getTime(),
-  );
+  const fotos = perguntaDasFotos(pedidoId, missingImages, corpo.fotosEmFaltaConfirmadas, c.agora());
   if (!fotos.segue) return fotos.desfecho;
   const cortes = perguntaDosCortes(pedidoId, truncations, corpo.cortesConfirmados);
   if (!cortes.segue) return cortes.desfecho;
@@ -173,7 +168,13 @@ async function enviar(c: Contexto, corpo: CorpoDoEnvio): Promise<Desfecho> {
   const { irmas, porEnviar } = await irmasDoPedido(pedidoId);
   // O instante e o id novo nascem aqui, na casca: a montagem e o carimbo são puros.
   const agora = c.agora();
-  const linha = montarAProposta({ ...envio, pdf, porEnviar, agora, idNovo: randomUUID() });
+  const linha = montarAProposta({
+    ...envio,
+    pdf,
+    porEnviar,
+    criadaEm: agora,
+    idNovo: randomUUID(),
+  });
   const { proposal, anteriores } = comAVersao(linha, irmas, agora);
 
   const repetido = await repeticaoDoEnvio({
@@ -182,7 +183,7 @@ async function enviar(c: Contexto, corpo: CorpoDoEnvio): Promise<Desfecho> {
     irmasAnteriores: anteriores,
     porEmail: corpo.porEmail,
     relatorio,
-    agora: c.agora().getTime(),
+    agora: c.agora(),
   });
   if (!repetido.segue) return repetido.desfecho;
 
@@ -216,7 +217,7 @@ async function enviar(c: Contexto, corpo: CorpoDoEnvio): Promise<Desfecho> {
     email,
     modelo: corpo.modelo,
     pdf,
-    agora: c.agora(),
+    seguiuEm: c.agora(),
   });
   prepararAPaginaOnline(proposal.id, c.depoisDaResposta);
 

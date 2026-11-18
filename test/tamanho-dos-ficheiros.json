@@ -145,7 +145,7 @@
   "src/lib/importar-proposta/montar.ts": 540,
   "src/lib/impressao-visual.ts": 426,
   "src/lib/juntar-fotos-duplicadas.ts": 770,
-  "src/lib/limpar-pdfs-substituidos.ts": 1129,
+  "src/lib/limpar-pdfs-substituidos.ts": 1128,
   "src/lib/liquid-glass.ts": 481,
   "src/lib/meta/variantes.ts": 525,
   "src/lib/moloni.ts": 492,

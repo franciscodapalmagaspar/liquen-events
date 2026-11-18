@@ -34,8 +34,9 @@ export interface ParaDepoisDoEmail extends EnvioDaProposta {
   /** A chave do modelo de que o corpo partiu (vazia sem ela). */
   modelo: string;
   pdf: BytesDoPdf;
-  /** O instante em que o correio acabou: é o `sentAt` que fica gravado. */
-  agora: Date;
+  /** Quando seguiu (o correio acabou, ou ela escolheu o WhatsApp): é o
+   *  `sentAt` que fica gravado. */
+  seguiuEm: Date;
 }
 
 /**
@@ -57,7 +58,7 @@ export async function depoisDoEmail(p: ParaDepoisDoEmail): Promise<DepoisDoEmail
    *  de gravação, e mudá-lo por baixo dela seria mentir a quem o guardou.) */
   const r: DepoisDoEmail = { estado: p.proposal.status };
   if (seguiu) {
-    const sentAt = p.agora.toISOString();
+    const sentAt = p.seguiuEm.toISOString();
     if (emailSaiu) r.copiaError = await guardarACopia(p, sentAt);
     r.estadoError = await marcarEnviada(p, sentAt);
     if (!r.estadoError) r.estado = "enviada";

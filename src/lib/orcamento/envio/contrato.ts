@@ -17,6 +17,7 @@
 import type { Proposal } from "@/lib/orcamento/types";
 import type { Impedimento } from "@/lib/proposal-progress";
 import type { RelatorioDoPdf } from "@/lib/proposal-preview-cache";
+import { ehUmDe, todosOsValores } from "@/lib/todos-os-valores";
 
 /**
  * Os cabeçalhos da PRÉ-VISUALIZAÇÃO (o corpo é o PDF): escritos por
@@ -62,14 +63,33 @@ export function cortesEmCabecalho(cortes: Truncagens): string {
   return btoa(binario);
 }
 
-/** O inverso de {@link cortesEmCabecalho}: o JSON lido, ainda por conferir —
- *  ou `null` quando o cabeçalho não é base64 de JSON. */
-export function cortesDoCabecalhoCru(cabecalho: string): unknown {
+/** As unidades de um corte, presas ao tipo do gerador. */
+const UNIDADES_DO_CORTE = todosOsValores<Corte["unit"]>()(["fotos", "linhas"]);
+
+/** Só o que tem forma de corte — o resto é ignorado em vez de rebentar o
+ *  aviso (uma resposta estranha nunca pode tapar o que ficou de fora). */
+export function normalizaCortes(cru: unknown): Corte[] {
+  if (!Array.isArray(cru)) return [];
+  return cru.filter(
+    (c): c is Corte =>
+      !!c &&
+      typeof c === "object" &&
+      typeof (c as Corte).where === "string" &&
+      typeof (c as Corte).dropped === "number" &&
+      (c as Corte).dropped > 0 &&
+      ehUmDe(UNIDADES_DO_CORTE, (c as Corte).unit),
+  );
+}
+
+/** O inverso de {@link cortesEmCabecalho}, já conferido: os cortes que o
+ *  cabeçalho traz, ou nenhum quando não é base64 de JSON. */
+export function cortesDoCabecalho(cabecalho: string | null): Corte[] {
+  if (!cabecalho) return [];
   try {
     const bytes = Uint8Array.from(atob(cabecalho), (ch) => ch.charCodeAt(0));
-    return JSON.parse(new TextDecoder().decode(bytes));
+    return normalizaCortes(JSON.parse(new TextDecoder().decode(bytes)));
   } catch {
-    return null;
+    return [];
   }
 }
 
@@ -77,29 +97,38 @@ export function cortesDoCabecalhoCru(cabecalho: string): unknown {
  * Cada etapa devolve um `Passo` (`passo.ts`): segue, ou pára o pedido já com
  * o desfecho. Este ficheiro diz a FORMA do que viaja até ao estúdio.
  *
- * O corpo de cada recusa, por forma. O estúdio distingue-as pelo campo que
- * cada uma traz (e pelo código HTTP, que vai ao lado na {@link Recusa}).
+ * Uma recusa — o pedido não pode seguir, e é uma DECISÃO: o código HTTP e o
+ * corpo, tal e qual a rota os responde. Cada código com os corpos que lhe
+ * pertencem: o estúdio lê o 409 como uma pergunta e o 422 como uma trava, e
+ * um corpo de pergunta com um 422 não compila.
  */
-export type CorpoDaRecusa =
-  /** 400, 413: a frase, e mais nada. */
-  | { error: string }
-  /** 409: outro pedido está a enviar esta proposta neste momento. */
-  | { error: string; aEnviar: true }
-  /** 422: o que o estúdio também trava (`travas-do-envio.ts`). */
-  | { error: string; faltas: Impedimento[] }
-  /** 422: o domínio do email do cliente não recebe correio. */
-  | { error: string; campo: "email" }
-  /** 409: faltam fotografias — uma pergunta, não uma avaria. */
-  | { error: string; precisaConfirmarFotos: true; missingImages: number }
-  /** 409: o desenho cortou conteúdo — outra pergunta. */
-  | { error: string; precisaConfirmarCortes: true; truncations: Truncagens };
+export type Recusa =
+  /** A frase, e mais nada: o pedido mal formado, o texto do email comprido. */
+  | { status: 400; corpo: { error: string } }
+  /** A proposta é grande demais para se guardar. */
+  | { status: 413; corpo: { error: string } }
+  | {
+      status: 409;
+      corpo: /** Outro pedido está a enviar esta proposta neste momento. */
+        | { error: string; aEnviar: true }
+        /** Faltam fotografias — uma pergunta, não uma avaria. */
+        | { error: string; precisaConfirmarFotos: true; missingImages: number }
+        /** O desenho cortou conteúdo — outra pergunta. */
+        | { error: string; precisaConfirmarCortes: true; truncations: Truncagens };
+    }
+  | {
+      status: 422;
+      corpo: /** O que o estúdio também trava (`travas-do-envio.ts`). */
+        | { error: string; faltas: Impedimento[] }
+        /** O domínio do email do cliente não recebe correio. */
+        | { error: string; campo: "email" };
+    };
 
-/** Uma recusa — o pedido não pode seguir, e é uma DECISÃO: o código HTTP e
- *  o corpo, tal e qual a rota os responde. */
-export interface Recusa {
-  status: 400 | 409 | 413 | 422;
-  corpo: CorpoDaRecusa;
-}
+/** O corpo de uma recusa com este código. */
+export type CorpoDaRecusa<S extends Recusa["status"] = Recusa["status"]> = Extract<
+  Recusa,
+  { status: S }
+>["corpo"];
 
 /** Uma falha — a base ou outro serviço não deixou: não é uma decisão sobre a
  *  proposta. O estúdio lê o 503 como avaria («tenta outra vez»,

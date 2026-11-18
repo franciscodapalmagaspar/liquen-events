@@ -135,7 +135,16 @@ export async function retrato(res: Response): Promise<string> {
   );
 }
 
+/**
+ * O dia do retrato. A validade da proposta conta-se a partir de hoje, e o
+ * selo da versão (um hash) leva-a lá dentro: com o relógio a andar, o retrato
+ * mudava sozinho todos os dias. Cada caso começa com o `Date` parado aqui —
+ * nas duas rotas da prova, e em todos os retratos.
+ */
+export const DIA_DO_RETRATO = Date.parse("2026-11-17T12:00:00.000Z");
+
 export function repor(): void {
+  vi.useFakeTimers({ toFake: ["Date"], now: DIA_DO_RETRATO });
   Object.assign(ctl, {
     autenticado: true,
     semPedido: false,

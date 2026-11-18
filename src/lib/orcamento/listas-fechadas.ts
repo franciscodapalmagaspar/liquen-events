@@ -3,6 +3,7 @@ import type { MotivoDeRecusa, ProposalStatus, QuoteStatus } from "./types";
 import type { VersaoEscolhida } from "./versoes-da-proposta";
 import type { TipoModelo } from "@/lib/proposal-templates";
 import type { ProposalDoc, VatMode } from "@/lib/proposal-doc";
+import type { CorpoLido } from "./envio/ler-o-corpo";
 
 /**
  * As listas fechadas do pedido e da proposta, UMA vez cada, presas aos tipos
@@ -54,6 +55,10 @@ export const MODELOS_DO_DOCUMENTO = todosOsValores<NonNullable<ProposalDoc["temp
   "decoracao",
   "organizacao",
 ]);
+
+/** As duas portas da rota da proposta (`envio/ler-o-corpo.ts`): o esquema do
+ *  corpo e a leitura dependem desta lista, e não um do outro. */
+export const MODOS_DO_PEDIDO = todosOsValores<CorpoLido["modo"]>()(["preview", "send"]);
 
 /** Como se lê o total escrito: com o IVA já dentro, ou a acrescer. */
 export const MODOS_DE_IVA = todosOsValores<VatMode>()(["incluido", "acrescer"]);

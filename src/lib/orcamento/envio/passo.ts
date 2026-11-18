@@ -50,9 +50,11 @@ export function segue<T>(valor: T): Passo<T> {
  * (`desfecho.envio(…)` dá `{ tipo: "envio", … }`).
  */
 export const desfecho = Object.freeze({
-  recusa: (status: Recusa["status"], corpo: CorpoDaRecusa): Desfecho => ({
+  recusa: <S extends Recusa["status"]>(status: S, corpo: CorpoDaRecusa<S>): Desfecho => ({
     tipo: "recusa",
-    recusa: { status, corpo },
+    // O TypeScript não liga sozinho o `S` do código ao do corpo; a assinatura
+    // já os ligou à entrada, por isso o objecto é uma `Recusa` válida.
+    recusa: { status, corpo } as Recusa,
   }),
   falha: (falha: Falha): Desfecho => ({ tipo: "falha", falha }),
   pdf: (pdf: BytesDoPdf, cabecalhos: CabecalhosDaPreVisualizacao): Desfecho => ({
@@ -64,13 +66,16 @@ export const desfecho = Object.freeze({
 });
 
 /** Pára com uma recusa: a proposta não pode seguir assim (400, 409, 413, 422). */
-export function paraComRecusa(status: Recusa["status"], corpo: CorpoDaRecusa): Paragem {
+export function paraComRecusa<S extends Recusa["status"]>(
+  status: S,
+  corpo: CorpoDaRecusa<S>,
+): Paragem {
   return { segue: false, desfecho: desfecho.recusa(status, corpo) };
 }
 
-/** Pára: a base não deixou (503). */
-export function paraComFalha(falha: Falha): Paragem {
-  return { segue: false, desfecho: desfecho.falha(falha) };
+/** Pára: a base não deixou (503 — o único código de uma falha). */
+export function paraComFalha(error: string): Paragem {
+  return { segue: false, desfecho: desfecho.falha({ status: 503, corpo: { error } }) };
 }
 
 /** Pára com a resposta já pronta — uma repetição: o envio já tinha seguido. */

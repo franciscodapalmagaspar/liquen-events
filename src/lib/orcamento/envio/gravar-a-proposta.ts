@@ -197,10 +197,7 @@ export async function gravarAProposta(
   } catch (e) {
     if (!isMissingTable(e)) {
       log.error("proposta-doc: guardar falhou", e, { id: pedidoId });
-      return paraComFalha({
-        status: 503,
-        corpo: { error: "Não foi possível guardar a proposta. Tenta novamente." },
-      });
+      return paraComFalha("Não foi possível guardar a proposta. Tenta novamente.");
     }
     /**
      * O RESGATE LARGO, para o caso em que o erro não nomeia a coluna.
@@ -223,14 +220,10 @@ export async function gravarAProposta(
       });
     } catch (e2) {
       log.error("proposta-doc: guardar falhou mesmo sem os campos novos", e2, { id: pedidoId });
-      return paraComFalha({
-        status: 503,
-        corpo: {
-          error:
-            "Não foi possível guardar a proposta — a base de dados recusou a gravação. " +
-            "Verifica se o db/schema.sql foi corrido nesta base.",
-        },
-      });
+      return paraComFalha(
+        "Não foi possível guardar a proposta — a base de dados recusou a gravação. " +
+          "Verifica se o db/schema.sql foi corrido nesta base.",
+      );
     }
   }
 }

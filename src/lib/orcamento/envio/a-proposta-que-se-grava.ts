@@ -58,8 +58,8 @@ export async function irmasDoPedido(
 export interface Montagem extends EnvioDaProposta {
   pdf: BytesDoPdf;
   porEnviar: Proposal | null;
-  /** O instante da montagem: a data de criação de uma proposta nova. */
-  agora: Date;
+  /** A data de criação de uma proposta nova (a por enviar guarda a sua). */
+  criadaEm: Date;
   /** O id de uma proposta nova — só se usa quando não há uma por enviar. */
   idNovo: string;
 }
@@ -106,7 +106,7 @@ export function montarAProposta(m: Montagem): Proposal {
      * fantasma.
      */
     status: "rascunho",
-    createdAt: m.porEnviar?.createdAt ?? m.agora.toISOString(),
+    createdAt: m.porEnviar?.createdAt ?? m.criadaEm.toISOString(),
     doc: m.doc, // stored with Storage paths so it can be re-opened + edited
     /**
      * ── O SELO DO DOCUMENTO ────────────────────────────────────────────────

@@ -1,6 +1,5 @@
 import "server-only";
 import type { ProposalDoc } from "@/lib/proposal-doc";
-import { todosOsValores } from "@/lib/todos-os-valores";
 import {
   ehIdiomaDaProposta,
   IDIOMA_POR_OMISSAO,
@@ -49,9 +48,6 @@ interface OQueAsDuasPortasLeem {
    *  pré-visualização, como na rota antiga (`guardas-baratas.ts`). */
   textoDoEmail: string | null;
 }
-
-/** As duas portas, presas ao tipo: o esquema do corpo lê esta lista. */
-export const MODOS_DO_PEDIDO = todosOsValores<CorpoLido["modo"]>()(["preview", "send"]);
 
 /** O corpo de uma PRÉ-VISUALIZAÇÃO. */
 export interface CorpoDaPreVisualizacao extends OQueAsDuasPortasLeem {

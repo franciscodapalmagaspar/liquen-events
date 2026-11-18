@@ -109,7 +109,7 @@ describe("a repetição do envio", () => {
         irmasAnteriores: [antes],
         porEmail: true,
         relatorio,
-        agora: Date.now(),
+        agora: new Date(),
       }),
     );
     expect(r).toMatchObject({ ok: true, id: "p0", emailed: true, repetido: true });
@@ -125,7 +125,7 @@ describe("a repetição do envio", () => {
       irmasAnteriores: [antes],
       porEmail: true,
       relatorio,
-      agora: Date.now(),
+      agora: new Date(),
     });
     expect(passo).toEqual(SEGUE);
     expect(falsos.envios).toHaveBeenCalledTimes(1);
@@ -141,7 +141,7 @@ describe("a repetição do envio", () => {
         irmasAnteriores: [antes],
         porEmail: true,
         relatorio,
-        agora: Date.now(),
+        agora: new Date(),
       }),
     );
     expect(r).toMatchObject({ id: "p0", emailed: true, repetido: true });
@@ -160,7 +160,7 @@ describe("a repetição do envio", () => {
       irmasAnteriores: [],
       porEmail: true,
       relatorio,
-      agora: Date.now(),
+      agora: new Date(),
     });
     expect(passo).toEqual(SEGUE);
     expect(falsos.envios).toHaveBeenCalledTimes(1);
@@ -179,7 +179,7 @@ describe("a repetição do envio", () => {
         irmasAnteriores: [],
         porEmail: true,
         relatorio,
-        agora: Date.now(),
+        agora: new Date(),
       }),
     );
     expect(Object.keys(r)).toEqual([
@@ -206,7 +206,7 @@ describe("a repetição do envio", () => {
         irmasAnteriores: [antes],
         porEmail: false,
         relatorio,
-        agora: Date.now(),
+        agora: new Date(),
       }),
     );
     expect(Object.keys(r)).toEqual([
@@ -234,7 +234,7 @@ describe("a repetição do envio", () => {
       irmasAnteriores: [antes],
       porEmail: true,
       relatorio,
-      agora: Date.now(),
+      agora: new Date(),
     });
     expect(passo).toEqual(SEGUE);
   });

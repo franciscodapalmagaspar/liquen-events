@@ -16,9 +16,11 @@ describe("o orçamento de tempo do envio", () => {
     expect(maxDuration).toBe(TECTO_DO_ENVIO_S);
   });
 
-  it("o relógio conta a partir da chegada", () => {
-    vi.spyOn(Date, "now").mockReturnValue(100_000);
-    const resta = relogioDoEnvio(100_000 - 40_000);
+  it("o relógio conta a partir da chegada, pelo relógio que lhe dão", () => {
+    let agora = 60_000;
+    const resta = relogioDoEnvio(() => new Date(agora));
+    expect(resta()).toBe(TECTO_DO_ENVIO_S * 1000);
+    agora += 40_000;
     expect(resta()).toBe(20_000);
   });
 });

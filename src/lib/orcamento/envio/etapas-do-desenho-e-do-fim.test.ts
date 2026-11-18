@@ -168,7 +168,7 @@ describe("o que fica depois do email", () => {
       email,
       modelo: "",
       pdf: Buffer.from("%PDF"),
-      agora: new Date(),
+      seguiuEm: new Date(),
       ...over,
     });
 

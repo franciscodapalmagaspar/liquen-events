@@ -121,7 +121,7 @@ antes e depois (linhas, complexidade, peso das rotas).
 9. **O contrato da rota (`envio/contrato.ts`) só em parte é lido pelo estúdio**: os
    NOMES dos cabeçalhos da pré-visualização e a codificação dos cortes já são uma só,
    escritas e lidas pelas mesmas peças (`CABECALHOS_DA_PRE_VISUALIZACAO`,
-   `cortesEmCabecalho`/`cortesDoCabecalhoCru`, o tipo `Corte`); os CORPOS das respostas o
+   `cortesEmCabecalho`/`cortesDoCabecalho`, o tipo `Corte` e a sua guarda); os CORPOS das respostas o
    `ProposalStudio.tsx` ainda os lê à mão (`data?.precisaConfirmarFotos`). Tipá-los é
    o primeiro passo da fase em que o estúdio se parte.
 10. **A garantia da assinatura está no `mandarOEmail`, não no `sendMail`.** Só um
@@ -131,11 +131,17 @@ antes e depois (linhas, complexidade, peso das rotas).
    porta única `enviarAoCliente(email: EmailEmoldurado)` para todo o correio a
    clientes é o passo certo, e é de outra fase (mexe em todas as rotas que mandam
    correio).
-11. **Um defeito antigo ficou como estava, porque esta fase não muda respostas.** Uma
-   repetição reconhecida (`repeticao-do-envio.ts`) responde sempre `estado: "enviada"`,
-   mesmo quando a irmã que reconheceu já ficou «aceite» (o pedido estava Ganho). O
-   contrato diz «o estado em que a proposta FICOU». Corrige-se num PR próprio, com o
-   retrato desse caso a mudar e dito.
+11. **Dois defeitos antigos ficaram como estavam, porque esta fase não muda respostas.**
+   Uma repetição reconhecida (`repeticao-do-envio.ts`) responde sempre
+   `estado: "enviada"`, mesmo quando a irmã que reconheceu já ficou «aceite» (o pedido
+   estava Ganho) — e o contrato diz «o estado em que a proposta FICOU». E o
+   `pedidoError` de `depois-do-email.ts` começa por «O email seguiu para o cliente»
+   também quando o email não saiu (avaria ou WhatsApp). Corrigem-se num PR próprio, com
+   o retrato desses casos a mudar e dito.
+12. **O «sim» antigo às fotos (`FIM_DO_SIM_ANTIGO`, até 18/11) é andaime com data**:
+   a pergunta, a leitura e o esquema aceitam o `true` e, a partir de 19/11, só a
+   pergunta o recusa. Tira-se num PR logo a seguir (as três linhas e os testes do
+   «sim» antigo); até lá o esquema não regista o `true` como desvio.
 
 **Lições destas duas fases** (também na Parte 4):
 

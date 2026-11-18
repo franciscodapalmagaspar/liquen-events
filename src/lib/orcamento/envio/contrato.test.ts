@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cortesDoCabecalhoCru, cortesEmCabecalho, type Truncagens } from "./contrato";
-import { cortesDoCabecalho } from "@/lib/orcamento/estudio/textos-do-estudio";
+import { cortesDoCabecalho, cortesEmCabecalho, normalizaCortes, type Truncagens } from "./contrato";
 
 const cortes: Truncagens = [
   { where: "Mood board «Cerimónia»", dropped: 3, unit: "fotos" },
@@ -16,13 +15,24 @@ describe("os cortes no cabeçalho da pré-visualização", () => {
   });
 
   it("vão e voltam com os acentos, pelo mesmo par nos dois lados", () => {
-    expect(cortesDoCabecalhoCru(cortesEmCabecalho(cortes))).toEqual(cortes);
     expect(cortesDoCabecalho(cortesEmCabecalho(cortes))).toEqual(cortes);
   });
 
   it("um cabeçalho que não é base64 de JSON lê-se como nada", () => {
-    expect(cortesDoCabecalhoCru("isto-não-é-base64")).toBeNull();
     expect(cortesDoCabecalho("isto-não-é-base64")).toEqual([]);
     expect(cortesDoCabecalho(null)).toEqual([]);
+  });
+
+  it("só passa o que tem forma de corte — uma unidade que o tipo não conhece fica de fora", () => {
+    expect(
+      normalizaCortes([
+        ...cortes,
+        { where: "x", dropped: 1, unit: "paginas" },
+        { where: "y", dropped: 0, unit: "fotos" },
+        null,
+        "z",
+      ]),
+    ).toEqual(cortes);
+    expect(normalizaCortes({})).toEqual([]);
   });
 });

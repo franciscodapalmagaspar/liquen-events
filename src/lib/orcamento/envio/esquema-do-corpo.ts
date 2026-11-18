@@ -2,8 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { esquemaDoDocumentoQueChega } from "@/lib/fronteira/documento-da-proposta";
 import { observar } from "@/lib/fronteira/observar";
-import { IDIOMAS_DA_PROPOSTA } from "@/lib/orcamento/listas-fechadas";
-import { MODOS_DO_PEDIDO } from "./ler-o-corpo";
+import { IDIOMAS_DA_PROPOSTA, MODOS_DO_PEDIDO } from "@/lib/orcamento/listas-fechadas";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
