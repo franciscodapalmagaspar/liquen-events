@@ -35,8 +35,9 @@ vi.mock("@/lib/ler-todas-as-linhas", () => ({
 vi.mock("@/lib/app-state/varrer", () => ({
   varrerPrefixo: async (prefixo: string) => {
     if (st.varreduraPendurada) await new Promise(() => {});
-    if (st.transbordados.has(prefixo)) return { linhas: [], completa: false, transbordou: true };
-    return { linhas: st.espacos[prefixo] ?? [], completa: !st.incompletos.has(prefixo) };
+    if (st.transbordados.has(prefixo)) return { estado: "transbordou" };
+    if (st.incompletos.has(prefixo)) return { estado: "falhou" };
+    return { estado: "completa", linhas: st.espacos[prefixo] ?? [] };
   },
 }));
 vi.mock("@/lib/app-state", () => ({

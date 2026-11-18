@@ -34,12 +34,20 @@ export interface LinhaVarrida {
   campos: Readonly<Record<string, unknown>>;
 }
 
-export interface Varredura {
-  linhas: LinhaVarrida[];
-  completa: boolean;
-  /** Incompleta porque passou do limite (e não porque a leitura falhou). */
-  transbordou?: true;
-}
+/**
+ * O que a varredura sabe. Só `completa` traz linhas: as outras duas são «não
+ * sei», e o tipo não deixa ler linhas de uma varredura que não acabou.
+ *
+ *  - `falhou`      → a leitura falhou ou veio noutra forma;
+ *  - `transbordou` → leu-se bem, mas há mais do que o `limite`.
+ */
+export type Varredura =
+  | { estado: "completa"; linhas: LinhaVarrida[] }
+  | { estado: "falhou" }
+  | { estado: "transbordou" };
+
+const FALHOU: Varredura = { estado: "falhou" };
+const TRANSBORDOU: Varredura = { estado: "transbordou" };
 
 const PAGINA = 1000;
 const CAMPO = /^[a-zA-Z][a-zA-Z0-9]*$/;
@@ -47,9 +55,8 @@ const CAMPO = /^[a-zA-Z][a-zA-Z0-9]*$/;
 const linhaDaBase = z.looseObject({ key: z.string(), updated_at: z.string() });
 
 /**
- * As linhas do espaço, sem os valores. `completa: false` quando a leitura
- * falhou ou veio noutra forma, ou (`transbordou`) passou do `limite` — quem decide apagar com
- * base nisto tem de ler «não sei», nunca «não há».
+ * As linhas do espaço, sem os valores. Fora de `completa`, quem decide apagar
+ * com base nisto tem de ler «não sei», nunca «não há».
  */
 export async function varrerPrefixo(
   prefixo: string,
@@ -60,7 +67,6 @@ export async function varrerPrefixo(
   const sb = getSupabase();
   if (!sb) return varrerFicheiro(prefixo, campos, opcoes.limite);
 
-  const falhou: Varredura = { linhas: [], completa: false };
   const linhas: LinhaVarrida[] = [];
   const select = ["key", "updated_at", ...campos.map((c) => `${c}:value->${c}`)].join(", ");
   // Duas passagens: as nulas (só a chave e a versão) e as com valor. O
@@ -84,10 +90,10 @@ export async function varrerPrefixo(
             TEMPO_POR_TENTATIVA_MS,
           );
         });
-        if (error || !Array.isArray(data)) return falhou;
+        if (error || !Array.isArray(data)) return FALHOU;
         for (const crua of data) {
           const r = linhaDaBase.safeParse(crua);
-          if (!r.success) return falhou;
+          if (!r.success) return FALHOU;
           const { key, updated_at, ...resto } = r.data;
           linhas.push({
             key,
@@ -97,15 +103,15 @@ export async function varrerPrefixo(
             campos: nulas ? {} : resto,
           });
         }
-        if (linhas.length > opcoes.limite) return { ...falhou, transbordou: true };
+        if (linhas.length > opcoes.limite) return TRANSBORDOU;
         if (data.length === 0) break;
         desde += data.length;
       } catch {
-        return falhou;
+        return FALHOU;
       }
     }
   }
-  return { linhas, completa: true };
+  return { estado: "completa", linhas };
 }
 
 async function varrerFicheiro(
@@ -129,7 +135,5 @@ async function varrerFicheiro(
         ),
       };
     });
-  return linhas.length > limite
-    ? { linhas: [], completa: false, transbordou: true }
-    : { linhas, completa: true };
+  return linhas.length > limite ? TRANSBORDOU : { estado: "completa", linhas };
 }

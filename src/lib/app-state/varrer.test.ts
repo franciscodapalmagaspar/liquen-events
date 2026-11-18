@@ -65,7 +65,7 @@ describe("varrer um prefixo sem trazer os valores", () => {
     expect(st.pedidos[2].filtros).toContain("value not is null");
     expect(st.pedidos[0].filtros).toContain("key like ligacao-proposta:%");
     expect(r).toEqual({
-      completa: true,
+      estado: "completa",
       linhas: [
         { key: "ligacao-proposta:a", versao: "v1", escritaEm: "v1", nula: true, campos: {} },
         {
@@ -81,17 +81,17 @@ describe("varrer um prefixo sem trazer os valores", () => {
 
   it("um erro, uma linha fora da forma, ou mais do que o limite: «não sei»", async () => {
     st.erro = { message: "em baixo" };
-    expect((await varrerPrefixo("x:", { limite: 10 })).completa).toBe(false);
+    expect(await varrerPrefixo("x:", { limite: 10 })).toEqual({ estado: "falhou" });
 
     st.erro = null;
     st.respostas.comValor = [{ key: "x:1" }];
-    expect((await varrerPrefixo("x:", { limite: 10 })).completa).toBe(false);
+    expect(await varrerPrefixo("x:", { limite: 10 })).toEqual({ estado: "falhou" });
 
     st.respostas.comValor = Array.from({ length: 11 }, (_, i) => ({
       key: `x:${i}`,
       updated_at: "v",
     }));
-    expect((await varrerPrefixo("x:", { limite: 10 })).completa).toBe(false);
+    expect(await varrerPrefixo("x:", { limite: 10 })).toEqual({ estado: "transbordou" });
   });
 
   it("um nome de campo que não é um identificador não chega à consulta", async () => {
@@ -110,7 +110,6 @@ describe("varrer um prefixo sem trazer os valores", () => {
       updated_at: "v",
     }));
     const r = await varrerPrefixo("x:", { limite: 5000 });
-    expect(r.completa).toBe(true);
-    expect(r.linhas).toHaveLength(1500);
+    expect(r.estado === "completa" && r.linhas).toHaveLength(1500);
   });
 });

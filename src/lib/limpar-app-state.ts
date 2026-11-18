@@ -134,22 +134,23 @@ export async function planearLimpezaDoAppState(
   // Uma leitura FALHADA: não sai nada. Um espaço que passou do limite fica
   // de fora (não se decide sobre metade dele) e os outros limpam-se — senão o
   // espaço que mais cresce desligava a limpeza de todos.
-  const falhado = lidos.findIndex((l) => !l.completa && !l.transbordou);
-  if (falhado >= 0) {
-    log.warn("limpeza do app_state: um espaço não se leu — nada sai esta noite", {
-      prefixo: ESPACOS_LIMPOS[falhado].prefixo,
-    });
-    return null;
-  }
-  lidos.forEach((l, i) => {
-    if (l.transbordou) {
-      log.error("limpeza do app_state: um espaço passou do limite e ficou de fora", undefined, {
-        prefixo: ESPACOS_LIMPOS[i].prefixo,
-        limite: LIMITE_POR_ESPACO,
-      });
+  const linhas: LinhaVarrida[] = [];
+  for (const [i, varredura] of lidos.entries()) {
+    const { prefixo } = ESPACOS_LIMPOS[i];
+    switch (varredura.estado) {
+      case "falhou":
+        log.warn("limpeza do app_state: um espaço não se leu — nada sai esta noite", { prefixo });
+        return null;
+      case "transbordou":
+        log.error("limpeza do app_state: um espaço passou do limite e ficou de fora", undefined, {
+          prefixo,
+          limite: LIMITE_POR_ESPACO,
+        });
+        break;
+      case "completa":
+        linhas.push(...varredura.linhas);
     }
-  });
-  const linhas: LinhaVarrida[] = lidos.flatMap((l) => l.linhas);
+  }
   const existe = {
     pedidos: new Set([...vivos.pedidos, ...reciclados]),
     propostas: new Set([...vivos.propostas, ...reciclados]),
