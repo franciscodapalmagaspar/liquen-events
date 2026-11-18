@@ -29,7 +29,7 @@ export interface EntradaEnviarAProposta {
   apontarGeracao: ReturnType<typeof useAmostrasDeGeracao>["apontarGeracao"];
   busy: "preview" | "send" | null;
   documento: ReturnType<typeof useDocumentoDoEstudio>;
-  enviarAgora: RefObject<() => void>;
+  enviarAgoraRef: RefObject<() => void>;
   envio: ReturnType<typeof useEstadoDoEnvio>;
   envioAdiado: ReturnType<typeof useEnvioAdiado>;
   fotosUsadasNoutras: ReturnType<typeof useFotosUsadasNoutras>;
@@ -49,7 +49,7 @@ export function useEnviarAProposta({
   apontarGeracao,
   busy,
   documento,
-  enviarAgora,
+  enviarAgoraRef,
   envio,
   envioAdiado,
   fotosUsadasNoutras,
@@ -101,7 +101,7 @@ export function useEnviarAProposta({
    */
   // A ref aponta sempre para o `send` deste render (o documento de agora).
   useEffect(() => {
-    enviarAgora.current = () => void send();
+    enviarAgoraRef.current = () => void send();
   });
   // Sair do passo do envio a meio da espera cancela: a faixa «A enviar em…»
   // só existe neste passo, e nada sai sem ela estar a ver.
