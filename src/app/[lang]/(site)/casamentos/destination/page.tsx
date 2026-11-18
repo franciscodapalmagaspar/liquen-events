@@ -193,7 +193,7 @@ export default async function DestinationPage({ params }: { params: Promise<{ la
         <div className="relative z-10 w-full max-w-7xl mx-auto px-6 lg:px-16 py-24 lg:py-28">
           <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_minmax(0,460px)] gap-10 lg:gap-16 items-center">
             <div className="text-white">
-              <p className="text-[10px] tracking-[0.35em] uppercase text-white/70">{c.eyebrow}</p>
+              <p className="text-miuda tracking-[0.35em] uppercase text-white/70">{c.eyebrow}</p>
               <h1 className="mt-4 text-[32px] sm:text-[42px] lg:text-[52px] font-bold uppercase tracking-display leading-[1.06]">
                 {c.h1}
               </h1>

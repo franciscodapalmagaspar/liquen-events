@@ -60,7 +60,7 @@ export default function NaoEncontradoSocial() {
           4,1:1 — MEDIDO com o axe, e abaixo dos 4,5:1 da WCAG AA. É a mesma
           disciplina do `NotFoundView` do ramo `(site)`.
         */}
-        <p className="text-foreground/68 text-[10px] tracking-[0.5em] uppercase mb-4">
+        <p className="text-foreground/68 text-miuda tracking-[0.5em] uppercase mb-4">
           {t.errors.notFoundEyebrow}
         </p>
         <h1

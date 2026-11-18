@@ -117,7 +117,7 @@ export default async function EstiloPage({
         <div className="relative z-10 w-full max-w-7xl mx-auto px-6 lg:px-16 py-24 lg:py-28">
           <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_minmax(0,460px)] gap-10 lg:gap-16 items-center">
             <div className="text-white">
-              <p className="text-[10px] tracking-[0.35em] uppercase text-white/70">
+              <p className="text-miuda tracking-[0.35em] uppercase text-white/70">
                 {en ? "Style" : "Estilo"}
               </p>
               <h1 className="mt-4 text-[34px] sm:text-[46px] lg:text-[56px] font-bold uppercase tracking-display leading-[1.05]">

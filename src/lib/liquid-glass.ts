@@ -356,9 +356,15 @@ export function attach(el: HTMLElement, opts?: Partial<OpcoesDoVidro>): Vidro {
   let lh = -1;
   let lr = -1;
   let queued = false;
+  let agendado = 0;
+  /* Um `paint()` já pedido ao browser pode chegar DEPOIS do `destroy()` (a
+     janela muda de tamanho na mesma fotografia em que o vídeo volta ao ecrã):
+     sem esta marca, voltava a escrever o filtro numa superfície desmontada. */
+  let destruido = false;
 
   function paint() {
     queued = false;
+    if (destruido) return;
     const rc = el.getBoundingClientRect();
     const w = Math.round(rc.width);
     const h = Math.round(rc.height);
@@ -385,7 +391,7 @@ export function attach(el: HTMLElement, opts?: Partial<OpcoesDoVidro>): Vidro {
   function schedule() {
     if (queued) return;
     queued = true;
-    requestAnimationFrame(paint);
+    agendado = requestAnimationFrame(paint);
   }
 
   const ro = new ResizeObserver(schedule);
@@ -406,8 +412,15 @@ export function attach(el: HTMLElement, opts?: Partial<OpcoesDoVidro>): Vidro {
     })();
   }
 
-  const aoTransitar = () => track(900);
-  const aoAcabar = () => paint();
+  /* Só as transições DO PRÓPRIO vidro: o `transitionrun` borbulha, e o
+     `hover` de cada botão lá dentro arrancava 900 ms de remedições a uma
+     superfície que não mudou de forma. */
+  const aoTransitar = (e: Event) => {
+    if (e.target === el) track(900);
+  };
+  const aoAcabar = (e: Event) => {
+    if (e.target === el) paint();
+  };
   if (o.live) {
     el.addEventListener("transitionrun", aoTransitar);
     el.addEventListener("transitionend", aoAcabar);
@@ -422,8 +435,10 @@ export function attach(el: HTMLElement, opts?: Partial<OpcoesDoVidro>): Vidro {
       paint();
     },
     destroy() {
+      destruido = true;
       ro.disconnect();
       cancelAnimationFrame(raf);
+      cancelAnimationFrame(agendado);
       el.removeEventListener("transitionrun", aoTransitar);
       el.removeEventListener("transitionend", aoAcabar);
       f.remove();

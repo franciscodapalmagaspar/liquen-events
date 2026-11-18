@@ -234,7 +234,7 @@ export default function ConfirmacaoClient({
       >
         <p
           role="status"
-          className="text-foreground/68 text-[10px] tracking-[0.5em] uppercase animate-pulse"
+          className="text-foreground/68 text-miuda tracking-[0.5em] uppercase animate-pulse"
         >
           {tc.loading}
         </p>
@@ -274,7 +274,7 @@ export default function ConfirmacaoClient({
               invisible here until you happened to hover it. */}
           <Link
             href={localizeHref("/", locale)}
-            className="mt-10 inline-flex items-center gap-3 px-8 py-3.5 border border-foreground/25 text-foreground/80 text-[11px] tracking-[0.3em] uppercase hover:bg-foreground hover:text-cream hover:border-foreground transition-colors duration-300"
+            className="mt-10 inline-flex items-center gap-3 px-8 py-3.5 border border-foreground/25 text-foreground/80 text-miuda tracking-[0.3em] uppercase hover:bg-foreground hover:text-cream hover:border-foreground transition-colors duration-300"
           >
             {tc.voltarInicio}
           </Link>
@@ -394,7 +394,7 @@ export default function ConfirmacaoClient({
 
   // /68 is the floor: on cream (#f7f4ee) anything lighter than ~/65 drops these
   // 10px tracked labels under 4.5:1. The old /58 measured 3.73:1.
-  const microLabel = "text-foreground/68 text-[10px] tracking-[0.32em] uppercase";
+  const microLabel = "text-foreground/68 text-miuda tracking-[0.32em] uppercase";
 
   return (
     // -mt-24 pt-24 cancels the global <main> top padding and re-applies it
@@ -432,7 +432,7 @@ export default function ConfirmacaoClient({
           </AnimateIn>
 
           <AnimateIn from="bottom" delay={60}>
-            <p className="text-gold-text text-[10px] tracking-[0.42em] uppercase mb-7 flex items-center gap-3">
+            <p className="text-gold-text text-miuda tracking-[0.42em] uppercase mb-7 flex items-center gap-3">
               <span className="w-8 h-px bg-gold/70 shrink-0" />
               {tc.successEyebrow}
             </p>
@@ -551,7 +551,7 @@ export default function ConfirmacaoClient({
                   {pick(tc.recapTitle, tc.recapTitlePlural)}
                 </h2>
                 <span
-                  className={`shrink-0 inline-flex items-center gap-2 text-[11px] tracking-wide ${status.color}`}
+                  className={`shrink-0 inline-flex items-center gap-2 text-miuda tracking-wide ${status.color}`}
                 >
                   <span className="h-1.5 w-1.5 rounded-full bg-current" />
                   {status.label}
@@ -612,7 +612,7 @@ export default function ConfirmacaoClient({
                     {tc.saveDate}
                   </a>
                 )}
-                <p className="text-foreground/70 text-[11.5px] leading-relaxed">{tc.footerNote}</p>
+                <p className="text-foreground/70 text-miuda leading-relaxed">{tc.footerNote}</p>
               </div>
             </AnimateIn>
 
@@ -686,7 +686,7 @@ export default function ConfirmacaoClient({
                     <span className="block text-[14px] font-medium leading-tight">
                       {tc.contactWhatsapp}
                     </span>
-                    <span className="block text-[11.5px] leading-tight text-white/75 mt-1">
+                    <span className="block text-miuda leading-tight text-white/75 mt-1">
                       {tc.contactWhatsappSub}
                     </span>
                   </span>
@@ -814,13 +814,13 @@ export default function ConfirmacaoClient({
             <div className="flex flex-wrap items-center gap-x-8 gap-y-4 shrink-0">
               <Link
                 href={localizeHref("/", locale)}
-                className="inline-flex items-center gap-3 px-8 py-3.5 border border-foreground/25 text-foreground/80 text-[11px] tracking-[0.3em] uppercase hover:bg-foreground hover:text-cream hover:border-foreground transition-colors duration-300"
+                className="inline-flex items-center gap-3 px-8 py-3.5 border border-foreground/25 text-foreground/80 text-miuda tracking-[0.3em] uppercase hover:bg-foreground hover:text-cream hover:border-foreground transition-colors duration-300"
               >
                 {tc.voltarInicio}
               </Link>
               <Link
                 href={localizeHref("/orcamento", locale)}
-                className="text-[11px] tracking-[0.2em] uppercase text-foreground/72 hover:text-moss transition-colors"
+                className="text-miuda tracking-[0.2em] uppercase text-foreground/72 hover:text-moss transition-colors"
               >
                 {tc.novoPedido}
               </Link>

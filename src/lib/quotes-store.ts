@@ -2,9 +2,9 @@ import "server-only";
 import { randomBytes, createHmac } from "node:crypto";
 import type { Quote, QuoteSummary } from "@/lib/orcamento/types";
 import { CAMPOS_SO_DO_DETALHE } from "@/lib/orcamento/types";
-import { registarSeForaDoEsquema } from "./esquemas-de-leitura";
 import { createRepository, lerComNovaTentativa, type Mapper } from "./repository";
 import { getSupabase } from "./supabase";
+import { lerPedidoGuardado } from "./fronteira/pedido-guardado";
 
 /**
  * Generates a quote reference id (e.g. LIQ-M1A2B3-9F3C7A1B2D4E5F60). The
@@ -35,13 +35,6 @@ export function quoteIdFor(submissionId: string): string {
   return `LIQ-${h.slice(0, 6)}-${h.slice(6, 22)}`;
 }
 
-/** Um campo de texto de um valor lido, ou `undefined`. Sem casts. */
-function textoDe(valor: unknown, campo: string): string | undefined {
-  if (typeof valor !== "object" || valor === null) return undefined;
-  const v: unknown = Reflect.get(valor, campo);
-  return typeof v === "string" ? v : undefined;
-}
-
 /**
  * Storage layer for quote requests. The full quote is kept in a `data` jsonb
  * column (with status/name/email mirrored for listing/searching); the file
@@ -53,18 +46,9 @@ export const mapper: Mapper<Quote> = {
   selectColumns: "data",
   getId: (q) => q.id,
   toRow: (q) => ({ id: q.id, status: q.status, name: q.name, email: q.email, data: q }),
-  // P6: verificado com esquema, em modo de só registar (`esquemas-de-leitura.ts`).
-  fromRow: (r) => {
-    // A leitura só pede `data` (`selectColumns`): o id vem de lá.
-    registarSeForaDoEsquema(
-      "pedido",
-      textoDe(r.data, "id") ?? "",
-      r.data,
-      textoDe(r.data, "lastUpdated") ?? textoDe(r.data, "submittedAt"),
-    );
-    // Modo de só registar (P6): o valor segue tal e qual — recusar é depois.
-    return r.data as Quote;
-  },
+  // A fronteira da base: confere em modo de observar e devolve tal e qual
+  // (fase 6 de `docs/ESTRUTURA-DO-CODIGO.md`, `fronteira/pedido-guardado.ts`).
+  fromRow: (r) => lerPedidoGuardado(r.data),
   order: { column: "created_at", ascending: false },
   fileCompare: (a, b) => +new Date(b.submittedAt) - +new Date(a.submittedAt),
   touch: true,

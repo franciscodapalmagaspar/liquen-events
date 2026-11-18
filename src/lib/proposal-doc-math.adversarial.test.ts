@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   DEFAULT_VALID_DAYS,
   resolveProposalMoney,
@@ -7,7 +7,11 @@ import {
   type ProposalDoc,
 } from "./proposal-doc";
 import { round2, splitThirtySeventy } from "./money";
-import { renderProposalDocPdf } from "./proposal-doc-pdf";
+vi.mock("@/lib/fotos-editoriais-guardadas", () => ({
+  lerFotoEditorialGuardada: async () => null,
+  guardarFotoEditorial: async () => undefined,
+}));
+const { renderEditorialPdf } = await import("./pdf-editorial/montar");
 
 /**
  * ADVERSARIAL QA — proposal DOCUMENT generation math.
@@ -109,7 +113,7 @@ describe("proposal document — degenerate inputs do not crash the renderer", ()
       totalText: "",
       coverImages: [],
     });
-    const bytes = await renderProposalDocPdf(doc);
+    const { bytes } = await renderEditorialPdf(doc);
     expect(Buffer.from(bytes.subarray(0, 5)).toString("latin1")).toBe("%PDF-");
     expect(bytes.length).toBeGreaterThan(500);
   });

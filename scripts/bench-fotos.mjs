@@ -509,7 +509,7 @@ async function benchServerHop(corpus) {
  */
 async function auditConsumers() {
   const read = (p) => fsp.readFile(path.join(ROOT, p), "utf8");
-  const pdf = await read("src/lib/proposal-doc-pdf.ts");
+  const pdf = await read("src/lib/proposal-geometria.ts");
   const img = await read("src/lib/proposal-image.ts");
 
   const grab = (src, re, label) => {
@@ -519,10 +519,10 @@ async function auditConsumers() {
     return Number(m[1]);
   };
 
-  const W = grab(pdf, /^const W = ([\d.]+);/m, "W (largura da página)");
-  const H = grab(pdf, /^const H = ([\d.]+);/m, "H (altura da página)");
-  const M = grab(pdf, /^const M = (\d+);/m, "M (margem)");
-  const panelFrac = grab(pdf, /const panelW = W \* ([\d.]+);/, "fracção do painel central");
+  const W = grab(pdf, /^export const PAGINA_W = ([\d.]+);/m, "PAGINA_W (largura da página)");
+  const H = grab(pdf, /^export const PAGINA_H = ([\d.]+);/m, "PAGINA_H (altura da página)");
+  const M = grab(pdf, /^export const PAGINA_M = (\d+);/m, "PAGINA_M (margem)");
+  const panelFrac = grab(pdf, /const panelW = PAGINA_W \* ([\d.]+);/, "fracção do painel central");
   const coverDpi = grab(img, /cover: (\d+),/, "DPI da capa");
   const collageDpi = grab(img, /collage: (\d+),/, "DPI do mood board");
   const maxEdge = grab(img, /MAX_IMAGE_EDGE_PX = (\d+);/, "MAX_IMAGE_EDGE_PX");

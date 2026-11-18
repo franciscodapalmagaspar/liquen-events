@@ -1,6 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { PDFArray, PDFDocument, PDFRawStream, decodePDFRawStream, type PDFObject } from "pdf-lib";
-import { renderProposalDocPdf } from "./proposal-doc-pdf";
 import { withProposalDefaults, type ProposalDoc } from "./proposal-doc";
 import { NUNCA_NO_PDF } from "./proposta-de-pdf/tipos";
 import { copiarParaPedido } from "./proposal-copy";
@@ -33,6 +32,15 @@ import type { Quote } from "./orcamento/types";
  * comparação está cega e todos os vistos verdes deste ficheiro não valem nada.
  */
 
+// O armazenamento das fotografias não entra num teste de texto.
+vi.mock("@/lib/fotos-editoriais-guardadas", () => ({
+  lerFotoEditorialGuardada: async () => null,
+  guardarFotoEditorial: async () => undefined,
+}));
+const { renderEditorialPdf } = await import("./pdf-editorial/montar");
+/** Um dia fixo: o mesmo documento dá os mesmos bytes. */
+const criadoEm = new Date("2026-11-18T12:00:00Z");
+
 const SENTINELA = "Quer ficar por baixo dos 8.000 e quem decide e a mae.";
 
 /** Conteúdo (operadores) de uma página, já descomprimido. */
@@ -53,7 +61,8 @@ function conteudoDaPagina(pdf: PDFDocument, index: number): string {
 
 /** Tudo o que fica desenhado no papel, página a página. */
 async function desenho(doc: ProposalDoc): Promise<string> {
-  const pdf = await PDFDocument.load(await renderProposalDocPdf(doc));
+  const { bytes } = await renderEditorialPdf(doc, "pt", { criadoEm });
+  const pdf = await PDFDocument.load(bytes);
   let texto = "";
   for (let i = 0; i < pdf.getPageCount(); i += 1) texto += conteudoDaPagina(pdf, i);
   return texto;

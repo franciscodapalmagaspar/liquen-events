@@ -13,8 +13,12 @@ trabalho precisa de lhas pedir outra vez se a pasta não estiver lá.
 O código está em `src/lib/pdf-editorial/`. **Ela aprovou o desenho novo** («Sim,
 passa a enviar o novo», 9 de outubro): é ele que o estúdio descarrega, que
 segue no envio e que o link do casal desenha. O gerador antigo
-(`src/lib/proposal-doc-pdf.ts`) fica no código, sem uso nas rotas, e apaga-se
-num PR à parte depois de ela enviar algumas propostas no desenho novo.
+(`src/lib/proposal-doc-pdf.ts`) foi apagado a 18/11 (ramo
+`codigo/pdf-antigo-fora`): o tipo `DocTruncation` passou para
+`pdf-editorial/cortes.ts`, o `proposal-doc-render.ts` ficou só com o caminho
+editorial, e o motor que lê propostas antigas (`lib/proposta-de-pdf/`) mede-se
+contra seis PDF que o gerador imprimiu uma última vez
+(`lib/proposta-de-pdf/amostras/`).
 
 ## Parte −1 — o que ela decidiu e onde a execução se afastou do texto
 

@@ -16,7 +16,7 @@ import { ESTADO, MARCA, PRESSAO } from "./ui/movimento";
 import { useMarcaQueAnda } from "./ui/useMarcaQueAnda";
 import { FolhaOuDialogo } from "./ui";
 import { usePaginaReal } from "./usePaginaReal";
-import { IDIOMA_POR_OMISSAO, type IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import { IDIOMA_POR_OMISSAO, type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════

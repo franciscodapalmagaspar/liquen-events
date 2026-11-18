@@ -36,8 +36,7 @@ export async function generateMetadata({
   });
 }
 
-const eyebrowLight =
-  "text-white/70 text-[10px] tracking-[0.48em] uppercase flex items-center gap-3";
+const eyebrowLight = "text-white/70 text-miuda tracking-[0.48em] uppercase flex items-center gap-3";
 
 export default async function SobrePage({ params }: { params: Promise<{ lang: string }> }) {
   const locale = normalizeLocale((await params).lang);
@@ -76,7 +75,7 @@ export default async function SobrePage({ params }: { params: Promise<{ lang: st
         <div className="relative z-10 max-w-7xl mx-auto w-full px-6 lg:px-16 pb-14 lg:pb-20">
           <AnimateIn>
             <div className="max-w-md">
-              <p className="text-white/70 text-[10px] tracking-[0.5em] uppercase mb-3 flex items-center gap-3">
+              <p className="text-white/70 text-miuda tracking-[0.5em] uppercase mb-3 flex items-center gap-3">
                 <span className="w-6 h-px bg-gold flex-shrink-0" />
                 {t.sobre.heroEyebrow}
               </p>
@@ -144,7 +143,7 @@ export default async function SobrePage({ params }: { params: Promise<{ lang: st
             className="absolute inset-0 bg-gradient-to-t from-[#080808]/80 via-transparent to-transparent"
           />
           <div className="absolute inset-x-0 bottom-0 p-6 lg:p-8">
-            <p className="text-white/75 text-[10px] tracking-[0.4em] uppercase flex items-center gap-3">
+            <p className="text-white/75 text-miuda tracking-[0.4em] uppercase flex items-center gap-3">
               <span className="w-8 h-px bg-gold flex-shrink-0" />
               {t.sobre.manifestoImageCaption}
             </p>
@@ -263,7 +262,7 @@ export default async function SobrePage({ params }: { params: Promise<{ lang: st
                   <p className="text-white text-sm tracking-[0.15em] uppercase">
                     {t.sobre.founderName}
                   </p>
-                  <p className="text-white/55 text-[11px] tracking-[0.3em] uppercase mt-1.5">
+                  <p className="text-white/55 text-miuda tracking-[0.3em] uppercase mt-1.5">
                     {t.sobre.founderRole}
                   </p>
                 </div>
@@ -295,7 +294,7 @@ export default async function SobrePage({ params }: { params: Promise<{ lang: st
 
         <div className="text-veil-shadow veu-texto veu-texto--centro [--veu-alfa:0.76] relative z-10 max-w-7xl mx-auto px-6 lg:px-16 flex flex-col items-center text-center">
           <AnimateIn>
-            <p className="text-white/70 text-[10px] tracking-[0.52em] uppercase flex items-center justify-center gap-4 mb-10">
+            <p className="text-white/70 text-miuda tracking-[0.52em] uppercase flex items-center justify-center gap-4 mb-10">
               <span className="w-8 h-px bg-gold" />
               {t.sobre.ctaEyebrow}
             </p>

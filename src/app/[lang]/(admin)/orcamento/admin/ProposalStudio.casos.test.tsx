@@ -8,13 +8,13 @@ import { ToastProvider } from "./Toast";
 import ProposalStudio, {
   avisoDeConteudoIncompleto,
   contagemDePrecos,
-  cortesDoCabecalho,
   modoDoAdicional,
   porqueFalhouOEnvio,
   textoDoAdicional,
   textoDoTotal,
 } from "./ProposalStudio";
 import { totaisDaProposta } from "@/lib/proposal-budget";
+import { cortesDoCabecalho } from "@/lib/orcamento/envio/contrato";
 // A MESMA geometria que o gerador usa. As caixas esperadas não se escrevem à
 // mão: sai daqui o que a página desenha, e é com isso que a grelha do estúdio
 // tem de concordar.

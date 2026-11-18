@@ -59,7 +59,7 @@ function fake() {
 let comSupabase = true;
 vi.mock("./supabase", () => ({ getSupabase: () => (comSupabase ? fake() : null) }));
 
-const { fecharTrinco, __limparTrincosEmMemoria } = await import("./trinco");
+const { comTrinco, fecharTrinco, __limparTrincosEmMemoria } = await import("./trinco");
 
 beforeEach(() => {
   linhas.clear();
@@ -111,5 +111,34 @@ describe("trinco (sem Supabase, em memória)", () => {
     expect((await fecharTrinco("x", 60_000)).ok).toBe(false);
     if (a.ok) await a.soltar();
     expect((await fecharTrinco("x", 60_000)).ok).toBe(true);
+  });
+});
+
+describe("comTrinco", () => {
+  it("corre com o trinco fechado e solta-o no fim", async () => {
+    const r = await comTrinco("envio:9", 60_000, async () => {
+      // Lá dentro, outro pedido não entra.
+      expect((await fecharTrinco("envio:9", 60_000)).ok).toBe(false);
+      return 42;
+    });
+    expect(r).toEqual({ ok: true, valor: 42 });
+    expect((await fecharTrinco("envio:9", 60_000)).ok).toBe(true);
+  });
+
+  it("solta-o também quando o trabalho rebenta, e o erro segue", async () => {
+    await expect(
+      comTrinco("envio:8", 60_000, async () => {
+        throw new Error("a meio");
+      }),
+    ).rejects.toThrow("a meio");
+    expect((await fecharTrinco("envio:8", 60_000)).ok).toBe(true);
+  });
+
+  it("com o trinco já fechado, o trabalho nem corre", async () => {
+    await fecharTrinco("envio:7", 60_000);
+    const fazer = vi.fn(async () => 1);
+    const r = await comTrinco("envio:7", 60_000, fazer);
+    expect(r.ok).toBe(false);
+    expect(fazer).not.toHaveBeenCalled();
   });
 });

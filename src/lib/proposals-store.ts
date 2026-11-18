@@ -1,6 +1,6 @@
 import "server-only";
 import type { Proposal } from "@/lib/orcamento/types";
-import { ehIdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import { ehIdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import { registarSeForaDoEsquema } from "./esquemas-de-leitura";
 import { createRepository, type Mapper } from "./repository";
 

@@ -504,7 +504,7 @@ export default function PedidoRapido({
       */}
       <NotaDeProtecaoDeDados
         lingua={locale === "en" ? "en" : "pt"}
-        className="mt-4 text-[11px] leading-relaxed text-foreground/68"
+        className="mt-4 text-miuda leading-relaxed text-foreground/68"
         classeDaLigacao="underline hover:text-moss"
       />
     </form>

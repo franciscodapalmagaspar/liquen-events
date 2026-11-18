@@ -127,9 +127,15 @@ function restricoesDe(e: { message?: unknown; details?: unknown }): string[] {
  * encontrado», a frase de sempre, e não é avaria (sem `log.error`).
  */
 export function respostaDeLigacaoQueJaSaiu(err: unknown): NextResponse | null {
-  if (!err || typeof err !== "object") return null;
+  return eLigacaoAoPedidoQueJaSaiu(err)
+    ? NextResponse.json({ error: "Não encontrado" }, { status: 404 })
+    : null;
+}
+
+/** A regra de {@link respostaDeLigacaoQueJaSaiu}, sem a resposta — para quem
+ *  responde à sua maneira (as etapas do envio, `orcamento/envio/`). Pura. */
+export function eLigacaoAoPedidoQueJaSaiu(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
   const e = err as { code?: unknown; message?: unknown; details?: unknown };
-  if (e.code !== "23503") return null;
-  if (!restricoesDe(e).some((r) => LIGACOES_AO_PEDIDO.has(r))) return null;
-  return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
+  return e.code === "23503" && restricoesDe(e).some((r) => LIGACOES_AO_PEDIDO.has(r));
 }
