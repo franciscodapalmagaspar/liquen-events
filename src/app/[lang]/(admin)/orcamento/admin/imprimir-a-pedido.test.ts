@@ -49,4 +49,14 @@ describe("imprimir o pedido com o código a pedido", () => {
     descarregarOCalendario(pedido, vi.fn());
     await vi.waitFor(() => expect(downloadEventIcs).toHaveBeenCalledWith(pedido));
   });
+
+  it("se ela fechou a janela vazia enquanto o código vinha, não se escreve nada nem há erro", async () => {
+    const janela = { closed: true, close: vi.fn() } as unknown as Window;
+    vi.stubGlobal("window", { open: vi.fn(() => janela) });
+    const avisar = vi.fn();
+    imprimirOPedido("timeline", pedido, avisar);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(printRunSheet).not.toHaveBeenCalled();
+    expect(avisar).not.toHaveBeenCalled();
+  });
 });

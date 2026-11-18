@@ -108,18 +108,26 @@ antes e depois (linhas, complexidade, peso das rotas).
   `ErroDeLeitura` das listas eram a mesma classe e passam a uma só, em
   `lib/porque-nao-leu.ts`; e o `Ahead` do seletor estende o da pasta.
 
-- **O que o júri de arquitetura pediu e se fez nesta ronda:** a página da
-  lista volta ao princípio com TODOS os filtros (os quatro do BO 4 tinham
-  ficado de fora do efeito); o ritmo das gravações e o `fetchComTecto` passam
-  a um sítio só (`lib/gravar-com-tecto.ts`), em vez de uma cópia no estúdio e
-  outra no painel; tipos com nome para o que estava escrito à mão em onze
-  ficheiros (`Avisar`, `Anular`, `RascunhoEncontrado`); a fronteira «a lógica
-  pura não importa React» passa a cobrir `lib/orcamento/estudio/`, e o estúdio
-  deixa de reexportar as funções puras (os testes importam-nas de lá); a regra
-  «o preço do estúdio só vai para o campo do painel se for o pedido aberto»
-  sai do JSX da casca para uma acção com nome e teste
-  (`refletirPrecoDoEstudio`); e as acções em lote usam as funções puras da
-  lista (`comPedidosSubstituidos`, `semPedidos`).
+- **O que o júri de arquitetura pediu e se fez (três rondas, 7 → 7,5 → 8):**
+  a página da lista volta ao princípio com TODOS os filtros, lidos de um
+  objecto só (`criterios`, com a procura adiada — uma tecla não refaz a lista
+  no desenho urgente); o ritmo, o ciclo e a recusa definitiva de todas as
+  gravações passam a `lib/gravar-com-tecto.ts` (`repetirAteGravar`, que
+  devolve o resultado da última tentativa; `eRecusaDefinitiva`;
+  `respostaDeHttp`; `enviarComRepeticao`), em vez de três ciclos parecidos; a
+  regra «o campo que ela não mexeu segue o servidor» é uma função pura com
+  testes (`seguirOServidor`, `camposNoPainel`, em
+  `lib/orcamento/pedidos/painel-do-pedido.ts`), e o preço do estúdio e as
+  acções em lote passam por ela (`absorverDoServidor`); a impressão do pedido
+  abre a janela no clique e vem a pedido (`imprimir-a-pedido.ts`), com o
+  `janelaAPedido` construído sobre o mesmo `moduloAPedido`; os rótulos que o
+  CSV e a impressão partilham vivem num módulo neutro
+  (`rotulos-do-pedido.ts`); tipos com nome (`Avisar`, `Anular`,
+  `RascunhoEncontrado`, `LoteEmCurso`); a fronteira «a lógica pura não
+  importa React» cobre `lib/orcamento/estudio/`, e o estúdio deixa de
+  reexportar; e as casas novas (`_casca`, `_pedidos`, `_temas`) têm em ERRO o
+  limite de 250 linhas de código por componente (os dois que passavam — 261
+  — ficam com esse tecto, a encolher).
 - **O que o júri pediu e fica para as fases seguintes**, por ser mudança de
   desenho e não de casa: os donos continuam grandes (a função `AdminClient`,
   o `ThemeFolder`, o `ThemePicker`), e os hooks recebem os `setState` do pai

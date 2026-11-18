@@ -57,9 +57,6 @@ type PropsAPedido = {
   aoNaoChegar?: () => void;
 };
 
-// O aviso é o do `moduloAPedido`, e sai também daqui (os testes leem-no daqui).
-export { AVISO_SEM_LIGACAO };
-
 export interface JanelaAPedido<P extends PropsDaJanela> {
   Janela: ComponentType<P & PropsAPedido>;
   /** Traz o módulo para memória. Idempotente; uma falha de rede não fica.

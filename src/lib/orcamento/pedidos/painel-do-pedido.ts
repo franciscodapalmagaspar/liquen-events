@@ -1,5 +1,6 @@
 import type { LeituraDeNumero } from "@/lib/numero-escrito";
 import type { Quote, QuoteStatus } from "@/lib/orcamento/types";
+import { textoDoPreco } from "./textos-do-pedido";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -52,5 +53,47 @@ export function lerPainel(
   return {
     ...painel,
     convidados: convidados.ok && convidados.valor !== null ? convidados.valor : guardado.guests,
+  };
+}
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * O PEDIDO VOLTOU DO SERVIDOR — QUE CAMPOS DO PAINEL O SEGUEM
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * A regra é uma só, e vale para todas as respostas que mudam o pedido aberto
+ * por trás (o estúdio, um lote, um envio): o campo que ela NÃO mexeu — ainda
+ * mostra o que o pedido tinha antes — segue o servidor; o que ela mexeu fica,
+ * porque é trabalho dela à espera de «Guardar».
+ */
+export function seguirOServidor(noEcra: string, antes: string, depois: string): string {
+  return noEcra === antes ? depois : noEcra;
+}
+
+/** Os campos do painel que seguem o servidor, como o painel os escreve. */
+export interface CamposQueSeguemOServidor {
+  status: string;
+  preco: string;
+  responsavel: string;
+  data: string;
+  convidados: string;
+  local: string;
+  nome: string;
+  email: string;
+  telefone: string;
+}
+
+/** O que o painel mostra de um pedido, campo a campo. */
+export function camposNoPainel(q: Quote): CamposQueSeguemOServidor {
+  return {
+    status: q.status,
+    preco: textoDoPreco(q),
+    responsavel: q.assignedTo ?? "",
+    data: q.date ?? "",
+    convidados: String(q.guests ?? ""),
+    local: q.location ?? "",
+    nome: q.name ?? "",
+    email: q.email ?? "",
+    telefone: q.phone ?? "",
   };
 }

@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { gravadoEmPorExtenso } from "@/lib/quando-gravado";
 import { useInscricaoNoRegisto, type ResultadoDoEcra } from "./registo-de-gravacoes";
-import { repetirAteGravar } from "@/lib/gravar-com-tecto";
+import {
+  enviarComRepeticao,
+  type RespostaDoEnvio,
+  type ResultadoDaGravacao,
+} from "@/lib/gravar-com-tecto";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -135,60 +139,9 @@ export function textoDaGravacao(
   };
 }
 
-/** O que UMA tentativa de envio devolve. A repetição é desta casa, não de quem
- *  chama: `definitivo` é a forma de dizer «não voltes a tentar, a resposta vai
- *  ser esta». */
-export type RespostaDoEnvio =
-  | { estado: "guardado" }
-  | { estado: "falhou"; porque?: string; definitivo?: boolean };
-
-/** O que a gravação inteira devolve — depois de esgotadas as tentativas. */
-export type ResultadoDaGravacao =
-  | { estado: "guardado" }
-  /** Não ficou no servidor. Quem chama sabe se ficou nalgum outro lado. */
-  | { estado: "nao-guardado"; porque?: string };
-
-/**
- * Traduz um código de estado HTTP numa tentativa.
- *
- * Um 4xx é o pedido que está errado (sessão expirada, corpo grande demais,
- * campo inválido) e repeti-lo dá exactamente o mesmo. Um 503 marcado como
- * `permanente` é a instalação que está incompleta — a tabela não existe, ou a
- * chave não a pode escrever — e também dá o mesmo. Nos dois casos, repetir só
- * atrasa o aviso.
- */
-export function respostaDeHttp(
-  status: number,
-  opcoes: { porque?: string; permanente?: boolean } = {},
-): RespostaDoEnvio {
-  if (status >= 200 && status < 300) return { estado: "guardado" };
-  return {
-    estado: "falhou",
-    porque: opcoes.porque,
-    definitivo: status < 500 || opcoes.permanente === true,
-  };
-}
-
-/**
- * Corre uma tentativa de cada vez, com pausa curta e crescente, e devolve a
- * VERDADE sobre onde é que a coisa ficou. Nunca lança: uma edição não pode
- * falhar porque a gravação falhou.
- */
-export async function enviarComRepeticao(
-  tentar: () => Promise<RespostaDoEnvio>,
-): Promise<ResultadoDaGravacao> {
-  let porque: string | undefined;
-  let gravou = false;
-  // O ritmo e o ciclo são os de todas as gravações (`lib/gravar-com-tecto.ts`).
-  // Uma tentativa que rebenta não tem motivo para mostrar: não houve resposta.
-  await repetirAteGravar(async () => {
-    const r = await tentar();
-    if (r.estado === "guardado") return (gravou = true);
-    if (r.porque) porque = r.porque;
-    return r.definitivo === true;
-  });
-  return gravou ? { estado: "guardado" } : { estado: "nao-guardado", porque };
-}
+// O que uma tentativa devolve (`RespostaDoEnvio`), a recusa definitiva
+// (`respostaDeHttp`) e o ciclo (`enviarComRepeticao`) são de todas as
+// gravações: vivem em `lib/gravar-com-tecto.ts`.
 
 /**
  * Trava o fecho do separador enquanto `activo`.

@@ -4,11 +4,9 @@ import { renderHook, act, cleanup } from "@testing-library/react";
 import {
   useGravacaoAutomatica,
   textoDaGravacao,
-  enviarComRepeticao,
-  respostaDeHttp,
   ATRASO_DA_GRAVACAO,
-  type RespostaDoEnvio,
 } from "./useGravacaoAutomatica";
+import { enviarComRepeticao, respostaDeHttp, type RespostaDoEnvio } from "@/lib/gravar-com-tecto";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════

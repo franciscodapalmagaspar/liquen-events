@@ -2,6 +2,7 @@ import { porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
 import type { Quote, QuoteStatus, ActivityEntry } from "@/lib/orcamento/types";
 import { type NotasAutomaticas } from "@/lib/orcamento/pedidos/notas-automaticas";
 import { comPedidoAlterado } from "@/lib/orcamento/pedidos/lista-de-pedidos";
+import { seguirOServidor } from "@/lib/orcamento/pedidos/painel-do-pedido";
 import { type EdicaoDoPedido } from "./useEdicaoDoPedido";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { type Avisar } from "../Toast";
@@ -103,7 +104,7 @@ export function useHistoricoDoPedido({
     const aberto = selectedRef.current;
     if (aberto?.id === id) {
       const anterior = aberto.status;
-      setEditStatus((e) => (e === anterior ? status : e));
+      setEditStatus((e) => seguirOServidor(e, anterior, status) as QuoteStatus);
     }
     setSelected((prev) => (prev?.id === id ? { ...prev, status } : prev));
   }

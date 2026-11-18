@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
-import { AVISO_SEM_LIGACAO, janelaAPedido } from "./janela-a-pedido";
+import { janelaAPedido } from "./janela-a-pedido";
+import { AVISO_SEM_LIGACAO } from "@/lib/modulo-a-pedido";
 
 const toast = vi.hoisted(() => vi.fn());
 vi.mock("./Toast", () => ({ useToast: () => ({ toast }) }));

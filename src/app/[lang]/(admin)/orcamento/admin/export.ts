@@ -17,7 +17,7 @@ import {
   ordemNoDia,
   ordenar,
 } from "@/lib/orcamento/guiao-do-dia";
-import { eventTypeLabel, PAYMENT_KIND_LABEL, RSVP_LABEL } from "./exportar-em-csv";
+import { eventTypeLabel, PAYMENT_KIND_LABEL, RSVP_LABEL } from "./rotulos-do-pedido";
 import {
   abrirJanelaDeImpressao,
   JANELA_DA_TIMELINE,

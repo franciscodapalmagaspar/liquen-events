@@ -321,7 +321,7 @@ import {
 import {
   gravarRascunhoNoServidor,
   mandarPrecoAoPedido,
-  type ResultadoDaGravacao,
+  type ResultadoDoRascunho,
 } from "@/lib/orcamento/estudio/gravar";
 
 /**
@@ -792,7 +792,7 @@ export default function ProposalStudio({
   const avisouSoLocal = useRef(false);
   /**
    * O rascunho CHEGOU ao servidor e o próximo deploy apaga-o (produção sem base
-   * de dados — ver `duradouro` em `ResultadoDaGravacao`). `aviso` é a frase que
+   * de dados — ver `duradouro` em `ResultadoDoRascunho`). `aviso` é a frase que
    * o servidor manda, com o nome das variáveis que resolvem.
    */
   const [naoDuraAoDeploy, setNaoDuraAoDeploy] = useState<{ aviso?: string } | null>(null);
@@ -2010,7 +2010,7 @@ export default function ProposalStudio({
    * resolver.
    */
   const gravarUmaVez = useCallback(
-    async (docGravavel: unknown): Promise<ResultadoDaGravacao> => {
+    async (docGravavel: unknown): Promise<ResultadoDoRascunho> => {
       setAGravarNoServidor((n) => n + 1);
       try {
         // O que mudou desde a última conversa com o servidor — é isto que lhe
@@ -2090,11 +2090,11 @@ export default function ProposalStudio({
    */
   const filaDaGravacao = useRef<Promise<unknown> | null>(null);
   const porEnviar = useRef<{ doc: unknown } | null>(null);
-  const ultimoResultado = useRef<ResultadoDaGravacao | null>(null);
+  const ultimoResultado = useRef<ResultadoDoRascunho | null>(null);
   const enviarParaServidor = useCallback(
-    (docGravavel: unknown): Promise<ResultadoDaGravacao> => {
+    (docGravavel: unknown): Promise<ResultadoDoRascunho> => {
       porEnviar.current = { doc: docGravavel };
-      const umaVez = async (): Promise<ResultadoDaGravacao> => {
+      const umaVez = async (): Promise<ResultadoDoRascunho> => {
         const pedido = porEnviar.current;
         // Uma gravação anterior já levou este documento (ou um mais recente).
         if (!pedido) return ultimoResultado.current ?? { estado: "so-local" };
@@ -2558,7 +2558,7 @@ export default function ProposalStudio({
   // Ctrl/Cmd+Enter dizer «guardado» só quando o for mesmo, em vez de o dizer
   // por ter escrito no `localStorage` — que era o erro original, em ponto
   // pequeno.
-  const flushDraft = useRef<() => Promise<ResultadoDaGravacao>>(async () => ({
+  const flushDraft = useRef<() => Promise<ResultadoDoRascunho>>(async () => ({
     estado: "so-local",
   }));
 

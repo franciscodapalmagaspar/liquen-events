@@ -69,19 +69,59 @@ export function useFiltrosDosPedidos(quotes: Quote[], userName: string) {
    */
   const [sort, setSort] = useState<OrdemDosPedidos>("espera");
 
+  // A procura responde a cada tecla, e o filtro e a ordenação de todos os
+  // pedidos correm sobre o valor ADIADO, com menos prioridade: uma tecla nunca
+  // espera pela lista inteira (com centenas de pedidos, notava-se).
+  const deferredSearch = useDeferredValue(search);
+
+  /**
+   * OS FILTROS, NUM OBJECTO SÓ — a lista deles escreve-se aqui e mais em
+   * nenhum lado. Quem precisa de saber «mudou algum filtro?» (a página da lista,
+   * que volta ao princípio) compara este objecto, em vez de os enumerar outra
+   * vez: foi assim, a enumerar à mão, que os quatro do BO 4 ficaram de fora.
+   * A procura é a ADIADA (`deferredSearch`): uma tecla não refaz a lista
+   * inteira no desenho urgente — só quando o React tem vagar.
+   */
+  const criterios = useMemo<FiltrosDosPedidos>(
+    () => ({
+      estado: filterStatus,
+      etiqueta: tagFilter,
+      categoria: filterCategory,
+      espera: filterEspera,
+      mes: filterMes,
+      regiao: filterRegiao,
+      planner: filterPlanner,
+      arquivados: showArchived,
+      soOsMeus: mineOnly,
+      procura: deferredSearch,
+      ordem: sort,
+    }),
+    [
+      filterStatus,
+      tagFilter,
+      filterCategory,
+      filterEspera,
+      filterMes,
+      filterRegiao,
+      filterPlanner,
+      showArchived,
+      mineOnly,
+      deferredSearch,
+      sort,
+    ],
+  );
+
+  const filtered = useMemo(
+    () => filtrarEOrdenarPedidos(quotes, criterios, userName),
+    [quotes, criterios, userName],
+  );
+
   /**
    * QUANTOS FILTROS ESTÃO A ESCONDER PEDIDOS NESTE MOMENTO — o número do botão
    * «Filtros», que é o que torna honesto recolher os controlos: um filtro
    * escondido E calado faz uma lista filtrada parecer uma lista vazia.
    */
-  const filtrosActivos = filtrosDoPainelActivos({
-    soOsMeus: mineOnly,
-    categoria: filterCategory,
-    espera: filterEspera,
-    mes: filterMes,
-    regiao: filterRegiao,
-    planner: filterPlanner,
-  });
+  const filtrosActivos = filtrosDoPainelActivos(criterios);
   /** Está ALGUMA coisa a esconder pedidos? (filtros + procura + estado + etiqueta) */
   const haFiltroAActuar = haFiltroAActuarNaLista(
     { procura: search, estado: filterStatus, etiqueta: tagFilter, arquivados: showArchived },
@@ -120,52 +160,6 @@ export function useFiltrosDosPedidos(quotes: Quote[], userName: string) {
       filtrosActivos,
     );
   }
-
-  // A procura responde a cada tecla, e o filtro e a ordenação de todos os
-  // pedidos correm sobre o valor ADIADO, com menos prioridade: uma tecla nunca
-  // espera pela lista inteira (com centenas de pedidos, notava-se).
-  const deferredSearch = useDeferredValue(search);
-
-  /**
-   * OS FILTROS, NUM OBJECTO SÓ — a lista deles escreve-se aqui e mais em
-   * nenhum lado. Quem precisa de saber «mudou algum filtro?» (a página da lista,
-   * que volta ao princípio) compara este objecto, em vez de os enumerar outra
-   * vez: foi assim, a enumerar à mão, que os quatro do BO 4 ficaram de fora.
-   * A procura vai tal e qual se escreve; a lista filtra-se sobre a adiada.
-   */
-  const criterios = useMemo<FiltrosDosPedidos>(
-    () => ({
-      estado: filterStatus,
-      etiqueta: tagFilter,
-      categoria: filterCategory,
-      espera: filterEspera,
-      mes: filterMes,
-      regiao: filterRegiao,
-      planner: filterPlanner,
-      arquivados: showArchived,
-      soOsMeus: mineOnly,
-      procura: search,
-      ordem: sort,
-    }),
-    [
-      filterStatus,
-      tagFilter,
-      filterCategory,
-      filterEspera,
-      filterMes,
-      filterRegiao,
-      filterPlanner,
-      showArchived,
-      mineOnly,
-      search,
-      sort,
-    ],
-  );
-
-  const filtered = useMemo(
-    () => filtrarEOrdenarPedidos(quotes, { ...criterios, procura: deferredSearch }, userName),
-    [quotes, criterios, deferredSearch, userName],
-  );
 
   return {
     filterStatus,

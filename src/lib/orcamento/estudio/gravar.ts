@@ -4,7 +4,12 @@
  * Saiu tal e qual do `ProposalStudio.tsx` (fase 1 de `docs/ESTRUTURA-DO-CODIGO.md`).
  */
 import type { Quote, QuoteStatus } from "@/lib/orcamento/types";
-import { fetchComTecto, GRAVACAO_TECTO_MS, repetirAteGravar } from "@/lib/gravar-com-tecto";
+import {
+  fetchComTecto,
+  GRAVACAO_TECTO_MS,
+  repetirAteGravar,
+  eRecusaDefinitiva,
+} from "@/lib/gravar-com-tecto";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -31,7 +36,7 @@ import { fetchComTecto, GRAVACAO_TECTO_MS, repetirAteGravar } from "@/lib/gravar
  * exactamente a mesma resposta e só atrasa o aviso.
  */
 
-export type ResultadoDaGravacao =
+export type ResultadoDoRascunho =
   | {
       estado: "guardado";
       updatedAt?: string;
@@ -116,11 +121,8 @@ export async function gravarRascunhoNoServidor(
     campos?: string[];
     base?: Record<string, unknown>;
   },
-): Promise<ResultadoDaGravacao> {
-  let porque: string | undefined;
-  let sessaoExpirada = false;
-  let gravado: ResultadoDaGravacao | null = null;
-  await repetirAteGravar(
+): Promise<ResultadoDoRascunho> {
+  return repetirAteGravar<ResultadoDoRascunho>(
     async () => {
       const res = await fetchComTecto(
         `/api/orcamento/${quoteId}/proposta-rascunho`,
@@ -133,49 +135,54 @@ export async function gravarRascunhoNoServidor(
       );
       const dados = await res.json().catch(() => null);
       if (res.ok) {
-        gravado = {
-          estado: "guardado",
-          updatedAt: typeof dados?.updatedAt === "string" ? dados.updatedAt : undefined,
-          overwrote: Boolean(dados?.overwrote),
-          previousBy: typeof dados?.previousBy === "string" ? dados.previousBy : undefined,
-          resgate: typeof dados?.resgate === "string" ? dados.resgate : undefined,
-          resgateEm: typeof dados?.resgateEm === "string" ? dados.resgateEm : undefined,
-          juntou: dados?.juntou === true,
-          doc:
-            dados?.juntou === true && dados.doc && typeof dados.doc === "object"
-              ? (dados.doc as Record<string, unknown>)
-              : undefined,
-          duradouro: typeof dados?.duradouro === "boolean" ? dados.duradouro : undefined,
-          aviso: typeof dados?.aviso === "string" ? dados.aviso : undefined,
-          estadoDoPedido:
-            typeof dados?.estadoDoPedido === "string"
-              ? (dados.estadoDoPedido as QuoteStatus)
-              : undefined,
+        return {
+          acabou: true,
+          valor: {
+            estado: "guardado",
+            updatedAt: typeof dados?.updatedAt === "string" ? dados.updatedAt : undefined,
+            overwrote: Boolean(dados?.overwrote),
+            previousBy: typeof dados?.previousBy === "string" ? dados.previousBy : undefined,
+            resgate: typeof dados?.resgate === "string" ? dados.resgate : undefined,
+            resgateEm: typeof dados?.resgateEm === "string" ? dados.resgateEm : undefined,
+            juntou: dados?.juntou === true,
+            doc:
+              dados?.juntou === true && dados.doc && typeof dados.doc === "object"
+                ? (dados.doc as Record<string, unknown>)
+                : undefined,
+            duradouro: typeof dados?.duradouro === "boolean" ? dados.duradouro : undefined,
+            aviso: typeof dados?.aviso === "string" ? dados.aviso : undefined,
+            estadoDoPedido:
+              typeof dados?.estadoDoPedido === "string"
+                ? (dados.estadoDoPedido as QuoteStatus)
+                : undefined,
+          },
         };
-        return true;
       }
       // O 503 da gravação manda `erro` (a frase do motivo); as outras recusas
       // da rota (400, 401, 413, 500) mandam `error`. Só se lia o primeiro, e
       // «Rascunho demasiado grande» nunca chegava ao ecrã (auditoria 13/11,
       // estúdio n.º 16).
-      porque =
+      const porque =
         typeof dados?.erro === "string"
           ? dados.erro
           : typeof dados?.error === "string"
             ? dados.error
             : undefined;
-      sessaoExpirada = res.status === 401;
-      // Um 4xx é o pedido que está errado, e repeti-lo dá o mesmo. Um 503
-      // `permanente` é a instalação que está incompleta — também dá o mesmo.
-      return res.status < 500 || dados?.permanente === true;
+      // A recusa definitiva é a de todas as gravações (`eRecusaDefinitiva`): um 4xx,
+      // ou um 503 `permanente` — repetir dá o mesmo.
+      const definitivo = eRecusaDefinitiva(res.status, dados?.permanente === true);
+      return {
+        acabou: definitivo,
+        valor: {
+          estado: "so-local",
+          porque,
+          ...(res.status === 401 ? { sessaoExpirada: true } : {}),
+        },
+      };
     },
     // Rede em baixo, ou o tecto de tempo: o motivo da anterior já não vale.
-    () => {
-      porque = undefined;
-    },
+    () => ({ estado: "so-local" }),
   );
-  if (gravado) return gravado;
-  return { estado: "so-local", porque, ...(sessaoExpirada ? { sessaoExpirada } : {}) };
 }
 
 /**
@@ -226,10 +233,7 @@ export async function mandarPrecoAoPedido(
   quoteId: string,
   base: number | null,
 ): Promise<ResultadoDoPreco> {
-  let porque: string | undefined;
-  let valeTentarDeNovo = true;
-  let gravado: ResultadoDoPreco | null = null;
-  await repetirAteGravar(
+  return repetirAteGravar<ResultadoDoPreco>(
     async () => {
       const res = await fetchComTecto(
         `/api/orcamento/${quoteId}`,
@@ -248,21 +252,25 @@ export async function mandarPrecoAoPedido(
         // punha um alarme vermelho por cima de trabalho que está são — e ela
         // deixava de acreditar no alarme quando ele for verdade.
         const atualizado = (await res.json().catch(() => null)) as Quote | null;
-        gravado = atualizado ? { estado: "gravado", quote: atualizado } : { estado: "gravado" };
-        return true;
+        return {
+          acabou: true,
+          valor: atualizado ? { estado: "gravado", quote: atualizado } : { estado: "gravado" },
+        };
       }
       const dados = await res.json().catch(() => null);
-      porque = typeof dados?.error === "string" ? dados.error : undefined;
-      // Um 4xx é o pedido que está errado: repetir dá o mesmo, e o ecrã não
-      // oferece um botão que não pode funcionar.
-      if (res.status < 500) valeTentarDeNovo = false;
-      return res.status < 500;
+      // A recusa definitiva é a de todas as gravações (`eRecusaDefinitiva`): repetir
+      // dá o mesmo, e o ecrã não oferece um botão que não pode funcionar.
+      const definitivo = eRecusaDefinitiva(res.status, dados?.permanente === true);
+      return {
+        acabou: definitivo,
+        valor: {
+          estado: "falhou",
+          porque: typeof dados?.error === "string" ? dados.error : undefined,
+          valeTentarDeNovo: !definitivo,
+        },
+      };
     },
     // Rede em baixo, ou o tecto de tempo: é o caso que a repetição apanha.
-    () => {
-      porque = undefined;
-    },
+    () => ({ estado: "falhou", valeTentarDeNovo: true }),
   );
-  if (gravado) return gravado;
-  return { estado: "falhou", porque, valeTentarDeNovo };
 }

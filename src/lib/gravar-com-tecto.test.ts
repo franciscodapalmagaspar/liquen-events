@@ -3,6 +3,7 @@ import {
   fetchComTecto,
   GRAVACAO_TECTO_MS,
   GRAVACAO_TENTATIVAS,
+  eRecusaDefinitiva,
   repetirAteGravar,
 } from "./gravar-com-tecto";
 
@@ -44,23 +45,34 @@ describe("fetchComTecto", () => {
 });
 
 describe("repetirAteGravar — o ciclo de todas as gravações", () => {
-  it("pára à primeira que acaba (gravou, ou a recusa é definitiva)", async () => {
-    const tentar = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+  it("pára à primeira que acaba, e devolve o que ela disse", async () => {
+    const tentar = vi
+      .fn()
+      .mockResolvedValueOnce({ acabou: false, valor: "falhou" })
+      .mockResolvedValueOnce({ acabou: true, valor: "gravou" });
     vi.useFakeTimers();
-    const ciclo = repetirAteGravar(tentar);
+    const ciclo = repetirAteGravar<string>(tentar, () => "rebentou");
     await vi.runAllTimersAsync();
-    await ciclo;
+    expect(await ciclo).toBe("gravou");
     expect(tentar).toHaveBeenCalledTimes(2);
+    // Cada tentativa recebe o que a anterior disse.
+    expect(tentar).toHaveBeenLastCalledWith("falhou");
   });
 
-  it("uma tentativa que rebenta repete-se, e avisa quem chama", async () => {
+  it("uma tentativa que rebenta repete-se, e conta com o que `seRebentar` disser", async () => {
     const tentar = vi.fn().mockRejectedValue(new Error("Failed to fetch"));
-    const aoRebentar = vi.fn();
     vi.useFakeTimers();
-    const ciclo = repetirAteGravar(tentar, aoRebentar);
+    const ciclo = repetirAteGravar<string>(tentar, () => "sem rede");
     await vi.runAllTimersAsync();
-    await ciclo;
+    expect(await ciclo).toBe("sem rede");
     expect(tentar).toHaveBeenCalledTimes(GRAVACAO_TENTATIVAS);
-    expect(aoRebentar).toHaveBeenCalledTimes(GRAVACAO_TENTATIVAS);
+  });
+});
+
+describe("eRecusaDefinitiva", () => {
+  it("um 4xx e um 503 permanente não se repetem; um 5xx de passagem, sim", () => {
+    expect(eRecusaDefinitiva(413)).toBe(true);
+    expect(eRecusaDefinitiva(503, true)).toBe(true);
+    expect(eRecusaDefinitiva(503)).toBe(false);
   });
 });

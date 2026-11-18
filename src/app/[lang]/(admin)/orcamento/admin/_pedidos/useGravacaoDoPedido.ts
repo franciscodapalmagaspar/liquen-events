@@ -1,12 +1,12 @@
 import type { Quote } from "@/lib/orcamento/types";
 import { esquecerRascunho, type RascunhoEncontrado } from "../rascunho-do-pedido";
-import { fetchComTecto } from "@/lib/gravar-com-tecto";
 import {
+  enviarComRepeticao,
+  fetchComTecto,
   respostaDeHttp,
   type RespostaDoEnvio,
-  enviarComRepeticao,
-  type GravacaoAutomatica,
-} from "../useGravacaoAutomatica";
+} from "@/lib/gravar-com-tecto";
+import { type GravacaoAutomatica } from "../useGravacaoAutomatica";
 import { randomId } from "../util";
 import { reporEstadoDoPedido } from "../anular-estado";
 import { asPropostasMudaram } from "../percentagem-do-sinal";

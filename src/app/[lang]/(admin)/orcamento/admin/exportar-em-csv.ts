@@ -8,19 +8,10 @@
  * no pacote; a impressão fica no `export.ts`, e o painel vai buscá-la a pedido.
  */
 import type { Proposal, Quote } from "@/lib/orcamento/types";
-import { CATEGORIES, EVENT_TYPES_BY_CATEGORY, PACKAGES } from "@/lib/orcamento/data";
-import { contractedAmounts } from "@/lib/orcamento/dossier";
+import { CATEGORIES, PACKAGES } from "@/lib/orcamento/data";
+import { eventTypeLabel, PAYMENT_KIND_LABEL, RSVP_LABEL } from "./rotulos-do-pedido";
 import { round2 } from "@/lib/money";
 import { todayKey } from "./util";
-
-/** O nome do tipo de evento («Casamento», «Conferência»…), para o CSV e para a impressão. */
-export function eventTypeLabel(q: Quote): string {
-  if (q.category && q.eventType) {
-    const et = EVENT_TYPES_BY_CATEGORY[q.category]?.find((e) => e.id === q.eventType);
-    if (et) return et.label;
-  }
-  return CATEGORIES.find((c) => c.id === q.category)?.label ?? "";
-}
 
 /** Escape a single CSV cell (handles quotes, separators, newlines) and neutralises
  *  CSV formula injection (CWE-1236): a STRING whose text begins with = + - @ (or a
@@ -167,13 +158,6 @@ export function propostasToCsvRows(propostas: readonly Proposal[]): (string | nu
   return [header, ...rows];
 }
 
-/** O tipo de cada pagamento, como se escreve no CSV e na impressão. */
-export const PAYMENT_KIND_LABEL: Record<string, string> = {
-  sinal: "Sinal",
-  pagamento: "Pagamento",
-  saldo: "Saldo final",
-};
-
 /** Flatten every payment across all quotes into CSV rows (treasury export). */
 export function paymentsToCsvRows(quotes: Quote[]): (string | number)[][] {
   const header = ["Evento (ID)", "Cliente", "Tipo", "Valor c/IVA (€)", "Data", "Estado", "Nota"];
@@ -207,13 +191,6 @@ export function paymentsToCsvRows(quotes: Quote[]): (string | number)[][] {
 export function dateStamp(): string {
   return todayKey();
 }
-
-/** As respostas dos convidados, como se escrevem no CSV e na impressão. */
-export const RSVP_LABEL: Record<string, string> = {
-  pendente: "Pendente",
-  confirmado: "Confirmado",
-  recusado: "Recusado",
-};
 
 /** Export an event's guest list (RSVP) as CSV rows. */
 export function guestsToCsvRows(q: Quote): (string | number)[][] {

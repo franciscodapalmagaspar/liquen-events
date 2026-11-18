@@ -1,5 +1,11 @@
+import type { Quote } from "@/lib/orcamento/types";
 import { describe, expect, it } from "vitest";
-import { lerPainel, type PainelDoPedido } from "./painel-do-pedido";
+import {
+  camposNoPainel,
+  lerPainel,
+  seguirOServidor,
+  type PainelDoPedido,
+} from "./painel-do-pedido";
 
 const PAINEL: PainelDoPedido = {
   estado: "pendente",
@@ -35,5 +41,52 @@ describe("lerPainel", () => {
     const antes = { ...PAINEL };
     lerPainel(PAINEL, { ok: true, valor: 1 }, { guests: 0 });
     expect(PAINEL).toEqual(antes);
+  });
+});
+
+describe("o pedido que voltou do servidor: que campos do painel o seguem", () => {
+  it("o campo que ela não mexeu segue o servidor", () => {
+    expect(seguirOServidor("pendente", "pendente", "cotado")).toBe("cotado");
+  });
+
+  it("o campo que ela mexeu fica — é trabalho dela à espera de «Guardar»", () => {
+    expect(seguirOServidor("1500", "1200", "1300")).toBe("1500");
+  });
+
+  it("camposNoPainel escreve cada campo como o painel o mostra", () => {
+    const q = {
+      id: "LQ-1",
+      status: "cotado",
+      quotedPrice: 1234,
+      guests: 80,
+      name: "Ana e Rui",
+    } as unknown as Quote;
+    expect(camposNoPainel(q)).toEqual({
+      status: "cotado",
+      preco: "1234",
+      responsavel: "",
+      data: "",
+      convidados: "80",
+      local: "",
+      nome: "Ana e Rui",
+      email: "",
+      telefone: "",
+    });
+  });
+
+  it("o preço do estúdio para o pedido B não chega ao campo do A: a guarda é de quem chama, com o pedido de antes", () => {
+    const antes = camposNoPainel({
+      id: "A",
+      status: "pendente",
+      quotedPrice: 900,
+    } as unknown as Quote);
+    const depois = camposNoPainel({
+      id: "A",
+      status: "pendente",
+      quotedPrice: 1100,
+    } as unknown as Quote);
+    // Ela não mexeu no preço: segue. Mexeu: fica.
+    expect(seguirOServidor("900", antes.preco, depois.preco)).toBe("1100");
+    expect(seguirOServidor("950", antes.preco, depois.preco)).toBe("950");
   });
 });

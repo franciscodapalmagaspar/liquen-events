@@ -82,7 +82,7 @@
   "src/app/[lang]/(admin)/orcamento/admin/ui/adaptativo.ts": 482,
   "src/app/[lang]/(admin)/orcamento/admin/ui/movimento.ts": 406,
   "src/app/[lang]/(admin)/orcamento/admin/useCachedList.ts": 429,
-  "src/app/[lang]/(admin)/orcamento/admin/useGravacaoAutomatica.ts": 523,
+  "src/app/[lang]/(admin)/orcamento/admin/useGravacaoAutomatica.ts": 476,
   "src/app/[lang]/(admin)/orcamento/admin/usePaginaReal.ts": 637,
   "src/app/[lang]/(privado)/proposta/[token]/Documento.tsx": 1493,
   "src/app/[lang]/(privado)/proposta/[token]/Inspiracao.tsx": 1681,

@@ -205,6 +205,31 @@ const eslintConfig = defineConfig([
       "max-lines-per-function": ["warn", { max: 400, skipComments: true, skipBlankLines: true }],
     },
   },
+  // As CASAS novas (fases 7 e 8) nascem com a regra da casa — um componente
+  // até ~250 linhas de código (`.claude/rules/codigo.md`) — e em ERRO: um
+  // limite só vale se uma ferramenta o verificar (§1.11). Os dois que já
+  // passavam dele quando a regra entrou ficam com o tamanho de hoje como
+  // tecto, como na catraca dos ficheiros: só podem encolher.
+  {
+    files: [
+      "src/app/**/orcamento/admin/_casca/**/*.{ts,tsx}",
+      "src/app/**/orcamento/admin/_pedidos/**/*.{ts,tsx}",
+      "src/app/**/orcamento/admin/_temas/**/*.{ts,tsx}",
+    ],
+    ignores: ["**/*.test.ts", "**/*.test.tsx"],
+    rules: {
+      "max-lines-per-function": ["error", { max: 250, skipComments: true, skipBlankLines: true }],
+    },
+  },
+  {
+    files: [
+      "src/app/**/orcamento/admin/_pedidos/QuoteCard.tsx",
+      "src/app/**/orcamento/admin/_temas/AvisosDaPasta.tsx",
+    ],
+    rules: {
+      "max-lines-per-function": ["error", { max: 261, skipComments: true, skipBlankLines: true }],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

@@ -38,15 +38,21 @@ export function imprimirOPedido(folha: FolhaDoPedido, q: Quote, avisar: Avisar):
   );
   // Bloqueada mesmo assim (um bloqueador de janelas): como antes, nada a fazer.
   if (!janela) return;
+  const falhou = () => {
+    if (!janela.closed) janela.close();
+    avisar(AVISO_SEM_LIGACAO, "error");
+  };
   void impressao
-    .usar((m) =>
-      folha === "timeline" ? m.printRunSheet(q, janela) : m.printEventDossier(q, janela),
-    )
+    .usar((m) => {
+      // Ela pode ter fechado a janela vazia enquanto o código vinha: não há
+      // onde escrever, e não é um erro.
+      if (janela.closed) return;
+      if (folha === "timeline") m.printRunSheet(q, janela);
+      else m.printEventDossier(q, janela);
+    })
     .then((chegou) => {
-      if (chegou) return;
-      janela.close();
-      avisar(AVISO_SEM_LIGACAO, "error");
-    });
+      if (!chegou) falhou();
+    }, falhou);
 }
 
 /** O evento em .ics: um descarregamento, que não precisa do gesto vivo. */

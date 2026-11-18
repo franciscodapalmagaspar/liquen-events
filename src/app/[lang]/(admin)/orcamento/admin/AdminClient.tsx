@@ -41,13 +41,9 @@ import {
 } from "./procura-em-tudo";
 import { aEscrever, dentroDeUmaJanela, procuraDaVista, VIEW_KEYS } from "./atalhos";
 import { separadorQuandoAPropostaChega, type SeparadorPorDecidir } from "./separador-por-decidir";
-import {
-  useGravacaoAutomatica,
-  useTravaoDeSaida,
-  respostaDeHttp,
-  type RespostaDoEnvio,
-} from "./useGravacaoAutomatica";
-import { fetchComTecto } from "@/lib/gravar-com-tecto";
+import { useGravacaoAutomatica, useTravaoDeSaida } from "./useGravacaoAutomatica";
+import { fetchComTecto, respostaDeHttp, type RespostaDoEnvio } from "@/lib/gravar-com-tecto";
+import { camposNoPainel, seguirOServidor } from "@/lib/orcamento/pedidos/painel-do-pedido";
 import { useInscricaoNoRegisto } from "./registo-de-gravacoes";
 import { onIdle } from "@/lib/onIdle";
 import { marcarSaidaDeProposito } from "./entrada-destino";
@@ -121,7 +117,7 @@ import { ACOES_DE_PEDIDOS } from "./_casca/titulos-das-vistas";
 import { STATUS_OPTIONS } from "./_pedidos/pastilha-do-estado";
 import { detailNextAction, type DetailTab } from "./_pedidos/separadores-do-painel";
 import { comPedidoAlterado, comPedidoSubstituido } from "@/lib/orcamento/pedidos/lista-de-pedidos";
-import { useAccoesEmLote } from "./_pedidos/useAccoesEmLote";
+import { useAccoesEmLote, type LoteEmCurso } from "./_pedidos/useAccoesEmLote";
 import { useGravacaoDoPedido } from "./_pedidos/useGravacaoDoPedido";
 import { useHistoricoDoPedido } from "./_pedidos/useHistoricoDoPedido";
 import { useAberturaDoPedido } from "./_pedidos/useAberturaDoPedido";
@@ -607,7 +603,7 @@ export default function AdminClient({
    * `bulkBusy` continua a existir logo abaixo, derivado, porque o que os botões
    * precisam de saber (está a correr? então não se carrega outra vez) não mudou.
    */
-  const [lote, setLote] = useState<{ titulo: string; feito: number; total: number } | null>(null);
+  const [lote, setLote] = useState<LoteEmCurso | null>(null);
   const bulkBusy = lote !== null;
 
   /** Mais um pedido respondeu. Ver a nota em `applyBulkStatus`. */
@@ -974,15 +970,19 @@ export default function AdminClient({
       const antes = selectedRef.current;
       substituirPedido(updated);
       if (!antes || antes.id !== updated.id) return;
-      setEditStatus((v) => (v === antes.status ? updated.status : v));
-      setEditPrice((v) => (v === textoDoPreco(antes) ? textoDoPreco(updated) : v));
-      setEditAssigned((v) => (v === (antes.assignedTo ?? "") ? (updated.assignedTo ?? "") : v));
-      setEditDate((v) => (v === (antes.date ?? "") ? (updated.date ?? "") : v));
-      setEditGuests((v) => (v === String(antes.guests ?? "") ? String(updated.guests ?? "") : v));
-      setEditLocation((v) => (v === (antes.location ?? "") ? (updated.location ?? "") : v));
-      setEditNome((v) => (v === (antes.name ?? "") ? (updated.name ?? "") : v));
-      setEditEmail((v) => (v === (antes.email ?? "") ? (updated.email ?? "") : v));
-      setEditTelefone((v) => (v === (antes.phone ?? "") ? (updated.phone ?? "") : v));
+      // A regra (o que ela não mexeu segue o servidor) é uma só e tem testes:
+      // `seguirOServidor`, em `lib/orcamento/pedidos/painel-do-pedido.ts`.
+      const a = camposNoPainel(antes);
+      const d = camposNoPainel(updated);
+      setEditStatus((v) => seguirOServidor(v, a.status, d.status) as QuoteStatus);
+      setEditPrice((v) => seguirOServidor(v, a.preco, d.preco));
+      setEditAssigned((v) => seguirOServidor(v, a.responsavel, d.responsavel));
+      setEditDate((v) => seguirOServidor(v, a.data, d.data));
+      setEditGuests((v) => seguirOServidor(v, a.convidados, d.convidados));
+      setEditLocation((v) => seguirOServidor(v, a.local, d.local));
+      setEditNome((v) => seguirOServidor(v, a.nome, d.nome));
+      setEditEmail((v) => seguirOServidor(v, a.email, d.email));
+      setEditTelefone((v) => seguirOServidor(v, a.telefone, d.telefone));
       // Os `set*` do `useEdicaoDoPedido` são os do `useState` — estáveis. Vão na
       // lista porque a regra não os reconhece através do hook; a identidade desta
       // função continua a ser uma só.

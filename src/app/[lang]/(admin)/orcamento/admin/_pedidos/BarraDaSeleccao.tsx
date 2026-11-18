@@ -6,6 +6,7 @@ import { dateStamp, downloadCsv, quotesToCsvRows } from "../exportar-em-csv";
 import { EmCurso } from "../ui";
 import { STATUS_OPTIONS } from "./pastilha-do-estado";
 import { type FiltrosDaLista } from "./useFiltrosDosPedidos";
+import { type LoteEmCurso } from "./useAccoesEmLote";
 import { EscolhaDoEstado } from "../EscolhaDoEstado";
 import { ESTADO, PRESSAO } from "../ui/movimento";
 
@@ -18,7 +19,7 @@ export interface BarraDaSeleccaoProps {
   filtros: FiltrosDaLista;
   setSelectedIds: Dispatch<SetStateAction<Set<string>>>;
   selectedIds: Set<string>;
-  lote: { titulo: string; feito: number; total: number } | null;
+  lote: LoteEmCurso | null;
   bulkBusy: boolean;
   applyBulkStatus: (status: QuoteStatus, ids: string[]) => Promise<void>;
   pedirParaArquivar: (arquivar: boolean, ids: string[]) => void;

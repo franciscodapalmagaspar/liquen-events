@@ -23,6 +23,13 @@ import { plural } from "@/lib/plural";
 /** No máximo esta lista, e o resto contado. Trinta nomes não se leem. */
 const NOMES_A_MOSTRAR = 8;
 
+/** O lote que está a correr: o que se está a fazer, e quantos já se fizeram. */
+export interface LoteEmCurso {
+  titulo: string;
+  feito: number;
+  total: number;
+}
+
 export interface EntradasAccoesEmLote {
   userName: string;
   quotes: Quote[];
@@ -34,13 +41,7 @@ export interface EntradasAccoesEmLote {
    *  sempre (o que ela não mexeu segue o servidor). */
   absorverDoServidor: (q: Quote) => void;
   setSelectedIds: Dispatch<SetStateAction<Set<string>>>;
-  setLote: Dispatch<
-    SetStateAction<{
-      titulo: string;
-      feito: number;
-      total: number;
-    } | null>
-  >;
+  setLote: Dispatch<SetStateAction<LoteEmCurso | null>>;
   bulkBusy: boolean;
   contarMaisUmNoLote: () => void;
   setAApagarLote: Dispatch<SetStateAction<string[] | null>>;
@@ -127,7 +128,7 @@ export function useAccoesEmLote({
       if (ok > 0) {
         // «Anular» repõe cada um no estado em que estava (e desfaz o Ganho dos
         // que lá foram por este gesto). Ver `anular-estado.ts`.
-        anular(`${ok} pedido${ok !== 1 ? "s" : ""} atualizado${ok !== 1 ? "s" : ""}`, async () => {
+        anular(plural(ok, "pedido atualizado", "pedidos atualizados"), async () => {
           /* Só volta quem AINDA está no estado que este gesto pôs, e tinha
              outro antes. Um «Anular» carregado depois de o pedido ter mudado
              outra vez repunha-o por cima do gesto novo — e desfazia um «Ganho»
@@ -152,7 +153,7 @@ export function useAccoesEmLote({
           if (mudaramOutraVez.length > 0) {
             const n = mudaramOutraVez.length;
             avisos.push(
-              `${n} pedido${n !== 1 ? "s" : ""} já tinha${n !== 1 ? "m" : ""} mudado outra vez e ficou como está.`,
+              `${plural(n, "pedido já tinha mudado outra vez e ficou como está", "pedidos já tinham mudado outra vez e ficaram como estão")}.`,
             );
           }
           if (porId.size < vaoVoltar.length) {
@@ -231,12 +232,9 @@ export function useAccoesEmLote({
       }
       const ok = updated.size;
       const failed = ids.length - ok;
-      const nome = `pedido${ok !== 1 ? "s" : ""}`;
-      const feito = arquivar
-        ? `arquivado${ok !== 1 ? "s" : ""}`
-        : `restaurado${ok !== 1 ? "s" : ""}`;
+      const feito = arquivar ? "arquivado" : "restaurado";
       if (ok > 0) {
-        anular(`${ok} ${nome} ${feito}.`, async () => {
+        anular(`${plural(ok, `pedido ${feito}`, `pedidos ${feito}s`)}.`, async () => {
           const voltaram = await comLimite([...updated.keys()], ESCRITAS_EM_SIMULTANEO, (id) =>
             mudar(id, !arquivar),
           );
@@ -321,11 +319,14 @@ export function useAccoesEmLote({
       if (failed === 0) {
         depoisDeApagarVarios(
           apagados.map((x) => x.corpo),
-          `${ok} pedido${ok !== 1 ? "s" : ""} apagado${ok !== 1 ? "s" : ""}.`,
+          `${plural(ok, "pedido apagado", "pedidos apagados")}.`,
           () => void revalidarPedidos(true),
         );
       } else {
-        toast(`${ok} apagado(s), ${failed} falhou(ram)`, "error");
+        toast(
+          `${plural(ok, "apagado", "apagados")}, ${plural(failed, "falhou", "falharam")}`,
+          "error",
+        );
       }
       esquecerDaSeleccao(ids);
     } finally {

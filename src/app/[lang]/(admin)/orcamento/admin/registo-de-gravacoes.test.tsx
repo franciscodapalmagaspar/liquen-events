@@ -9,7 +9,8 @@ import {
   enumerarNomes,
 } from "./registo-de-gravacoes";
 import BotaoGuardarTudo from "./GuardarTudo";
-import { useGravacaoAutomatica, type RespostaDoEnvio } from "./useGravacaoAutomatica";
+import { useGravacaoAutomatica } from "./useGravacaoAutomatica";
+import { type RespostaDoEnvio } from "@/lib/gravar-com-tecto";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
