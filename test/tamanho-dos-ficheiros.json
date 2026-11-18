@@ -65,8 +65,6 @@
   "src/app/[lang]/(admin)/orcamento/admin/Versoes.tsx": 493,
   "src/app/[lang]/(admin)/orcamento/admin/VistasDeHoras.tsx": 691,
   "src/app/[lang]/(admin)/orcamento/admin/carregamento/[eventId]/Carregamento.tsx": 591,
-  "src/app/[lang]/(admin)/orcamento/admin/estudio/envio/useEnviarAProposta.ts": 404,
-  "src/app/[lang]/(admin)/orcamento/admin/estudio/gravacao/useAberturaDoEstudio.ts": 487,
   "src/app/[lang]/(admin)/orcamento/admin/evento/[id]/DossierHeader.tsx": 464,
   "src/app/[lang]/(admin)/orcamento/admin/export.ts": 915,
   "src/app/[lang]/(admin)/orcamento/admin/image-prep.ts": 789,
