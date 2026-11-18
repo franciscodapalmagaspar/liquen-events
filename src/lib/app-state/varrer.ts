@@ -4,7 +4,7 @@ import { getSupabase } from "@/lib/supabase";
 import { lerComNovaTentativa } from "@/lib/repository";
 import { comTecto, TEMPO_POR_TENTATIVA_MS } from "./tecto";
 import { readFileState } from "./ficheiro";
-import { comoPrefixo } from "./apagar";
+import { comoPrefixo } from "./like";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -33,6 +33,13 @@ export interface LinhaVarrida {
   campos: Readonly<Record<string, unknown>>;
 }
 
+export interface Varredura {
+  linhas: LinhaVarrida[];
+  completa: boolean;
+  /** Incompleta porque passou do limite (e não porque a leitura falhou). */
+  transbordou?: true;
+}
+
 const PAGINA = 1000;
 const CAMPO = /^[a-zA-Z][a-zA-Z0-9]*$/;
 
@@ -40,19 +47,19 @@ const linhaDaBase = z.looseObject({ key: z.string(), updated_at: z.string() });
 
 /**
  * As linhas do espaço, sem os valores. `completa: false` quando a leitura
- * falhou, veio noutra forma, ou passou do `limite` — quem decide apagar com
+ * falhou ou veio noutra forma, ou (`transbordou`) passou do `limite` — quem decide apagar com
  * base nisto tem de ler «não sei», nunca «não há».
  */
 export async function varrerPrefixo(
   prefixo: string,
   opcoes: { campos?: readonly string[]; limite: number },
-): Promise<{ linhas: LinhaVarrida[]; completa: boolean }> {
+): Promise<Varredura> {
   const campos = opcoes.campos ?? [];
   if (campos.some((c) => !CAMPO.test(c))) throw new Error("campo inválido na varredura");
   const sb = getSupabase();
   if (!sb) return varrerFicheiro(prefixo, campos, opcoes.limite);
 
-  const falhou = { linhas: [], completa: false };
+  const falhou: Varredura = { linhas: [], completa: false };
   const linhas: LinhaVarrida[] = [];
   const select = ["key", "updated_at", ...campos.map((c) => `${c}:value->${c}`)].join(", ");
   // Duas passagens: as nulas (só a chave e a versão) e as com valor. O
@@ -89,7 +96,7 @@ export async function varrerPrefixo(
             campos: nulas ? {} : resto,
           });
         }
-        if (linhas.length > opcoes.limite) return falhou;
+        if (linhas.length > opcoes.limite) return { ...falhou, transbordou: true };
         if (data.length === 0) break;
         desde += data.length;
       } catch {
@@ -104,7 +111,7 @@ async function varrerFicheiro(
   prefixo: string,
   campos: readonly string[],
   limite: number,
-): Promise<{ linhas: LinhaVarrida[]; completa: boolean }> {
+): Promise<Varredura> {
   const todos = await readFileState();
   const linhas = Object.entries(todos)
     .filter(([k]) => k.startsWith(prefixo))
@@ -121,5 +128,7 @@ async function varrerFicheiro(
         ),
       };
     });
-  return linhas.length > limite ? { linhas: [], completa: false } : { linhas, completa: true };
+  return linhas.length > limite
+    ? { linhas: [], completa: false, transbordou: true }
+    : { linhas, completa: true };
 }

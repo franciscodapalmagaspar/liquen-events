@@ -1,13 +1,19 @@
 import "server-only";
 import { z } from "zod";
-import { gravarEstadoSeNaoMudou, getStates, lerEstadoComVersao } from "@/lib/app-state";
-import { apagarEstadoSeNaoMudou, apagarLapides } from "@/lib/app-state/apagar";
+import {
+  apagarEstadoSeNaoMudou,
+  apagarLapides,
+  gravarEstadoSeNaoMudou,
+  getStates,
+  lerEstadoComVersao,
+} from "@/lib/app-state";
 import { ESPACOS } from "@/lib/app-state/espacos";
 import {
   ESPACOS_LIMPOS,
   contarPorMotivo,
   oQueSaiDoAppState,
   type MotivoDeSaida,
+  type QuemExiste,
   type Saida,
 } from "@/lib/app-state/limpeza";
 import { comTecto } from "@/lib/app-state/tecto";
@@ -138,13 +144,24 @@ export async function planearLimpezaDoAppState(
       varrerPrefixo(prefixo, { campos, limite: LIMITE_POR_ESPACO }),
     ),
   );
-  const incompleto = lidos.findIndex((l) => !l.completa);
-  if (incompleto >= 0) {
-    log.warn("limpeza do app_state: um espaço não se leu inteiro — nada sai esta noite", {
-      prefixo: ESPACOS_LIMPOS[incompleto].prefixo,
+  // Uma leitura FALHADA: não sai nada. Um espaço que passou do limite fica
+  // de fora (não se decide sobre metade dele) e os outros limpam-se — senão o
+  // espaço que mais cresce desligava a limpeza de todos.
+  const falhado = lidos.findIndex((l) => !l.completa && !l.transbordou);
+  if (falhado >= 0) {
+    log.warn("limpeza do app_state: um espaço não se leu — nada sai esta noite", {
+      prefixo: ESPACOS_LIMPOS[falhado].prefixo,
     });
     return null;
   }
+  lidos.forEach((l, i) => {
+    if (l.transbordou) {
+      log.error("limpeza do app_state: um espaço passou do limite e ficou de fora", undefined, {
+        prefixo: ESPACOS_LIMPOS[i].prefixo,
+        limite: LIMITE_POR_ESPACO,
+      });
+    }
+  });
   const linhas: LinhaVarrida[] = lidos.flatMap((l) => l.linhas);
   const existe = {
     pedidos: new Set([...vivos.pedidos, ...reciclados]),
@@ -239,6 +256,41 @@ async function emLotes<T, R>(itens: readonly T[], f: (t: T) => Promise<R>): Prom
 }
 
 /**
+ * Quem existe AGORA (pedidos, propostas, Reciclagem), lido mesmo antes de
+ * apagar: entre a cópia e o apagar um pedido pode ter voltado da Reciclagem.
+ * `null` se alguma leitura falhou. Sem base de dados, não há noite a meio.
+ */
+async function quemExisteAgora(): Promise<QuemExiste | "sem-base" | null> {
+  const sb = getSupabase();
+  if (!sb) return "sem-base";
+  const [pedidos, propostas, reciclados] = await Promise.all([
+    lerTodasAsLinhas<unknown>(sb, "quotes", "id"),
+    lerTodasAsLinhas<unknown>(sb, "proposals", "id"),
+    idsNaReciclagem(),
+  ]);
+  const p = pedidos.error ? null : idsDe(pedidos.data);
+  const q = propostas.error ? null : idsDe(propostas.data);
+  if (!p || !q || !reciclados) return null;
+  return { pedidos: new Set([...p, ...reciclados]), propostas: new Set([...q, ...reciclados]) };
+}
+
+/**
+ * As linhas do plano que continuam a sair com quem existe agora: as MESMAS
+ * regras (`oQueSaiDoAppState`), só que sobre o que se lê neste momento.
+ */
+async function aindaSaem(plano: PlanoDaNoite, agora: Date): Promise<Saida[] | null> {
+  const existe = await quemExisteAgora();
+  if (existe === "sem-base") return plano.saem;
+  if (!existe) return null;
+  const confirmadas = new Set(
+    oQueSaiDoAppState(plano.saem, existe, agora.getTime(), plano.saem.length).saem.map(
+      (s) => s.key,
+    ),
+  );
+  return plano.saem.filter((s) => confirmadas.has(s.key));
+}
+
+/**
  * Apaga o que o plano diz — ou, na primeira noite, só conta. Nunca lança: o
  * que falhar fica para a noite seguinte, e o registo diz quantas. `null`
  * quando o registo não se leu (e então nada sai).
@@ -263,14 +315,21 @@ export async function aplicarLimpezaDoAppState(
   let mudaram = 0;
   let falharam = 0;
   if (!aSeco) {
-    const lapides = plano.saem.filter((s) => s.nula).map((s) => s.key);
+    const saem = await aindaSaem(plano, new Date());
+    if (!saem) {
+      log.warn("limpeza do app_state: quem existe não se leu agora — nada sai esta noite");
+      return null;
+    }
+    // As que deixaram de ser órfãs (um pedido que voltou) ficam, e contam como mudadas.
+    mudaram += plano.saem.length - saem.length;
+    const lapides = saem.filter((s) => s.nula).map((s) => s.key);
     const { sairam, falhou } = await apagarLapides(lapides);
     apagadas += sairam.length;
     // Sem falha, as que não saíram deixaram de ser lápides (voltaram a ter
     // valor); com falha, não se sabe: contam como falhadas.
     if (falhou) falharam += lapides.length - sairam.length;
     else mudaram += lapides.length - sairam.length;
-    const resto = plano.saem.filter((s) => !s.nula);
+    const resto = saem.filter((s) => !s.nula);
     for (const r of await emLotes(resto, (s) => apagarEstadoSeNaoMudou(s.key, s.versao))) {
       if (r === "apagado") apagadas++;
       else if (r === "mudou") mudaram++;

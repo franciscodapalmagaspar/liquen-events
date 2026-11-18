@@ -3,9 +3,15 @@ import { getSupabase } from "./supabase";
 import { lerComNovaTentativa } from "./repository";
 import { log } from "./logger";
 import { vigiarChave, vigiarValor } from "./app-state/vigiar";
-import { comTecto, PAUSA_MS, TEMPO_POR_TENTATIVA_MS, TENTATIVAS } from "./app-state/tecto";
+import { comTecto, TEMPO_POR_TENTATIVA_MS } from "./app-state/tecto";
 import { emFila, escreverFicheiro, mudarFicheiro, readFileState } from "./app-state/ficheiro";
-import { motivoDaFalha, oFicheiroEhEfemero, type ResultadoDeEscrita } from "./app-state/resultado";
+import {
+  comTentativas,
+  motivoDaFalha,
+  oFicheiroEhEfemero,
+  type ResultadoDeEscrita,
+} from "./app-state/resultado";
+import { comoPrefixo } from "./app-state/like";
 export {
   oFicheiroEhEfemero,
   type MotivoDeFalha,
@@ -83,25 +89,13 @@ async function lerComTentativas<T>(
     vigiarValor(key, all[key]);
     return { ok: true, valor: (all[key] as T) ?? null };
   }
-  let ultimoErro: unknown = null;
-  for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {
-    try {
-      const { data, error } = await comTecto(
-        sb.from("app_state").select("value").eq("key", key).maybeSingle(),
-        TEMPO_POR_TENTATIVA_MS,
-      );
-      if (!error) {
-        vigiarValor(key, data?.value);
-        return { ok: true, valor: (data?.value as T) ?? null };
-      }
-      ultimoErro = error;
-    } catch (err) {
-      ultimoErro = err;
-    }
-    if (motivoDaFalha(ultimoErro) !== "escrita-recusada") break;
-    if (tentativa < TENTATIVAS) await new Promise((r) => setTimeout(r, PAUSA_MS * tentativa));
-  }
-  return { ok: false, erro: ultimoErro };
+  const r = await comTentativas(() =>
+    sb.from("app_state").select("value").eq("key", key).maybeSingle(),
+  );
+  if (!r.ok) return { ok: false, erro: r.erro };
+  const valor = r.resposta.data?.value;
+  vigiarValor(key, valor);
+  return { ok: true, valor: (valor as T) ?? null };
 }
 
 /**
@@ -219,7 +213,7 @@ export async function listStateByPrefix<T>(
             .select("key, value")
             // `%` e `_` são curingas do LIKE: escapá-los impede que um prefixo
             // com um deles varra mais do que devia.
-            .like("key", `${prefix.replace(/([%_\\])/g, "\\$1")}%`)
+            .like("key", comoPrefixo(prefix))
             .order("key", { ascending: true })
             .range(desde, ate),
         );
@@ -345,7 +339,12 @@ export async function gravarEstadoSeNaoMudou<T>(
   }
 }
 
-export { apagarEstado, apagarEstadoPorPrefixo } from "./app-state/apagar";
+export {
+  apagarEstado,
+  apagarEstadoPorPrefixo,
+  apagarEstadoSeNaoMudou,
+  apagarLapides,
+} from "./app-state/apagar";
 
 /**
  * Grava, e DIZ se gravou.
@@ -359,24 +358,11 @@ export async function setState<T>(key: string, value: T): Promise<ResultadoDeEsc
   vigiarChave(key);
   const sb = getSupabase();
   if (sb) {
-    let ultimoErro: unknown = null;
-    for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {
-      try {
-        const { error } = await comTecto(
-          sb.from("app_state").upsert({ key, value, updated_at: new Date().toISOString() }),
-          TEMPO_POR_TENTATIVA_MS,
-        );
-        if (!error) return { gravado: true, duradouro: true, onde: "servidor" };
-        ultimoErro = error;
-      } catch (err) {
-        ultimoErro = err;
-      }
-      // Instalação incompleta: repetir dá a mesma resposta e só atrasa o aviso.
-      if (motivoDaFalha(ultimoErro) !== "escrita-recusada") break;
-      if (tentativa < TENTATIVAS) {
-        await new Promise((r) => setTimeout(r, PAUSA_MS * tentativa));
-      }
-    }
+    const r = await comTentativas(() =>
+      sb.from("app_state").upsert({ key, value, updated_at: new Date().toISOString() }),
+    );
+    if (r.ok) return { gravado: true, duradouro: true, onde: "servidor" };
+    const ultimoErro = r.erro;
     const motivo = motivoDaFalha(ultimoErro);
     log.error(
       "app-state: escrita falhou (a tabela app_state existe? ver db/schema.sql)",

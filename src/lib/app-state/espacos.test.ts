@@ -24,6 +24,7 @@ const FUNCOES_DO_APP_STATE = new Set([
   "apagarEstado",
   "apagarLapides",
   "apagarEstadoSeNaoMudou",
+  "varrerPrefixo",
 ]);
 
 /** O texto fixo do início de um literal (o literal todo, ou a cabeça do modelo). */
@@ -48,7 +49,7 @@ export function chavesDoFicheiro(fonte: string, nome = "f.ts"): string[] {
   const importadas = new Set<string>();
   for (const d of sf.statements) {
     if (!ts.isImportDeclaration(d) || !ts.isStringLiteral(d.moduleSpecifier)) continue;
-    if (!/(^|\/)app-state(\/apagar)?$/.test(d.moduleSpecifier.text)) continue;
+    if (!/(^|\/)app-state(\/apagar|\/varrer)?$/.test(d.moduleSpecifier.text)) continue;
     const nomes = d.importClause?.namedBindings;
     if (nomes && ts.isNamedImports(nomes)) {
       for (const e of nomes.elements) {
@@ -71,14 +72,37 @@ export function chavesDoFicheiro(fonte: string, nome = "f.ts"): string[] {
     if (usaAppState && dentroDeChave && ts.isReturnStatement(no)) {
       guardar(inicioDoLiteral(no.expression));
     }
-    const ehFuncaoDeChave =
-      (ts.isFunctionDeclaration(no) && !!no.name && /^chave|Key$/.test(no.name.text)) ||
-      dentroDeChave;
+    const nomeDaFuncao =
+      ts.isFunctionDeclaration(no) && no.name
+        ? no.name.text
+        : ts.isVariableDeclaration(no) &&
+            ts.isIdentifier(no.name) &&
+            no.initializer &&
+            (ts.isArrowFunction(no.initializer) || ts.isFunctionExpression(no.initializer))
+          ? no.name.text
+          : "";
+    const ehFuncaoDeChave = /^chave|Key$/.test(nomeDaFuncao) || dentroDeChave;
+    // Uma arrow de corpo curto (`const chaveX = (id) => \`x:${id}\``) devolve
+    // sem `return`.
+    if (ehFuncaoDeChave && usaAppState && ts.isArrowFunction(no) && !ts.isBlock(no.body)) {
+      guardar(inicioDoLiteral(no.body));
+    }
     ts.forEachChild(no, (f) => visitar(f, ehFuncaoDeChave));
   };
   visitar(sf, false);
   return achadas;
 }
+
+/**
+ * Literais que a varredura apanha por terem a FORMA de uma chave (devolvidos
+ * por uma função `chave…` num ficheiro que usa o app_state) e não o são — cada
+ * um com a razão.
+ */
+const NAO_SAO_CHAVES: Readonly<Record<string, readonly string[]>> = {
+  // `juntarRetratos` → `chaveDe`: a identidade de uma linha de um retrato da
+  // Reciclagem (para não a repetir ao juntar dois), nunca uma chave do app_state.
+  "lib/reciclagem.ts": ["id:", "chave:"],
+};
 
 function ficheirosDe(dir: string): string[] {
   return readdirSync(dir).flatMap((n) => {
@@ -96,8 +120,9 @@ describe("o registo dos espaços do app_state", () => {
     for (const f of ficheirosDe(raiz)) {
       for (const chave of chavesDoFicheiro(readFileSync(f, "utf-8"), f)) {
         vistas++;
-        if (chave && !espacoDaChave(chave))
-          porRegistar.push(`${path.relative(raiz, f)}: «${chave}»`);
+        const relativo = path.relative(raiz, f);
+        if (NAO_SAO_CHAVES[relativo]?.includes(chave)) continue;
+        if (chave && !espacoDaChave(chave)) porRegistar.push(`${relativo}: «${chave}»`);
       }
     }
     expect(porRegistar, "registe-as em src/lib/app-state/espacos.ts").toEqual([]);
@@ -111,7 +136,8 @@ describe("o registo dos espaços do app_state", () => {
       const CHAVE_NOVA = "espaco-novo:x";
       export function chaveDoPedido(id: string) { return \`outro-novo:\${id}\`; }
       await setState(\`terceiro-novo:\${id}\`, 1);
-      await getState("proposal-templates");`;
+      await getState("proposal-templates");
+      const chaveDoQuarto = (id: string) => \`quarto-novo:\${id}\`;`;
     const achadas = chavesDoFicheiro(fonte);
     expect(achadas).toEqual(
       expect.arrayContaining([
@@ -125,6 +151,7 @@ describe("o registo dos espaços do app_state", () => {
       "espaco-novo:x",
       "outro-novo:",
       "terceiro-novo:",
+      "quarto-novo:",
     ]);
   });
 

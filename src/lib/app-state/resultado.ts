@@ -1,5 +1,6 @@
 import "server-only";
 import { eRelogioAdiantado, isMissingTable } from "@/lib/repository";
+import { comTecto, PAUSA_MS, TEMPO_POR_TENTATIVA_MS, TENTATIVAS } from "./tecto";
 
 /** O que uma escrita (ou um apagar) do `app_state` diz sobre si. */
 
@@ -98,4 +99,28 @@ export function motivoDaFalha(err: unknown): MotivoDeFalha {
   if (isMissingTable(err)) return "tabela-em-falta";
   if (ehSemPermissao(err)) return "sem-permissao";
   return "escrita-recusada";
+}
+
+/**
+ * Um pedido ao Supabase, com as tentativas da casa: repete enquanto a falha
+ * for passageira ({@link motivoDaFalha} = `escrita-recusada`), com pausa
+ * crescente e tecto por tentativa. UM só ciclo para ler, gravar e apagar.
+ */
+export async function comTentativas<R extends { error: unknown }>(
+  pedido: () => PromiseLike<R>,
+): Promise<{ ok: true; resposta: R } | { ok: false; erro: unknown }> {
+  let ultimoErro: unknown = null;
+  for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {
+    try {
+      const resposta = await comTecto(pedido(), TEMPO_POR_TENTATIVA_MS);
+      if (!resposta.error) return { ok: true, resposta };
+      ultimoErro = resposta.error;
+    } catch (err) {
+      ultimoErro = err;
+    }
+    // Instalação incompleta: repetir dá a mesma resposta e só atrasa o aviso.
+    if (motivoDaFalha(ultimoErro) !== "escrita-recusada") break;
+    if (tentativa < TENTATIVAS) await new Promise((r) => setTimeout(r, PAUSA_MS * tentativa));
+  }
+  return { ok: false, erro: ultimoErro };
 }

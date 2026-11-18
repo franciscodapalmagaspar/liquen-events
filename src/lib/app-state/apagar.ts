@@ -1,8 +1,14 @@
 import "server-only";
 import { getSupabase } from "@/lib/supabase";
 import { log } from "@/lib/logger";
-import { comTecto, PAUSA_MS, TEMPO_POR_TENTATIVA_MS, TENTATIVAS } from "./tecto";
-import { motivoDaFalha, oFicheiroEhEfemero, type ResultadoDeEscrita } from "./resultado";
+import { comTecto, TEMPO_POR_TENTATIVA_MS } from "./tecto";
+import { comoPrefixo } from "./like";
+import {
+  comTentativas,
+  motivoDaFalha,
+  oFicheiroEhEfemero,
+  type ResultadoDeEscrita,
+} from "./resultado";
 import { vigiarChave } from "./vigiar";
 import { emFila, escreverFicheiro, mudarFicheiro, readFileState } from "./ficheiro";
 
@@ -17,9 +23,6 @@ import { emFila, escreverFicheiro, mudarFicheiro, readFileState } from "./fichei
  * está como se leu» (`apagarEstadoSeNaoMudou`). Nenhuma lança: devolvem o que
  * saiu, ou `null`/`"falhou"`, e a noite seguinte tenta outra vez.
  */
-
-/** O `%` e o `_` são curingas do LIKE: escapá-los impede um prefixo de varrer mais. */
-export const comoPrefixo = (prefixo: string) => `${prefixo.replace(/([%_\\])/g, "\\$1")}%`;
 
 /** Lotes do `in (…)`: o endereço do PostgREST tem tecto de tamanho. */
 const LOTE = 100;
@@ -174,23 +177,10 @@ export async function apagarEstado(key: string): Promise<ResultadoDeEscrita> {
   vigiarChave(key);
   const sb = getSupabase();
   if (sb) {
-    let ultimoErro: unknown = null;
-    for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {
-      try {
-        const { error } = await comTecto(
-          sb.from("app_state").delete().eq("key", key),
-          TEMPO_POR_TENTATIVA_MS,
-        );
-        if (!error) return { gravado: true, duradouro: true, onde: "servidor" };
-        ultimoErro = error;
-      } catch (err) {
-        ultimoErro = err;
-      }
-      if (motivoDaFalha(ultimoErro) !== "escrita-recusada") break;
-      if (tentativa < TENTATIVAS) await new Promise((r) => setTimeout(r, PAUSA_MS * tentativa));
-    }
-    const motivo = motivoDaFalha(ultimoErro);
-    log.error("app-state: apagar falhou", ultimoErro, { key, motivo });
+    const r = await comTentativas(() => sb.from("app_state").delete().eq("key", key));
+    if (r.ok) return { gravado: true, duradouro: true, onde: "servidor" };
+    const motivo = motivoDaFalha(r.erro);
+    log.error("app-state: apagar falhou", r.erro, { key, motivo });
     return { gravado: false, duradouro: false, onde: "nenhures", motivo };
   }
   try {

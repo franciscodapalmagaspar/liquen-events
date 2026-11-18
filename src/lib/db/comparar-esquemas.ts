@@ -146,6 +146,11 @@ export function esquemaDoSql(sqlComComentarios: string): Esquema {
       const nulo = /^alter column\s+(\w+)\s+(set|drop) not null$/i.exec(clausula);
       const alvo = nulo ? colunas.get(nulo[1]) : undefined;
       if (nulo && alvo) alvo.anulavel = nulo[2].toLowerCase() === "drop";
+      // O que muda colunas de outra maneira, este leitor não sabe seguir: é
+      // um erro DELE, não uma divergência do schema.sql — e diz-se assim.
+      if (!nova && !nulo && /^(add column|drop column|rename|alter column)\b/i.test(clausula)) {
+        throw new Error(`comparar-esquemas.ts não sabe ler: alter table ${m[1]} ${clausula}`);
+      }
     }
     if (colunas.size > 0) esquema.set(m[1], colunas);
   }

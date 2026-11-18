@@ -20,10 +20,17 @@ const st = vi.hoisted(() => ({
   condicionais: [] as [string, string][],
   respostaCondicional: "apagado" as "apagado" | "mudou" | "falhou",
   varreduraPendurada: false,
+  agora: null as Record<string, unknown[]> | null,
 }));
 
 vi.mock("@/lib/logger", () => ({ log: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
-vi.mock("@/lib/supabase", () => ({ getSupabase: () => null }));
+vi.mock("@/lib/supabase", () => ({ getSupabase: () => (st.agora ? {} : null) }));
+vi.mock("@/lib/ler-todas-as-linhas", () => ({
+  lerTodasAsLinhas: async (_sb: unknown, tabela: string) =>
+    st.agora && tabela in st.agora
+      ? { data: st.agora[tabela], error: null }
+      : { data: null, error: new Error("falhou") },
+}));
 vi.mock("@/lib/app-state/varrer", () => ({
   varrerPrefixo: async (prefixo: string) => {
     if (st.varreduraPendurada) await new Promise(() => {});
@@ -41,8 +48,6 @@ vi.mock("@/lib/app-state", () => ({
     st.gravados.push(valor);
     return "gravado";
   },
-}));
-vi.mock("@/lib/app-state/apagar", () => ({
   apagarLapides: async (chaves: string[]) => {
     st.lapides.push(chaves);
     return { sairam: chaves, falhou: false };
@@ -100,6 +105,7 @@ beforeEach(() => {
   st.condicionais = [];
   st.respostaCondicional = "apagado";
   st.varreduraPendurada = false;
+  st.agora = null;
 });
 
 const planear = async () => {
@@ -234,6 +240,29 @@ describe("aplicar o plano", () => {
     st.registo = new Error("em baixo");
     const r = await aplicarLimpezaDoAppState((await planear()).plano, "2026-11-18");
     expect(r).toBeNull();
+    expect(st.lapides).toEqual([]);
+    expect(st.condicionais).toEqual([]);
+  });
+
+  it("um pedido que voltou da Reciclagem entre a cópia e o apagar: o rascunho dele fica", async () => {
+    st.registo = { valor: { primeiraNoite: "2026-11-17" }, versao: ANTIGA };
+    const { plano } = await planear();
+    // A partir daqui há base: quem existe lê-se AGORA, e o pedido voltou.
+    st.agora = {
+      quotes: [{ id: "q1" }, { id: "q-apagado" }],
+      proposals: [{ id: P1 }],
+      reciclagem: [],
+    };
+    const r = await aplicarLimpezaDoAppState(plano, "2026-11-18");
+    expect(st.condicionais.map(([k]) => k)).not.toContain("proposal-draft:q-apagado");
+    expect(r).toMatchObject({ apagadas: 2, mudaram: 1 });
+  });
+
+  it("quem existe agora não se lê: não se apaga nada", async () => {
+    st.registo = { valor: { primeiraNoite: "2026-11-17" }, versao: ANTIGA };
+    const { plano } = await planear();
+    st.agora = { quotes: [{ id: "q1" }] }; // propostas e Reciclagem falham
+    expect(await aplicarLimpezaDoAppState(plano, "2026-11-18")).toBeNull();
     expect(st.lapides).toEqual([]);
     expect(st.condicionais).toEqual([]);
   });
