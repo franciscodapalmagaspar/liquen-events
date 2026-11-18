@@ -65,9 +65,7 @@ async function lerFiscais(
     listInvoicesForQuote(pedidoId),
     jaLido ?? getQuote(pedidoId),
   ]);
-  const falhou = [contratos, livro, pedido].find((r) => r.status === "rejected") as
-    | PromiseRejectedResult
-    | undefined;
+  const falhou = [contratos, livro, pedido].find(rejeitada);
   return {
     contratos: contratos.status === "fulfilled" ? contratos.value.length : 0,
     faturas:
@@ -76,6 +74,10 @@ async function lerFiscais(
     ...(falhou ? { falhou: falhou.reason } : {}),
   };
 }
+
+/** Uma das leituras em paralelo falhou. Predicado de tipo. */
+const rejeitada = (r: PromiseSettledResult<unknown>): r is PromiseRejectedResult =>
+  r.status === "rejected";
 
 /**
  * A pergunta do INÍCIO: há contrato ou fatura? Não lê as propostas nem as

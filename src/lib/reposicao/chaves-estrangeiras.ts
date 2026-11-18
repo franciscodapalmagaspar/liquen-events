@@ -236,11 +236,23 @@ async function lerPorChave(
     if (ultima !== null) consulta = consulta.gt(chave, ultima);
     const { data, error } = await consulta.order(chave, { ascending: true }).limit(PAGINA);
     if (error) throw error;
-    const pagina = (data ?? []) as unknown as Record<string, unknown>[];
+    const pagina = comoLinhas(data);
     if (pagina.length === 0) return linhas;
     linhas.push(...pagina);
     ultima = String(pagina[pagina.length - 1][chave]);
   }
+}
+
+/**
+ * As linhas de uma página, com forma verificada à fronteira: as colunas vão
+ * em texto (`colunas`), e o tipo gerado não as conhece. Uma resposta que não
+ * é uma lista de objetos dá nenhuma linha.
+ */
+function comoLinhas(data: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(data)) return [];
+  return data.filter(
+    (l): l is Record<string, unknown> => typeof l === "object" && l !== null && !Array.isArray(l),
+  );
 }
 
 /** Todas as linhas de uma tabela. */
@@ -276,11 +288,9 @@ export async function substituirSemApagarOsQueFicam(
   // linhas a mais (que a próxima reposição tira), e nada caiu em cascata atrás
   // de um pedido apagado antes de a cópia estar escrita.
   for (let i = 0; i < linhas.length; i += LINHAS_POR_ESCRITA) {
-    const { error } = await sb
-      .from(tabela)
-      .upsert(linhas.slice(i, i + LINHAS_POR_ESCRITA) as Record<string, unknown>[], {
-        onConflict: coluna,
-      });
+    const { error } = await sb.from(tabela).upsert(linhas.slice(i, i + LINHAS_POR_ESCRITA), {
+      onConflict: coluna,
+    });
     if (error) throw error;
   }
   for (let i = 0; i < saem.length; i += IDS_POR_PEDIDO) {

@@ -35,6 +35,13 @@ export function quoteIdFor(submissionId: string): string {
   return `LIQ-${h.slice(0, 6)}-${h.slice(6, 22)}`;
 }
 
+/** Um campo de texto de um valor lido, ou `undefined`. Sem casts. */
+function textoDe(valor: unknown, campo: string): string | undefined {
+  if (typeof valor !== "object" || valor === null) return undefined;
+  const v: unknown = Reflect.get(valor, campo);
+  return typeof v === "string" ? v : undefined;
+}
+
 /**
  * Storage layer for quote requests. The full quote is kept in a `data` jsonb
  * column (with status/name/email mirrored for listing/searching); the file
@@ -49,14 +56,13 @@ export const mapper: Mapper<Quote> = {
   // P6: verificado com esquema, em modo de só registar (`esquemas-de-leitura.ts`).
   fromRow: (r) => {
     // A leitura só pede `data` (`selectColumns`): o id vem de lá.
-    const q = r.data as { id?: unknown; lastUpdated?: unknown; submittedAt?: unknown } | null;
-    const versao = q?.lastUpdated ?? q?.submittedAt;
     registarSeForaDoEsquema(
       "pedido",
-      typeof q?.id === "string" ? q.id : "",
+      textoDe(r.data, "id") ?? "",
       r.data,
-      typeof versao === "string" ? versao : undefined,
+      textoDe(r.data, "lastUpdated") ?? textoDe(r.data, "submittedAt"),
     );
+    // Modo de só registar (P6): o valor segue tal e qual — recusar é depois.
     return r.data as Quote;
   },
   order: { column: "created_at", ascending: false },
