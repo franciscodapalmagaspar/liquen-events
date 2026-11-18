@@ -112,3 +112,25 @@ export async function fecharTrinco(nome: string, validadeMs: number): Promise<Tr
   // Duas voltas e outro pedido ganhou entretanto: está mesmo ocupado.
   return { ok: false, ate: new Date(Date.now() + validadeMs).toISOString() };
 }
+
+/**
+ * Corre `fazer` com o trinco fechado e solta-o no fim, aconteça o que
+ * acontecer (também quando `fazer` lança — o erro segue para quem chamou).
+ * Fechar e soltar ficam no mesmo sítio: quem usa não pode esquecer o `finally`.
+ *
+ * `{ ok: false }` quando o trinco já estava fechado por outro pedido — e aí
+ * `fazer` nem chega a correr.
+ */
+export async function comTrinco<T>(
+  nome: string,
+  validadeMs: number,
+  fazer: () => Promise<T>,
+): Promise<{ ok: true; valor: T } | { ok: false; ate: string }> {
+  const trinco = await fecharTrinco(nome, validadeMs);
+  if (!trinco.ok) return trinco;
+  try {
+    return { ok: true, valor: await fazer() };
+  } finally {
+    await trinco.soltar();
+  }
+}

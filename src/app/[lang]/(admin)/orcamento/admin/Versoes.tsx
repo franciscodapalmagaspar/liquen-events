@@ -5,7 +5,7 @@ import type { ProposalDoc } from "@/lib/proposal-doc";
 import { diferencas, type Mudanca } from "@/lib/orcamento/diferencas";
 import { dinheiroDaProposta } from "@/lib/proposal-budget";
 import { paragrafoDoQueMudou } from "@/lib/email-proposta-textos";
-import { IDIOMA_POR_OMISSAO, type IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import { IDIOMA_POR_OMISSAO, type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import { Button } from "./ui/Button";
 import { PerguntaDestrutiva } from "./ui/PerguntaDestrutiva";
 // `ESTADO` entra com outro nome: este ficheiro já tem um mapa `ESTADO` seu

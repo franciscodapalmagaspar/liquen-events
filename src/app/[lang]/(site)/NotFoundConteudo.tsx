@@ -39,7 +39,7 @@ export default function NotFoundConteudo({
         >
           404
         </p>
-        <p className="text-foreground/66 text-[10px] tracking-[0.5em] uppercase mb-5 flex items-center justify-center gap-3">
+        <p className="text-foreground/66 text-miuda tracking-[0.5em] uppercase mb-5 flex items-center justify-center gap-3">
           <span className="w-5 h-px bg-moss/50" />
           {t.errors.notFoundEyebrow}
         </p>

@@ -16,8 +16,8 @@ import {
   rotuloDoTotalNaLingua,
   textosDaProposta,
   type CampoDoEvento,
-  type IdiomaDaProposta,
 } from "@/lib/proposal-doc-textos";
+import { type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import { totaisDaProposta, valorAdicionalParaOEcra } from "@/lib/proposal-budget";
 import { ordemDeSaida, aplicarOrdem } from "@/lib/proposal-ordem";
 import type { FotoDaProposta } from "@/lib/proposta-fotos";
@@ -184,7 +184,7 @@ function Titulo({
   return (
     <header id={id} className="scroll-mt-6" data-sobe="titulo">
       {sobretitulo && (
-        <p className="text-foreground/70 mb-2 text-[10px] tracking-[0.4em] uppercase">
+        <p className="text-foreground/70 mb-2 text-miuda tracking-[0.4em] uppercase">
           {sobretitulo}
         </p>
       )}
@@ -372,7 +372,7 @@ function SeccaoDobrada({
             ▸
           </span>
           {sobretitulo && (
-            <span className="text-foreground/70 mb-2 block text-[10px] tracking-[0.4em] uppercase">
+            <span className="text-foreground/70 mb-2 block text-miuda tracking-[0.4em] uppercase">
               {sobretitulo}
             </span>
           )}
@@ -960,7 +960,7 @@ export default function Documento({
           <dl className="mt-7 grid grid-cols-1 gap-x-10 gap-y-3 sm:grid-cols-2">
             {apresentacao.map(([chave, valor]) => (
               <div key={chave} className="border-foreground/8 border-t pt-3">
-                <dt className="text-foreground/70 text-[10px] tracking-[0.24em] uppercase">
+                <dt className="text-foreground/70 text-miuda tracking-[0.24em] uppercase">
                   {t.campos[chave]}
                 </dt>
                 <dd className="text-foreground/85 mt-1 text-[15px] leading-relaxed">{valor}</dd>
@@ -971,7 +971,7 @@ export default function Documento({
 
         {indice.length > 1 && (
           <nav aria-label={p.nestaPagina} className="mt-10">
-            <p className="text-foreground/70 text-[10px] tracking-[0.3em] uppercase">
+            <p className="text-foreground/70 text-miuda tracking-[0.3em] uppercase">
               {p.nestaPagina}
             </p>
             <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
@@ -1105,7 +1105,7 @@ export default function Documento({
                 >
                   <span className="text-foreground/85 text-[15px]">{r.item}</span>
                   {r.extra && (
-                    <span className="text-foreground/70 shrink-0 text-[11px] tracking-[0.14em] uppercase">
+                    <span className="text-foreground/70 shrink-0 text-miuda tracking-[0.14em] uppercase">
                       {t.marcaExtra}
                     </span>
                   )}
@@ -1228,7 +1228,7 @@ export default function Documento({
                     alto nem mais forte: chega um instante DEPOIS das linhas
                     que soma, que é como se lê uma conta. */}
                 <div className="border-foreground/15 mt-5 border-t pt-5" data-sobe="total">
-                  <p className="text-foreground/70 text-[11px] tracking-[0.22em] uppercase">
+                  <p className="text-foreground/70 text-miuda tracking-[0.22em] uppercase">
                     {t.totalAPagar}
                   </p>
                   <p
@@ -1308,7 +1308,7 @@ export default function Documento({
               <summary className="marker:content-none pointer-coarse:min-h-11 relative cursor-pointer list-none pl-5 [&::-webkit-details-marker]:hidden">
                 <span
                   aria-hidden
-                  className="text-moss-dark absolute top-[0.2em] left-0 text-[11px] transition-transform duration-200 group-open:rotate-90 motion-reduce:transition-none"
+                  className="text-moss-dark absolute top-[0.2em] left-0 text-miuda transition-transform duration-200 group-open:rotate-90 motion-reduce:transition-none"
                 >
                   ▸
                 </span>

@@ -265,7 +265,7 @@ export default async function GaleriaPage({ params }: { params: Promise<{ lang: 
         <div className="relative z-10 max-w-7xl mx-auto w-full px-6 lg:px-16 pb-14 lg:pb-20">
           <AnimateIn>
             <div className="max-w-md">
-              <p className="text-white/70 text-[10px] tracking-[0.5em] uppercase mb-3 flex items-center gap-3">
+              <p className="text-white/70 text-miuda tracking-[0.5em] uppercase mb-3 flex items-center gap-3">
                 <span className="w-6 h-px bg-gold flex-shrink-0" />
                 {t.galeria.headerLabel}
               </p>
@@ -309,7 +309,7 @@ export default async function GaleriaPage({ params }: { params: Promise<{ lang: 
         />
         <div className="veu-texto veu-texto--esquerda [--veu-recuo-cima:5rem] [--veu-recuo-baixo:5rem] lg:[--veu-recuo-cima:7rem] lg:[--veu-recuo-baixo:7rem] relative z-10 max-w-7xl mx-auto px-6 lg:px-16 py-20 lg:py-28">
           <AnimateIn>
-            <p className="text-white/70 text-[10px] tracking-[0.48em] uppercase mb-8 flex items-center gap-3">
+            <p className="text-white/70 text-miuda tracking-[0.48em] uppercase mb-8 flex items-center gap-3">
               <span className="w-5 h-px bg-gold flex-shrink-0" />
               {t.galeria.instaEyebrow}
             </p>

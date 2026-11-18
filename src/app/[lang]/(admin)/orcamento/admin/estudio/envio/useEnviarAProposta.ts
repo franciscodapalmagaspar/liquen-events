@@ -11,10 +11,9 @@ import { stripPendingImages } from "@/lib/proposal-doc";
 import { linkDoWhatsApp } from "@/lib/whatsapp";
 import type { Quote } from "@/lib/orcamento/types";
 import { useEnvioAdiado } from "../../ui/envio-adiado";
-import {
-  avisoDeConteudoIncompleto,
-  normalizaCortes,
-} from "@/lib/orcamento/estudio/textos-do-estudio";
+import { avisoDeConteudoIncompleto } from "@/lib/orcamento/estudio/textos-do-estudio";
+import * as contrato from "@/lib/orcamento/envio/contrato";
+import { pareceEmail } from "@/lib/parece-email";
 import { retratoDoPdf } from "./pdf-no-ecra";
 import { useDocumentoDoEstudio } from "../documento/useDocumentoDoEstudio";
 import { useTraducoes } from "../traducoes/useTraducoes";
@@ -230,7 +229,7 @@ export function useEnviarAProposta({
         return;
       }
       if (res.status === 409 && data?.precisaConfirmarCortes) {
-        const cortes = normalizaCortes(data.truncations);
+        const cortes = contrato.normalizaCortes(data.truncations);
         perguntas.perguntar({ tipo: "cortes", cortes, retrato: retratoDoEnvio });
         return;
       }
@@ -256,7 +255,7 @@ export function useEnviarAProposta({
       // menos é o problema que originou esta contagem; saber que o email saiu
       // é secundário quando o documento que ele leva está incompleto.
       const emFalta = Number(data?.missingImages ?? 0);
-      const aviso = avisoDeConteudoIncompleto(emFalta, normalizaCortes(data?.truncations));
+      const aviso = avisoDeConteudoIncompleto(emFalta, contrato.normalizaCortes(data?.truncations));
       const { saiu, mensagem, tipo } = desfechoDoEnvio({
         resposta: data,
         aviso,
@@ -309,12 +308,11 @@ export function useEnviarAProposta({
   /**
    * Há destinatário para esta proposta?
    *
-   * A MESMA regra do servidor (ver a rota do envio): um endereço com arroba e
-   * um ponto no domínio. Não é uma validação a sério — é a que distingue «não
-   * há email nenhum» de «há». Se as duas discordassem, o ecrã dizia que ia
-   * seguir e o servidor não o mandava.
+   * A MESMA regra do servidor (`pareceEmail`): distingue «não há email nenhum»
+   * de «há». Se as duas discordassem, o ecrã dizia que ia seguir e o servidor
+   * não o mandava.
    */
-  const emailDoCliente = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(quote.email ?? "");
+  const emailDoCliente = pareceEmail(quote.email);
 
   return { emailDoCliente, send };
 }

@@ -17,7 +17,6 @@ import {
 } from "@/lib/orcamento/estudio/temas-e-fotos";
 import {
   avisoDeConteudoIncompleto,
-  cortesDoCabecalho,
   textoDaGravacao,
   textoDoTotal,
   type EstadoDaGravacaoNoEcra,
@@ -43,7 +42,7 @@ import type { PropsDoEstudio } from "./estudio/tipos";
  * sair daqui, para nenhum teste nem chamador ter de mudar.
  */
 export { semAsFotosNasPaginas, semOTema, temasLevadosPelasLinhas };
-export { avisoDeConteudoIncompleto, cortesDoCabecalho, textoDaGravacao, textoDoTotal };
+export { avisoDeConteudoIncompleto, textoDaGravacao, textoDoTotal };
 export type { EstadoDaGravacaoNoEcra };
 export { contagemDePrecos, modoDoAdicional, textoDoAdicional };
 export type { ModoDeIvaDoAdicional };

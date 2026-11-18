@@ -1,5 +1,7 @@
 import "server-only";
 import { getState, setState } from "./app-state";
+import { TIPOS_DE_MODELO } from "./orcamento/listas-fechadas";
+import { ehUmDe } from "./todos-os-valores";
 import type { ProposalDoc, ServiceGroup, MoodBoard } from "./proposal-doc";
 
 /**
@@ -76,7 +78,7 @@ function saoModelos(v: unknown): ModeloProposta[] {
       typeof m === "object" &&
       typeof (m as ModeloProposta).id === "string" &&
       typeof (m as ModeloProposta).nome === "string" &&
-      ["completo", "grupo", "moodboard"].includes((m as ModeloProposta).tipo),
+      ehUmDe(TIPOS_DE_MODELO, (m as ModeloProposta).tipo),
   );
 }
 

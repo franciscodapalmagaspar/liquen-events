@@ -2,7 +2,7 @@
 import { useEffect } from "react";
 
 import { normaliseCoverImages, stripPendingImages } from "@/lib/proposal-doc";
-import { ehIdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import { ehIdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import { semAssinaturasMortas } from "../../assinatura";
 
 import { docTemIngles } from "@/lib/proposal-doc-bilingue";

@@ -21,7 +21,7 @@ para se poderem repetir e comparar.
 |---|---|
 | Parte 1, princípios com fontes | feito (17/11) |
 | Parte 2, raio-X medido | feito (17/11), commit `1f15511d` |
-| Parte 3, plano por fases | fases 0 e 1 feitas (17/11, ramo `codigo/fase-0-e-1`); fase 2 feita, fases 3 e 4 em parte (17/11, ramo `codigo/estudio-fases-2-a-4`) — ver a tabela e «O que falta» aqui em baixo |
+| Parte 3, plano por fases | fases 0 e 1 feitas (17/11, ramo `codigo/fase-0-e-1`); 5 feita e 6 começada (17/11, ramo `codigo/rota-e-esquemas`: a 6 em modo de observar, com 5 de 61 rotas e 1 de 44 leituras — ver o desvio 3); 2 feita, 3 e 4 quase feitas (17–18/11, ramos `codigo/estudio-fases-2-a-4` e `codigo/estudio-fases-3-a-4`, já com o `main` de 19/11 junto); 7–10 por começar |
 | Parte 4, lições para projetos futuros | feito; cresce com cada lição (regra de `codigo.md`) |
 
 Cada fase que se fizer acrescenta aqui uma linha: a data, o PR, e as medidas
@@ -68,6 +68,185 @@ E três erros que JÁ EXISTIAM (não são desta mudança, e cada um muda o que e
 - **As capturas píxel a píxel só servem se forem deterministas.** Antes de comparar o depois com o antes, tiraram-se duas capturas do ANTES e confirmou-se 0 diferenças entre elas (relógio fixo, movimento reduzido, sem cursor). Uma vez, o painel «O que vai sair» ainda estava a desenhar a página quando a captura saiu: a repetição deu 0. Isto é do painel, que desenha a página no servidor, e não da mudança.
 - **Juntar pedidos em voo, não guardar respostas.** A leitura partilhada não é uma cache: só o segundo pedido IGUAL, feito enquanto o primeiro está a caminho, espera pela mesma resposta. Assim não há nada que possa vir velho, e não há nada para invalidar. O mapa é por `fetch`, para os testes (que trocam o `fetch` em cada caso) nunca herdarem um pedido pendurado de outro caso.
 - **Os testes que leem o código-fonte têm de seguir o código que sai.** Dois deles (`o-estudio-pergunta-a-caixa`, `escada-da-tinta`) deixavam de ver o que saiu do `ProposalStudio`; passaram a ler a lista de `test/ficheiros-do-estudio.ts`, que inclui as peças.
+| 5 · a rota da proposta | 17/11 · `codigo/rota-e-esquemas` | `proposta-doc/route.ts` 2 115 → 133 linhas; o `POST_semMedida` tinha **complexidade 168** e 723 linhas (163 no raio-X, +5 com os ramos `estabilidade/` e `legal/` juntados). Agora a rota só tem a sessão, o `comCpu`, LER (o pedido e o corpo) e traduzir o desfecho para HTTP (complexidade máxima 5). O resto vive em `lib/orcamento/envio/`: 23 ficheiros, e cada etapa devolve a mesma forma, um `Passo` (`passo.ts`: segue, ou pára já com o desfecho) — o orquestrador é uma lista de «faz isto; se parou, é essa a resposta» (o maior, `atender-o-estudio.ts`, ≈ 260 linhas); a função mais complexa tem 16 (`corpoLido`, `modeloDela`), o orquestrador 4. A leitura do corpo (`ler-o-corpo.ts`, sem zod), o esquema que só regista (`esquema-do-corpo.ts`) e a ORDEM das guardas baratas que acaba no registo (`guardas-baratas.ts`) são três ficheiros, e cada papel tem o seu teste. Prova: 53 retratos da rota (estado, corpo em texto, cabeçalhos, email, gravações e registo) tirados ANTES de partir, iguais letra a letra depois; e 70 casos (os 44 cenários e 26 corpos estranhos — os que perguntam já com fotos em falta, um corte ou um modelo guardado, e uma língua que nem se converte em texto) corridos lado a lado contra a rota ANTIGA, todos iguais — foi assim que se apanhou um `doc` que é texto a responder outra frase. Essa comparação ficou no repositório (`route.contra-a-antiga.test.ts`): corre sempre que o clone tem o commit de caracterização — no CI também: o checkout lá é raso, e o próprio teste vai buscar só esse commit, na parte que o corre —, e tem PRAZO escrito no teste (31/1/2027: depois disso deixa de correr e o nome e o registo pedem o desvio 8, sem bloquear ninguém); além dos 70 casos, compara 8 SEQUÊNCIAS (repetições, versão que sobe, a «por enviar» reaproveitada, o registo de envios que não responde), com os mesmos duplos e cenários do retrato (`proposta-doc/_caracterizacao/`), e o prazo dela (31/1/2027) está no desvio 8; os 185 casos da rota verdes; testes próprios das etapas (puras e com efeitos); teste de ouro do PDF verde. Peso das rotas 93 KB / 511 KB (o aumento desde a fase 1 vem dos dois ramos juntados; desta fase, só chega ao browser a lista das línguas, que `proposal-doc-textos.ts` passou a ler de `orcamento/listas-fechadas.ts` — umas dezenas de bytes). |
+| 6 · a fronteira dos dados | 17/11 · `codigo/rota-e-esquemas` | Modo de OBSERVAR em todo o lado (`lib/fronteira/observar.ts`): diz o sítio e o tipo do desvio, nunca o valor, uma vez por processo e por caso (até 64 casos por desvio; passado o tecto, UMA linha a dizer que o desvio continua noutros casos, e no tecto de 500 desvios esquece-se só o que não se vê há mais tempo), e só depois das guardas baratas. a leitura do `quotes-store.ts` (a linha 48 do raio-X, hoje a 51) deixou de ser `r.data as Quote` às cegas (`fronteira/pedido-guardado.ts`, contorno medido na base e cruzado com o esquema de escrita). **Cinco rotas** passaram a ter esquema: `POST proposta-doc`, `PUT proposta-rascunho`, `PATCH propostas/[id]`, `POST`/`PUT email-templates`, `POST propostas/modelos`. Custo medido com `npx vitest bench src/lib/fronteira` (`custo.bench.ts`): ≈ 15 µs a conferir o corpo de um envio grande (o PDF leva segundos; o `JSON.parse` do mesmo corpo leva ≈ 58 µs), ≈ 1 µs por pedido guardado (< 0,1 ms para os 46). O zod fica fora do browser: tudo o que importa o zod leva `server-only` (o build falha se o browser o pedir); o que pode ir ao browser são só tipos e listas (`envio/contrato.ts`, `envio/envio-da-proposta.ts`, `orcamento/listas-fechadas.ts`, `lib/todos-os-valores.ts`). O único pedaço com zod no browser já lá estava — o import dinâmico do `importar-proposta`. |
+
+**Desvios das fases 5 e 6 ao texto, e porquê:**
+
+1. **O tipo não sai do esquema nos tipos partilhados** (`ProposalDoc`, `Quote`). O
+   estúdio, que corre no browser, lê esses tipos, e o zod não pode ir no pacote do
+   browser. Ficou o contrário, preso pelo compilador: `fronteira/esquemas.test.ts`
+   prova que tudo o que o `ProposalDoc` aceita o esquema também aceita. No que é só
+   do servidor, o tipo sai da LEITURA: `CorpoLido` é o que `corpoLido` devolve
+   (`envio/ler-o-corpo.ts`). O esquema do corpo (`envio/esquema-do-corpo.ts`) já
+   não decide valores — a 6.ª ronda do júri apanhou que, sendo o mesmo esquema o
+   do registo e o da leitura, apertar uma regra para ver mais no registo mudava o
+   envio. Agora são dois papéis, e prende-os um teste num sentido só: tudo o que
+   o esquema aceita num campo, a leitura lê tal e qual nesse campo
+   (`esquema-do-corpo.test.ts`). As regras que juntam campos são da leitura e
+   não do esquema — o `rascunho` só conta na pré-visualização —, e estão nos
+   testes da leitura.
+2. **O contorno do `Quote` é o da base, não o do tipo.** Medido a 17/11 só por tipos
+   (`jsonb_typeof` de cada campo, nenhum valor lido): 24 dos 46 pedidos não têm os
+   campos do formulário do site que o `Quote` diz obrigatórios. Um esquema copiado do
+   tipo acusava metade dos pedidos que funcionam todos os dias. As 52 propostas
+   guardadas batem todas com o esquema do documento.
+3. **A fase 6 começou, não acabou.** Ponto 1: feito (o `Quote` e o documento à
+   entrada). Ponto 2 (as 44 leituras `json() as` / `JSON.parse() as`): 1 de 44 — a
+   do `quotes-store`; o `localStorage` não se pode fazer com zod (é browser).
+   Ponto 3 (as 61 rotas sem esquema): 5 de 61, as que gravam o trabalho dela à mão.
+   O resto fica para as fases seguintes, pela mesma ordem de risco; e todas
+   continuam em modo de observar até haver uma semana sem registos.
+4. **Os comentários longos mudaram de sítio com o código**; alguns encurtaram onde
+   repetiam o que outro módulo já diz. Os que contam um incidente medido (a língua
+   do email, as fotos a menos que ninguém avisou, a capa fabricada pelo casal)
+   ficaram por inteiro — a segunda ronda do júri apanhou três encurtados e
+   voltaram.
+5. **A catraca do tamanho subiu dez tectos**, todos de ficheiros que cresceram nos
+   ramos `estabilidade/erros-de-producao` e `legal/auditoria-17-11` (escritos antes de
+   a catraca existir) e que esta fase não tocou: `derivadas.ts` 1 209 → 1 304,
+   `proposal-progress.ts` 809 → 834, `app-state.ts`, `orcamento/route.ts`,
+   `PropostaWeb.tsx`, `proposta/[token]/page.tsx`, `GaleriaClient.tsx`, e três que
+   entram acima das 400 (`legal-content.ts` 419, `api/backup/route.ts` 443,
+   `cron/reminders/route.ts` 451). É contra a regra da catraca e está dito: **partem-se
+   nos PRs desses ramos**, não aqui (seria mexer em código que não é desta fase). A rota
+   da proposta saiu da lista. **E subiu outra vez ao juntar o `main` de 17/11**: o
+   lote entrou no `main` sem a catraca (que é da fase 0, e o `main` tirou-a), e
+   quarenta e três ficheiros que esta fase não toca cresceram lá (`AdminClient.tsx`
+   9 129 → 9 536, `Tarefas.tsx`, `admin-auth.ts`, cinco novos acima das 400 —
+   `armazenamento/balde.ts`, `armazenamento/migracao.ts`…). Os tectos ficaram com o
+   tamanho do `main`; os cinco que desceram, desceram.
+6. **Mover e melhorar foram no mesmo ramo** (contra o §3.0, regras 3 e 7: +9 mil
+   linhas, das quais 4,3 mil são retratos). A prova de equivalência não é o
+   `--color-moved`, é o retrato: 53 respostas tiradas antes de mexer e iguais
+   depois de cada commit. Os commits contam a ordem (caracterização → partir →
+   esquemas → revisões → júri) e podem ser revistos um a um. O que mudou por
+   dentro sem mudar a resposta: o registo de envios lê-se uma vez por pedido
+   (eram duas; `etapas-com-efeitos.test.ts` conta as leituras, também quando o
+   registo não responde), e o esquema do corpo confere-se depois das guardas
+   baratas (`guardas-baratas.test.ts` prende a ordem).
+7. **Ficaram duas cópias de listas fechadas fora desta fase**: os estados do
+   pedido e da proposta em `validation.ts` e `backup-restore.ts` (ambos acima do
+   tecto da catraca — uma linha a mais para importar a lista partia-a, e a regra é
+   partir primeiro) e as etiquetas dos motivos no `Acompanhamento.tsx` (ecrã). Tudo o
+   que esta fase tocou lê `orcamento/listas-fechadas.ts` — o `ehIdiomaDaProposta`
+   também, desde a última ronda do júri, e (júri de 17/11, à noite) a língua da
+   cópia do envio (`envios-de-proposta.ts`), o rodapé legal e os tipos de modelo
+   (`proposal-templates.ts`). Os `z.enum(["pt","en"])` de `validation.ts` (a língua do
+   FORMULÁRIO do site) e de `backup-restore.ts` (a do contrato) não são a língua da
+   proposta: são outras listas, que hoje calham ter os mesmos valores. Os ids dos
+   impedimentos (`Impedimento.id`, em `proposal-progress.ts`) continuam texto: dar-lhes
+   um tipo fechado (`IdDoImpedimento`) é mexer num ficheiro que está no tecto da
+   catraca, e parte-se primeiro; até lá prende-os `travas-do-envio.test.ts`, pelo
+   comportamento.
+8. **O retrato de 80 respostas e 8 sequências (≈ 8 mil linhas de `.snap`) é andaime, não guarda
+   permanente.** Vive enquanto as fases seguintes mexerem no envio (a 3 e a 4 mexem
+   no estúdio que o chama). O critério para o reduzir é este: **no PR em que o
+   estúdio passar a ler `envio/contrato.ts`** (desvio 9), o retrato fica só com os
+   casos de fronteira — um por estado HTTP, os corpos estranhos e as repetições —, e
+   o resto passa a viver nos testes das etapas. Até lá, um `-u` neste ficheiro é uma
+   mudança de comportamento e diz-se no PR. No mesmo PR apaga-se
+   `route.contra-a-antiga.test.ts`, que compara com a rota do `main` (`e8a4a94b`, a
+   que está em produção), e com ele as três reexportações `@deprecated` da língua em
+   `proposal-doc-textos.ts` (só a rota antiga ainda as importa). **Prazo: 31/12/2026** (escrito no teste, `PRAZO`):
+   depois disso a comparação deixa de correr e o CI põe uma anotação de aviso a
+   pedir este desvio — sem bloquear ninguém — em cada corrida que carregue o teste:
+   as completas, depois de juntar, e os PRs que mexam no grafo da rota (os outros
+   PRs correm só os testes ligados ao que mudou, `vitest related`). Pode chegar antes: no dia em
+   que a rota antiga (que importa os módulos de hoje) deixar de carregar, o teste
+   falha a dizer o mesmo. Não se conserta a antiga. O teste em si cumpre as 400 linhas: os duplos, o palco (pedido, retrato)
+   e os cenários estão em `proposta-doc/_caracterizacao/` (a pasta com `_` é privada
+   para o Next, não vira rota), e os `vi.mock` ficam em cada teste, a ir buscar os
+   duplos dentro da fábrica — a ordem dos imports não conta, e um teste em cada ficheiro
+   confere que nenhum duplo ficou por declarar (`duplosEsquecidos`).
+9. **O contrato da rota (`envio/contrato.ts`) só em parte é lido pelo estúdio**: os
+   NOMES dos cabeçalhos da pré-visualização e a codificação dos cortes já são uma só,
+   escritas e lidas pelas mesmas peças (`CABECALHOS_DA_PRE_VISUALIZACAO`,
+   `cortesEmCabecalho`/`cortesDoCabecalho`, o tipo `Corte` e a sua guarda); os CORPOS das respostas o
+   `ProposalStudio.tsx` ainda os lê à mão (`data?.precisaConfirmarFotos`). Tipá-los é
+   o primeiro passo da fase em que o estúdio se parte.
+10. **A garantia da assinatura está no `mandarOEmail`, não no `sendMail`.** Só um
+   `EmailEmoldurado` se pode mandar por ali; o `sendMail` (`lib/mail.ts`, de todo o
+   correio da casa) continua a aceitar qualquer html, e a guarda de texto
+   `todo-o-correio-leva-a-assinatura.test.ts` é que vigia os outros caminhos. Uma
+   porta única `enviarAoCliente(email: EmailEmoldurado)` para todo o correio a
+   clientes é o passo certo, e é de outra fase (mexe em todas as rotas que mandam
+   correio).
+11. **Dois defeitos antigos ficaram como estavam, porque esta fase não muda respostas.**
+   Uma repetição reconhecida (`repeticao-do-envio.ts`) responde sempre
+   `estado: "enviada"`, mesmo quando a irmã que reconheceu já ficou «aceite» (o pedido
+   estava Ganho) — e o contrato diz «o estado em que a proposta FICOU». E o
+   `pedidoError` de `depois-do-email.ts` começa por «O email seguiu para o cliente»
+   também quando o email não saiu (avaria ou WhatsApp). A 5.ª ronda do júri achou mais
+   três do mesmo género: o endereço com um espaço no fim é válido para o aviso do
+   destinatário (que apara) e inválido para a trava (que não apara); o aviso de
+   colunas perdidas na gravação (`docError` com `docSaved: true`) não chega à resposta;
+   e um `ref`/`clientNames` que não é texto passa a fronteira e só rebenta depois de
+   gravar. Corrigem-se num PR próprio, com o retrato desses casos a mudar e dito.
+12. **O «sim» antigo às fotos (`FIM_DO_SIM_ANTIGO`, até 18/11) é andaime com data**:
+   a pergunta, a leitura e o esquema aceitam o `true` e, a partir de 19/11, só a
+   pergunta o recusa. Tira-se num PR logo a seguir (as três linhas e os testes do
+   «sim» antigo); até lá o esquema não regista o `true` como desvio.
+
+**Lições destas duas fases** (também na Parte 4):
+
+- **Retratar a resposta em TEXTO, não em objecto.** O `toMatchSnapshot` de um objecto
+  ordena as chaves; o de `res.text()` guarda a ordem dos campos, que é o que viaja. E
+  normalizar só o que muda sozinho (ids, datas, o relógio).
+- **Um orquestrador que não conhece o framework.** As etapas devolvem uma `Recusa` (uma
+  decisão) ou uma `Falha` (a base não deixou), e o pedido um `Desfecho` (recusa, falha,
+  PDF ou envio); a rota é um `switch` de seis linhas. Os
+  testes das etapas não precisam do Next. E o orquestrador mostra a sequência:
+  `preVisualizar` e `enviar` são as duas portas, e ambas começam pelo mesmo
+  `prepararEDesenhar`.
+- **Um esquema de leitura cruza-se com o de escrita**, não só com a base: a base
+  não tinha nenhum `quotedPrice: null`, mas o «Anular» de um «Ganho» escreve-o.
+- **Nomes que não se confundem**: «pedido» é sempre o pedido do CLIENTE (`pedidoId`);
+  o que o estúdio manda é o `corpo`, e o texto do email dentro dele é o
+  `textoDoEmail`; o email escrito é o `email`, o que o correio respondeu é a `saida`;
+  os parâmetros de cada etapa dizem para quê (`ParaDesenhar`, `ParaMandar`…).
+- **Um esquema descreve o que os ecrãs mandam, não tudo o que a rota tolera**
+  (`fronteira/observar.ts`): o tolerado que ninguém manda é o que o registo deve
+  mostrar, e passar a recusar decide-se campo a campo.
+- **Medir num `bench`, não num teste**: o custo tem o seu ficheiro e o seu comando, e
+  nenhum PR fica vermelho por uma pausa do GC.
+- **A marca no tipo vale mais do que a guarda de texto**: só um `EmailEmoldurado`
+  (criado por cima do `emailAoCliente`) se pode mandar — um email montado à mão não
+  compila.
+- **Fechar e soltar no mesmo sítio** (`comTrinco`): um trinco passado entre funções
+  como parâmetro de saída é um `finally` à espera de ser esquecido.
+- **O esquema que observa não lê** (lição 18 da Parte 4), e **a prova contra o código
+  antigo fica no repositório** (lição 19).
+- **Uma forma só para o que cada etapa devolve** (`Passo`: segue com um valor, ou
+  pára com o desfecho final). Com quatro formas (`Recusa|null`, `{ok, recusa}`,
+  `{ok, falha}`, `Resposta|null`), cada etapa nova trazia uma convenção e um ramo
+  próprio no orquestrador; com uma, ele lê-se como a lista de passos que é.
+- **Antes de escrever um esquema, medir a base** — por tipos, sem ler um único valor. O
+  tipo dizia uma coisa e metade dos dados dizia outra.
+- **O modo de observar tem de dizer QUAIS**, não só «algum»: deduplicar por desvio
+  escondia 23 de 24 pedidos com o mesmo defeito.
+- **As listas fechadas presas ao tipo** (`lib/todos-os-valores.ts`): um valor a
+  mais ou a menos não compila.
+- **Uma guarda que lê o texto do código engana-se a si própria** quando o código muda
+  de ficheiro. A da assinatura passou a saber quem escreve o email e quem o manda, em
+  vez de procurar uma palavra no ficheiro que manda.
+- **Um construtor por desfecho, com o nome do `tipo`** (`desfecho.envio(…)` dá
+  `{ tipo: "envio" }`), e o que é partilhado entre pedidos (`SEGUE`, os construtores)
+  congelado: uma resposta não pode herdar o que outra mudou.
+- **O derivado não é um campo** (lição 20 da Parte 4): o dinheiro deriva do
+  documento (`dinheiroDe`), contado uma vez e só quando alguém o pede. Guardado ao
+  lado do documento, podia discordar dele; contado cedo, partia o rascunho, que a
+  rota antiga nunca contava (a 2.ª passagem à ronda do júri achou-o).
+- **A casca lê o relógio, as etapas recebem-no**: o `Contexto` traz `agora`, e a
+  validade, a pergunta das fotos, a montagem, a versão, a janela da repetição e o
+  `sentAt` leem-no daí — nenhuma etapa chama `new Date()` nem `Date.now()`.
+- **Um resultado é uma união, não um saco de booleanos**: o correio sai, não sai por
+  escolha, ou não sai com um porquê (`SaidaDoEmail`); a resposta do envio é feita ou
+  repetida (`EnvioFeito | EnvioRepetido`). O JSON que viaja é o mesmo.
+- **A prova compara com o que está em produção**: quando o `main` mudou a rota antiga
+  (o «sim» antigo às fotos, o rodapé legal), a comparação passou a tirar a rota do
+  `main` e não a do commit do retrato.
+
 
 **Desvios da fase 1 ao texto:** além do que a tabela da fase 1 nomeia, saíram
 com as funções as ajudantes privadas de que elas precisam (`eventTypeLabel`,
@@ -899,7 +1078,9 @@ acerto medido aqui.
 8. **Um componente faz uma coisa.** Se para o descrever se usa «e», parte-se.
    Um ecrã com passos tem um componente por passo desde o primeiro passo.
 9. **Rotas finas:** a rota lê, valida, chama o domínio, responde. A orquestração
-   vive em funções com nome, testáveis sem servidor.
+   vive em funções com nome, testáveis sem servidor, que devolvem um desfecho com
+   tipo (recusa, ficheiro, resposta) e não conhecem o framework.
+   *(Aqui: `lib/orcamento/envio/atender-o-estudio.ts`, fase 5.)*
 
 ### Ao crescer
 
@@ -934,6 +1115,26 @@ acerto medido aqui.
     `{" "}`, a peça nova guarda-o com `prettier-ignore` e o comentário do
     porquê; e o passo 5 só se fotografa depois de o email deixar de dizer «A
     preparar o texto…», senão os dois lados assentam em momentos diferentes.
+19. **Retratar antes de partir, em texto.** O retrato de uma rota é o estado, o
+    corpo como TEXTO (a ordem dos campos viaja), os cabeçalhos e os efeitos (o que
+    se gravou, o email, o registo). Tirado antes, comparado depois.
+20. **Esquema novo sobre dados velhos: observar primeiro, e medir a base antes.**
+    Por tipos, sem ler valores. O registo diz o sítio e o tipo do desvio — nunca o
+    valor — e diz QUAIS casos, com tecto.
+21. **Fechar e soltar no mesmo sítio** (um `comTrinco`, um `using`), nunca um
+    recurso passado entre funções para alguém soltar.
+22. **O esquema que observa não lê.** Em modo de observar, o esquema só REGISTA; os
+    valores lê-os uma leitura própria, escrita à mão com as tolerâncias de sempre.
+    Se forem o mesmo, apertar uma regra para ver mais no registo muda o
+    comportamento sem ninguém dar por isso. Prendem-se num sentido só: tudo o que o
+    esquema aceita, a leitura lê igual.
+23. **A prova de equivalência fica no repositório.** Um retrato tirado DEPOIS de
+    mexer certifica-se a si próprio; o que o certifica é o código antigo a correr
+    ao lado (do git, a pedido), com os mesmos cenários.
+24. **O derivado calcula-se, não se guarda ao lado** — nem num objecto de contexto.
+    Um valor que deriva de outro e viaja ao lado dele pode discordar dele; uma
+    função com memória (por documento) dá o mesmo ganho sem essa porta. E calcula-se
+    onde o código antigo o calculava: mais cedo é mudar o que falha, e quando.
 
 ---
 

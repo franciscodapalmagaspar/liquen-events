@@ -1,5 +1,7 @@
 import type { MotivoDeRecusa, Proposal } from "./types";
 import { opcionaisDe } from "./versoes-da-proposta";
+import { MOTIVOS_DE_RECUSA } from "./listas-fechadas";
+import { ehUmDe } from "@/lib/todos-os-valores";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -70,8 +72,6 @@ export interface AnaliseDeExtras {
   taxa: number | null;
 }
 
-const MOTIVOS: MotivoDeRecusa[] = ["preco", "data", "escolheram-outro", "sem-resposta", "outro"];
-
 export const NOME_DO_MOTIVO: Record<MotivoDeRecusa, string> = {
   preco: "Preço",
   data: "Data indisponível",
@@ -116,11 +116,11 @@ export function analisar(propostas: Proposal[]): AnaliseDePropostas {
     // Uma recusa sem motivo registado conta como "outro" e não desaparece: se
     // as sem motivo não entrassem, a soma dos motivos era menor do que o número
     // de recusas e ninguém percebia porquê.
-    const m = p.lostReason && MOTIVOS.includes(p.lostReason) ? p.lostReason : "outro";
+    const m = ehUmDe(MOTIVOS_DE_RECUSA, p.lostReason) ? p.lostReason : "outro";
     contagemDeMotivos.set(m, (contagemDeMotivos.get(m) ?? 0) + 1);
   }
 
-  const motivos = MOTIVOS.map((chave) => ({
+  const motivos = MOTIVOS_DE_RECUSA.map((chave) => ({
     chave,
     n: contagemDeMotivos.get(chave) ?? 0,
     pct: pct(contagemDeMotivos.get(chave) ?? 0, recusadas.length),

@@ -262,7 +262,7 @@ describe("o preço do pedido não chega ao total do estúdio em cru", () => {
     ["a montagem", "setTotalInput(textoDoTotal(baseDoPedidoParaOEcra(quote.quotedPrice, d)));"],
     ["a hidratação", "return aplicarBase(limpo, baseDoPedidoParaOEcra(doPedido, limpo));"],
   ])("e não grita com %s feita como deve ser", (_nome, correcto) => {
-    const certo = `${CODIGO}\nfunction __ensaio() {\nconst doPedido = quote.quotedPrice;\n${correcto}\n}\n`;
+    const certo = `${PARTES[0]}\nfunction __ensaio() {\nconst doPedido = quote.quotedPrice;\n${correcto}\n}\n`;
     expect(travessiasSemConversao(certo)).toEqual([]);
   });
 });

@@ -8,10 +8,8 @@ import { countPendingImages, stripPendingImages } from "@/lib/proposal-doc";
 import { nomeDoFicheiroDaProposta } from "@/lib/email-proposta-textos";
 import type { Quote } from "@/lib/orcamento/types";
 import { descarregar } from "../../ui/descarregar";
-import {
-  avisoDeConteudoIncompleto,
-  cortesDoCabecalho,
-} from "@/lib/orcamento/estudio/textos-do-estudio";
+import { avisoDeConteudoIncompleto } from "@/lib/orcamento/estudio/textos-do-estudio";
+import * as contrato from "@/lib/orcamento/envio/contrato";
 import { type PdfPronto, guardarNoDisco, retratoDoPdf, verPdfNoEcra } from "./pdf-no-ecra";
 import { useDocumentoDoEstudio } from "../documento/useDocumentoDoEstudio";
 import { useTraducoes } from "../traducoes/useTraducoes";
@@ -120,14 +118,15 @@ export function usePdfDaProposta({
     const blob = await res.blob();
     // A geração que acabou de acontecer ensina a próxima estimativa: quantas
     // fotos, quanto tempo, quantos bytes. Medido, não estimado.
-    if (res.headers.get("X-Pdf-Da-Memoria") !== "1") {
+    const { CABECALHOS_DA_PRE_VISUALIZACAO: CABECALHO } = contrato;
+    if (res.headers.get(CABECALHO.pdfDaMemoria) !== "1") {
       apontarGeracao(totalDeFotos, Date.now() - comecou, blob.size);
     }
     return {
       blob,
-      chave: rascunho ? null : res.headers.get("X-Chave-Do-Pdf"),
-      emFalta: Number(res.headers.get("X-Fotos-Em-Falta") ?? "0"),
-      cortes: res.headers.get("X-Conteudo-Cortado"),
+      chave: rascunho ? null : res.headers.get(CABECALHO.chaveDoPdf),
+      emFalta: Number(res.headers.get(CABECALHO.fotosEmFalta) ?? "0"),
+      cortes: res.headers.get(CABECALHO.conteudoCortado),
     };
   }
 
@@ -205,7 +204,7 @@ export function usePdfDaProposta({
       const chave = rascunho ? null : pdf.chave;
       if (chave) setPdfVisto({ chave, retrato, confirmado: false, emFalta: pdf.emFalta });
       const emFalta = pdf.emFalta;
-      const cortes = cortesDoCabecalho(pdf.cortes);
+      const cortes = contrato.cortesDoCabecalho(pdf.cortes);
       const aviso = avisoDeConteudoIncompleto(emFalta, cortes);
       if (aviso) {
         toast(`PDF gerado, mas ${aviso}. Verifica antes de enviar.`, "error");

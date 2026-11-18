@@ -687,7 +687,7 @@ export default async function ProposalPage({
            * Fica o nome deles. O `h1` acima é a abertura inteira.
            *
            * A frase da casa continua a existir no EMAIL
-           * (`proposta-doc/route.ts`), onde um corpo só com dois nomes não se
+           * (`lib/email-proposta-textos.ts`), onde um corpo só com dois nomes não se
            * lê como uma mensagem. */}
         </header>
 
@@ -729,7 +729,7 @@ export default async function ProposalPage({
               {/* O CABEÇALHO SÓ APARECE SE HOUVER LINHAS PARA PÔR POR BAIXO.
 
               Uma proposta feita no estúdio grava sempre `lineItems: []` (ver
-              api/orcamento/[id]/proposta-doc/route.ts) — o detalhe dos serviços
+              lib/orcamento/envio/a-proposta-que-se-grava.ts) — o detalhe dos serviços
               vive no documento em PDF que segue em anexo, não em linhas. Sem
               esta condição, o noivo que abre a página para decidir gastar
               milhares de euros via o cabeçalho "Descrição / Quantidade / Valor",
@@ -737,7 +737,7 @@ export default async function ProposalPage({
               cara do produto para dar má impressão, e dava-a a toda a gente que
               recebe uma proposta do estúdio. */}
               {proposal.lineItems.length > 0 && (
-                <div className="hidden sm:flex items-center gap-3 px-5 py-3 border-b border-foreground/8 text-foreground/70 text-[10px] tracking-[0.2em] uppercase">
+                <div className="hidden sm:flex items-center gap-3 px-5 py-3 border-b border-foreground/8 text-foreground/70 text-miuda tracking-[0.2em] uppercase">
                   <span className="flex-1">{t.tableDescricao}</span>
                   <span className="w-12 text-center">{t.tableQt}</span>
                   <span className="w-28 text-right">{t.tableValor}</span>
@@ -847,7 +847,7 @@ export default async function ProposalPage({
             Só aparece a partir da versão 2: dizer «Versão 1» a quem abre uma
             proposta pela primeira vez é ruído. */}
         {(emitidaLabel || (!!doLink?.versao && doLink.versao > 1)) && (
-          <p className="text-foreground/70 text-[11px] mt-2 text-center">
+          <p className="text-foreground/70 text-miuda mt-2 text-center">
             {[
               emitidaLabel ? `${t.emitidaEm} ${emitidaLabel}` : "",
               /* Só a partir da versão 2: dizer «Versão 1» a quem abre uma
@@ -926,7 +926,7 @@ export default async function ProposalPage({
           </p>
         </div>
 
-        <p className="text-foreground/70 text-[11px] text-center mt-10 leading-relaxed">
+        <p className="text-foreground/70 text-miuda text-center mt-10 leading-relaxed">
           {t.footerNote}{" "}
           {/* Medido a 375 px: 140×14 px — um alvo de e-mail com 14 px de
               altura, mais pequeno do que a polpa de um dedo consegue acertar

@@ -64,7 +64,7 @@ E uma decisão do mesmo dia, sobre os Temas: **«sim à sombra, cantos a 12»** 
 | Área | Ficheiros |
 |---|---|
 | Fazer proposta / estúdio | `src/app/[lang]/(admin)/orcamento/admin/FazerProposta.tsx`, `PainelDoEstudio.tsx`, `NavEstudio.tsx`, `FolhaDaProposta.tsx`, `NotaDaProposta.tsx`, `AEnviarAProposta.tsx`, `DefinicoesProposta.tsx`, `definicoes-da-proposta.ts`, `Propostas.tsx` |
-| PDF da proposta | `src/lib/proposal-pdf.ts`, `src/lib/proposal-doc-pdf.ts`, `src/lib/pdf-text.ts`, `src/lib/proposal-pdf-cache.ts`, `src/app/api/proposta/[token]/pdf/route.ts` |
+| PDF da proposta | `src/lib/proposal-pdf.ts`, `src/lib/pdf-editorial/`, `src/lib/pdf-text.ts`, `src/lib/proposal-pdf-cache.ts`, `src/app/api/proposta/[token]/pdf/route.ts` |
 | Proposta web (cliente) | `src/app/[lang]/(privado)/proposta/[token]/page.tsx`, `Documento.tsx`, `Inspiracao.tsx`, `Escolhas.tsx`, `MovimentoDaProposta.tsx` |
 | Temas | `src/app/[lang]/(admin)/orcamento/admin/Temas.tsx`, `ListaDeTemas.tsx`, `FundirTemas.tsx`, `prefetch-de-tema.ts`, `src/lib/temas-arrasto.ts`, `src/app/api/temas/**`, `src/app/api/biblioteca/{paletas,fotos,etiquetas,etiquetar}` |
 

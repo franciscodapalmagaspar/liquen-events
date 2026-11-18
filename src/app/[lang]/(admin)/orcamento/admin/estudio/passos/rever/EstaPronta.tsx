@@ -6,7 +6,7 @@ import type { Quote } from "@/lib/orcamento/types";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import type { ProposalMoney } from "@/lib/proposal-doc";
 import type { FotoEscolhidaEmFalta } from "@/lib/proposta-fotos-verificacao-tipos";
-import { type IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import { type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import type { CampoPublicado } from "@/lib/proposal-ortografia";
 import Conferencia from "../../../Conferencia";
 import FotosEmFalta from "../../../FotosEmFalta";

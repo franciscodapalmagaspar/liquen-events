@@ -5,7 +5,7 @@ import {
   IDIOMA_POR_OMISSAO,
   ehIdiomaDaProposta,
   type IdiomaDaProposta,
-} from "@/lib/proposal-doc-textos";
+} from "@/lib/orcamento/listas-fechadas";
 import { type CampoDeTexto } from "@/lib/proposal-ortografia";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import type { Quote } from "@/lib/orcamento/types";

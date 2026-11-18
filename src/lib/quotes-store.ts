@@ -4,6 +4,7 @@ import type { Quote, QuoteSummary } from "@/lib/orcamento/types";
 import { CAMPOS_SO_DO_DETALHE } from "@/lib/orcamento/types";
 import { createRepository, lerComNovaTentativa, type Mapper } from "./repository";
 import { getSupabase } from "./supabase";
+import { lerPedidoGuardado } from "./fronteira/pedido-guardado";
 
 /**
  * Generates a quote reference id (e.g. LIQ-M1A2B3-9F3C7A1B2D4E5F60). The
@@ -45,7 +46,9 @@ export const mapper: Mapper<Quote> = {
   selectColumns: "data",
   getId: (q) => q.id,
   toRow: (q) => ({ id: q.id, status: q.status, name: q.name, email: q.email, data: q }),
-  fromRow: (r) => r.data as Quote,
+  // A fronteira da base: confere em modo de observar e devolve tal e qual
+  // (fase 6 de `docs/ESTRUTURA-DO-CODIGO.md`, `fronteira/pedido-guardado.ts`).
+  fromRow: (r) => lerPedidoGuardado(r.data),
   order: { column: "created_at", ascending: false },
   fileCompare: (a, b) => +new Date(b.submittedAt) - +new Date(a.submittedAt),
   touch: true,

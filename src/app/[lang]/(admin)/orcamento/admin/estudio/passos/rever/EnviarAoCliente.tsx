@@ -6,7 +6,7 @@ import type { AmostraDeGeracao } from "@/lib/custo-do-pdf";
 import { type StudioDoc } from "@/lib/orcamento/estudio/documento-inicial";
 import type { Quote } from "@/lib/orcamento/types";
 import type { ProposalDoc } from "@/lib/proposal-doc";
-import { type IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import { type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import EmailDoEnvio from "../../../EmailDoEnvio";
 import Versoes from "../../../Versoes";
 import { Button } from "../../../ui";

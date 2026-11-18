@@ -11,7 +11,7 @@
  */
 
 import { SINAL_POR_OMISSAO } from "./money";
-import type { IdiomaDaProposta } from "./proposal-doc-textos";
+import { type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 
 /**
  * Versão dos termos. Incrementar quando o texto muda de forma relevante.

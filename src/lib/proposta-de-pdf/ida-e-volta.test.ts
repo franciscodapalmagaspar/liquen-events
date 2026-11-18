@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import sharp from "sharp";
-import { renderProposalDocPdf } from "@/lib/proposal-doc-pdf";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import {
   depositPercentOf,
   resolveProposalMoney,
@@ -40,6 +41,20 @@ import { documentoDeCampos } from "./tipos";
  * quando há adicionais, as páginas de inspiração mudam a paginação de tudo o
  * que vem a seguir.
  */
+
+/**
+ * ── OS PDF FICARAM GUARDADOS, PORQUE O GERADOR JÁ NÃO EXISTE ─────────────
+ *
+ * O motor lê o formato ANTIGO — o das propostas que ela já mandou, impressas
+ * pelo gerador que veio antes do editorial (`proposal-doc-pdf.ts`). Esse
+ * gerador foi apagado a 18/11; antes disso imprimiu cada documento deste
+ * ficheiro uma última vez, e são esses bytes que estão em `amostras/`. Os
+ * documentos continuam aqui como a VERDADE contra que se compara o que o motor
+ * lê. A validade foi impressa a {@link DIA_DA_GRAVACAO}, e é contra esse dia
+ * que se calcula a esperada.
+ */
+const AMOSTRAS = path.join(__dirname, "amostras");
+const DIA_DA_GRAVACAO = new Date("2026-11-18T12:00:00Z");
 
 async function foto(w: number, h: number, cor: { r: number; g: number; b: number }) {
   const b = await sharp({ create: { width: w, height: h, channels: 3, background: cor } })
@@ -233,8 +248,8 @@ function tabela(nome: string, r: { linhas: Confronto[]; acerto: number }): strin
   ].join("\n");
 }
 
-async function idaEVolta(doc: ProposalDoc) {
-  const bytes = await renderProposalDocPdf(doc);
+async function idaEVolta(nome: string) {
+  const bytes = new Uint8Array(await readFile(path.join(AMOSTRAS, `${nome}.pdf`)));
   const r = await lerPropostaDePdf(bytes);
   if (!r.ok) throw new Error(`o motor recusou o nosso próprio PDF: ${r.porque}`);
   return { rascunho: r.rascunho, lido: documentoDeCampos(r.rascunho.campos) };
@@ -258,7 +273,7 @@ function camposFixos(doc: ProposalDoc): string[] {
 describe("ida e volta: gerar o PDF e voltar a lê-lo", () => {
   it("proposta completa — evento, serviços, mood board, orçamento e adicionais", async () => {
     const doc = await docCompleto();
-    const { rascunho, lido } = await idaEVolta(doc);
+    const { rascunho, lido } = await idaEVolta("completa");
 
     const evento = confrontar(doc, lido, [
       "ref",
@@ -363,7 +378,7 @@ describe("ida e volta: gerar o PDF e voltar a lê-lo", () => {
     expect(depois.fecha).toBe(true);
 
     // A validade é impressa como DATA, e é essa que volta.
-    expect(lido.validUntil).toBe(resolveValidUntil(doc));
+    expect(lido.validUntil).toBe(resolveValidUntil(doc, DIA_DA_GRAVACAO));
     // A percentagem do sinal está impressa no faseamento do orçamento.
     expect(lido.depositPercent).toBe(depositPercentOf(doc));
 
@@ -379,7 +394,7 @@ describe("ida e volta: gerar o PDF e voltar a lê-lo", () => {
 
   it("proposta magra — sem mood boards, sem adicionais, IVA incluído", async () => {
     const doc = await docMagro();
-    const { rascunho, lido } = await idaEVolta(doc);
+    const { rascunho, lido } = await idaEVolta("magra");
 
     const r = confrontar(doc, lido, [
       "ref",
@@ -430,7 +445,7 @@ describe("ida e volta: gerar o PDF e voltar a lê-lo", () => {
 
   it("proposta com acentos e cedilhas em todos os campos", async () => {
     const doc = await docAcentuado();
-    const { lido } = await idaEVolta(doc);
+    const { lido } = await idaEVolta("acentuada");
 
     const r = confrontar(doc, lido, [
       "ref",
@@ -460,16 +475,14 @@ describe("ida e volta: gerar o PDF e voltar a lê-lo", () => {
     // Com adicionais, o documento imprime «Total a pagar» em vez do rótulo
     // escrito no estúdio. Devolver «Total a pagar» como se fosse o dela era
     // exactamente o género de campo que parece certo e está errado.
-    const doc = await docCompleto();
-    const { rascunho, lido } = await idaEVolta(doc);
+    const { rascunho, lido } = await idaEVolta("completa");
     expect(lido.totalLabel).toBeUndefined();
     const dito = rascunho.porLer.find((p) => p.campo === "totalLabel");
     expect(dito?.porque).toMatch(/valores adicionais/i);
   }, 120_000);
 
   it("cada campo devolvido traz a página e o texto de onde saiu", async () => {
-    const doc = await docCompleto();
-    const { rascunho } = await idaEVolta(doc);
+    const { rascunho } = await idaEVolta("completa");
     for (const c of rascunho.campos) {
       expect(c.origem.pagina).toBeGreaterThan(0);
       expect(c.origem.texto.length).toBeGreaterThan(0);
@@ -526,7 +539,7 @@ describe("ida e volta: gerar o PDF e voltar a lê-lo", () => {
       totalVatMode: "acrescer" as const,
       coverImages: ["", ""],
     });
-    const { rascunho, lido } = await idaEVolta(doc);
+    const { rascunho, lido } = await idaEVolta("comprida");
     expect(rascunho.medidas.paginas).toBeGreaterThan(10);
 
     // Os trinta e seis serviços, com as descrições no sítio.
@@ -598,7 +611,7 @@ describe("ida e volta: gerar o PDF e voltar a lê-lo", () => {
       totalText: "",
       coverImages: ["", ""],
     });
-    const { lido } = await idaEVolta(doc);
+    const { lido } = await idaEVolta("organizacao");
     const r = confrontar(doc, lido, [
       "template",
       "clientNames",
@@ -659,7 +672,8 @@ describe("ida e volta: gerar o PDF e voltar a lê-lo", () => {
    */
   it("uma legenda colada volta sem pontos de interrogação", async () => {
     const a = await foto(900, 600, { r: 150, g: 120, b: 90 });
-    const doc = withProposalDefaults({
+    // O documento que foi impresso em `amostras/legenda-colada.pdf`.
+    const _impresso = withProposalDefaults({
       template: "decoracao",
       ref: "PO Decoração — Mafalda & Rui · 12.09.2027",
       clientNames: "Mafalda & Rui",
@@ -694,7 +708,7 @@ describe("ida e volta: gerar o PDF e voltar a lê-lo", () => {
       totalVatMode: "acrescer",
     });
 
-    const { lido } = await idaEVolta(doc);
+    const { lido } = await idaEVolta("legenda-colada");
 
     const legenda = `${lido.moodBoards?.[0]?.title ?? ""} ${lido.moodBoards?.[0]?.subtitulo ?? ""} ${lido.moodBoards?.[0]?.annotation ?? ""}`;
     expect(legenda).not.toContain("?");

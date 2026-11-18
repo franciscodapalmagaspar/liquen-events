@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { corpoLido } from "@/lib/orcamento/envio/ler-o-corpo";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -17,8 +18,14 @@ import { describe, expect, it } from "vitest";
  * trazem, e nenhum deles pode deixar de enviar por causa disso.
  */
 
-/** A leitura que a rota faz, à letra (ver `proposta-doc/route.ts`). */
-const querEmail = (corpo: { porEmail?: unknown } | null) => corpo?.porEmail !== false;
+/** A leitura que a rota faz — a VERDADEIRA, e não uma cópia dela
+ *  (`lib/orcamento/envio/ler-o-corpo.ts`, desde a fase 5). */
+const querEmail = (corpo: { porEmail?: unknown } | null) => {
+  // O canal só existe num envio (`CorpoDoEnvio`).
+  const lido = corpoLido({ ...corpo, mode: "send" });
+  if (lido.modo !== "send") throw new Error("um corpo com mode «send» é um envio");
+  return lido.porEmail;
+};
 
 describe("por onde a proposta segue", () => {
   it("sem o campo, envia — como sempre enviou", () => {

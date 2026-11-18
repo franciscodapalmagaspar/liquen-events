@@ -212,9 +212,21 @@ describe("o rodapé legal dos e-mails (17/11, docs/LEGAL-EMAILS.md)", () => {
         "src/app/api/mesas/[id]/enviar/route.ts",
         "src/app/api/orcamento/[id]/mensagem/route.ts",
         "src/app/api/orcamento/[id]/modelo/route.ts",
-        "src/app/api/orcamento/[id]/proposta-doc/route.ts",
         "src/app/api/orcamento/route.ts",
       ].sort(),
     );
+  });
+
+  /**
+   * O envio da proposta saiu da rota (fase 5 de `docs/ESTRUTURA-DO-CODIGO.md`):
+   * quem o manda é `mandar-o-email.ts`, que só aceita um `EmailEmoldurado`, e
+   * quem o escreve é `email-da-proposta.ts` — é aí que o rodapé se decide.
+   */
+  it("o email da proposta decide o rodapé onde é escrito", () => {
+    const ler = (f: string) => readFileSync(join(process.cwd(), f), "utf8");
+    expect(ler("src/lib/orcamento/envio/mandar-o-email.ts")).toContain("sendMail(");
+    const quemEscreve = ler("src/lib/orcamento/envio/email-da-proposta.ts");
+    expect(quemEscreve).toContain("emailAoCliente(");
+    expect(quemEscreve).toContain('finalidade: "proposta"');
   });
 });

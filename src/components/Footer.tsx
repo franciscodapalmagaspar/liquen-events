@@ -97,7 +97,7 @@ export default function Footer({ locale = "pt" }: { locale?: Locale }) {
             <TrackedLink
               href={localizeHref("/orcamento", locale)}
               trackProps={{ source: "footer" }}
-              className="mt-8 inline-flex items-center gap-2.5 px-8 py-3.5 border border-white/35 text-white/90 text-[11px] tracking-[0.25em] uppercase hover:bg-white hover:text-[#0c0e0b] hover:border-white transition-colors duration-300 ease-expo"
+              className="mt-8 inline-flex items-center gap-2.5 px-8 py-3.5 border border-white/35 text-white/90 text-miuda tracking-[0.25em] uppercase hover:bg-white hover:text-[#0c0e0b] hover:border-white transition-colors duration-300 ease-expo"
             >
               {t.footer.pedirOrcamento} <span aria-hidden>→</span>
             </TrackedLink>
@@ -155,7 +155,7 @@ export default function Footer({ locale = "pt" }: { locale?: Locale }) {
           {/* Serviços + Contacto — centred on mobile, two columns from sm up */}
           <div className="border-t border-white/12 py-10 flex flex-col sm:flex-row sm:justify-between gap-8 text-center sm:text-left">
             <div>
-              <p className="text-white/55 text-[10px] tracking-[0.42em] uppercase mb-4">
+              <p className="text-white/55 text-miuda tracking-[0.42em] uppercase mb-4">
                 {t.footer.servicosTitulo}
               </p>
               {/* `alvo-toque` em todos os links deste rodapé: medidos a 375 px
@@ -177,7 +177,7 @@ export default function Footer({ locale = "pt" }: { locale?: Locale }) {
               </ul>
             </div>
             <div className="sm:text-right">
-              <p className="text-white/55 text-[10px] tracking-[0.42em] uppercase mb-4">
+              <p className="text-white/55 text-miuda tracking-[0.42em] uppercase mb-4">
                 {t.footer.contacto}
               </p>
               <div className="flex flex-col gap-2.5 text-[13px] text-white/75">
@@ -213,7 +213,7 @@ export default function Footer({ locale = "pt" }: { locale?: Locale }) {
         {/* ── Copyright bar ── */}
         <div className="border-t border-white/12 py-5">
           <div className="max-w-7xl mx-auto px-6 lg:px-16 flex flex-col sm:flex-row justify-between items-center sm:items-start gap-4 text-center">
-            <p className="text-[11px] text-white/55 tracking-wide sm:pt-2.5">
+            <p className="text-miuda text-white/55 tracking-wide sm:pt-2.5">
               © {new Date().getFullYear()} Líquen Events. {t.footer.rights}
             </p>
             {/* ── O fim legal (17/11, `docs/LEGAL-FORMULARIO.md`) ──

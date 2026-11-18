@@ -25,7 +25,7 @@ export default function Error({
   return (
     <section className="min-h-[80vh] flex items-center justify-center px-6 bg-surface">
       <div className="max-w-lg text-center">
-        <p className="text-foreground/60 text-[10px] tracking-[0.5em] uppercase mb-5 flex items-center justify-center gap-3">
+        <p className="text-foreground/60 text-miuda tracking-[0.5em] uppercase mb-5 flex items-center justify-center gap-3">
           <span className="w-5 h-px bg-moss/50" />
           {t.errors.errorEyebrow}
         </p>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthed } from "@/lib/admin-auth";
 import type { ProposalDoc } from "@/lib/proposal-doc";
-import { ehIdiomaDaProposta, IDIOMA_POR_OMISSAO } from "@/lib/proposal-doc-textos";
+import { ehIdiomaDaProposta, IDIOMA_POR_OMISSAO } from "@/lib/orcamento/listas-fechadas";
 import { planoDoEditorialDoDocumento } from "@/lib/proposal-doc-render";
 import { log } from "@/lib/logger";
 import { comCpu } from "@/lib/medir-cpu";

@@ -12,7 +12,7 @@ import {
   ehIdiomaDaProposta,
   IDIOMA_POR_OMISSAO,
   type IdiomaDaProposta,
-} from "@/lib/proposal-doc-textos";
+} from "@/lib/orcamento/listas-fechadas";
 import { log } from "@/lib/logger";
 import { comCpu } from "@/lib/medir-cpu";
 

@@ -12,6 +12,8 @@ import {
 import { log } from "@/lib/logger";
 import { juntarRascunhos } from "@/lib/rascunho-juntar";
 import { comCpu } from "@/lib/medir-cpu";
+import { observar } from "@/lib/fronteira/observar";
+import { esquemaDoCorpoDoRascunho } from "@/lib/fronteira/corpos-das-rotas";
 import { marcarPropostaEmPreparacao } from "@/lib/estado-do-pedido-servidor";
 
 export const runtime = "nodejs";
@@ -158,6 +160,9 @@ async function PUT_semMedida(
     if (serialised.length > MAX_DRAFT_BYTES) {
       return NextResponse.json({ error: "Rascunho demasiado grande." }, { status: 413 });
     }
+    // A fronteira, em modo de observar (fase 6): diz o que não bate, não recusa.
+    // Depois do tecto: um rascunho que vai ser recusado não vale o trabalho.
+    observar(esquemaDoCorpoDoRascunho, body, "o corpo do PUT proposta-rascunho", { id });
 
     const chave = idDoRascunho(request, id);
     const current = await getProposalDraft(chave);

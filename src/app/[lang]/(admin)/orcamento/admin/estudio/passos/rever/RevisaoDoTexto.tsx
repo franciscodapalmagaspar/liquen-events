@@ -4,7 +4,7 @@ import type { ActionDispatch, SetStateAction } from "react";
 import { type StudioDoc } from "@/lib/orcamento/estudio/documento-inicial";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import { camposPorTraduzir, escreverEn } from "@/lib/proposal-doc-bilingue";
-import { type IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import { type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import {
   corrigirGralha,
   corrigirTudo,

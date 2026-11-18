@@ -3,7 +3,7 @@ import type { Quote } from "./types";
 import { foraDoPadrao, padraoPara, paxDaProposta } from "./padrao-de-preco";
 import { camposComVersaoInglesa, camposPorTraduzir, lerEn } from "@/lib/proposal-doc-bilingue";
 import { oQueFaltaParaEnviar } from "@/lib/proposal-progress";
-import { IDIOMA_POR_OMISSAO, type IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import { IDIOMA_POR_OMISSAO, type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import { listasQueNaoSaem } from "@/lib/pdf-editorial/plano";
 import { camposDeEscolhaPorTraduzir } from "@/lib/proposta-escolhas";
 import { choquesDeData } from "./choque-de-datas";
