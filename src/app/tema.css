@@ -189,6 +189,15 @@
      Preso por `src/app/letra-minima-do-site.contrato.test.ts`. */
   --text-miuda: 0.75rem;
 
+  /* A EXCEÇÃO, pedida pelo dono a 18/11 com a captura do telemóvel: «o pedir
+     proposta e o ver galeria têm que estar mais pequenos», e o «Pedir proposta»
+     que flutua ao descer também. Voltam ao tamanho que tinham antes do chão de
+     12 px (9 px no telemóvel, 10 px a partir de `sm`). Só estas três chamadas
+     em maiúsculas espaçadas o usam — preso por
+     `src/app/letra-minima-do-site.contrato.test.ts`. */
+  --text-chamada-telemovel: 0.5625rem;
+  --text-chamada: 0.625rem;
+
   /* ---------- ESPAÇO ----------
      Grelha de 4: 4 8 12 16 20 24 32 40 48 64. É já o valor por omissão do
      Tailwind v4; fica escrito para a grelha ser uma decisão e não um acaso. */

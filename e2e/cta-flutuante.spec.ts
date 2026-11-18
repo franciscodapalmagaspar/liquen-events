@@ -48,8 +48,18 @@ async function descer(page: Page, ecras: number) {
 test.describe("telemóvel 390×844", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test("no topo não aparece; depois do primeiro ecrã aparece", async ({ page }) => {
+  test("na página inicial não aparece, nem depois de descer (pedido dele, 18/11)", async ({
+    page,
+  }) => {
     await recusarCookies(page);
+    await descer(page, 1.2);
+    await expect(page.locator(CTA_FIXO)).toBeHidden();
+    expect(await ctaAMostra(page)).toBe(false);
+  });
+
+  test("noutra página: no topo não aparece; depois do primeiro ecrã aparece", async ({ page }) => {
+    await recusarCookies(page);
+    await page.goto("/sobre");
     await descer(page, 0);
     await expect.poll(() => ctaAMostra(page)).toBe(false);
     await descer(page, 1.2);
