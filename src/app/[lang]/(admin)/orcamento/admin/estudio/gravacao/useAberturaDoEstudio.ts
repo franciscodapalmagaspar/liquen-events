@@ -53,11 +53,11 @@ export function useAberturaDoEstudio({
   traducoes,
 }: EntradaAberturaDoEstudio) {
   const { setPorConfirmar } = camposPorConfirmar;
-  const { camposTocados, docAssente, historico, setDoc } = documento;
+  const { camposTocadosRef, docAssenteRef, historicoRef, setDoc } = documento;
   const { setAssetCores, setAssetMedias, setAssetOriginais, setAssetUrls, setThemeOrigins } = fotos;
-  const { aAbrir, docDoServidor, hydrated, serverStamp, setAberturaAssente } = rascunho;
+  const { aAbrirRef, docDoServidorRef, hydratedRef, serverStampRef, setAberturaAssente } = rascunho;
   const { enviarParaServidor } = servidor;
-  const { persistirPreco, precoEnviado, setTotalInput } = total;
+  const { persistirPreco, precoEnviadoRef, setTotalInput } = total;
   const { setBilingue, setIdiomaDoPdf } = traducoes;
 
   // ── Restore draft on mount ──
@@ -90,7 +90,7 @@ export function useAberturaDoEstudio({
   // Um efeito de restauro tem de ser idempotente: correr outra vez não pode
   // significar ler outra vez. Lido uma vez, fica lido.
   useEffect(() => {
-    if (hydrated.current) return;
+    if (hydratedRef.current) return;
     let hadDraft = false;
     /** O rascunho deste aparelho, já lido — e a BASE que ele traz. Guardam-se
      *  aqui fora porque o ramo do «o pedido ainda não tem preço», lá em baixo,
@@ -213,7 +213,7 @@ export function useAberturaDoEstudio({
     // Gestão do pedido não chegava ao PDF.
     const doPedido = quote.quotedPrice;
     if (typeof doPedido === "number" && doPedido > 0) {
-      precoEnviado.current = doPedido;
+      precoEnviadoRef.current = doPedido;
       /**
        * ── AQUI ESTAVA O VALOR A CRESCER SOZINHO ──────────────────────────
        *
@@ -264,14 +264,14 @@ export function useAberturaDoEstudio({
         persistirPreco(baseDoRascunho, rascunhoLocal ? { doc: rascunhoLocal } : undefined);
       }
     }
-    hydrated.current = true;
+    hydratedRef.current = true;
     // SÓ quando não havia rascunho nenhum. Ver o bloco «A ABERTURA TAMBÉM NÃO
     // É TRABALHO POR GRAVAR»: abrir um pedido virgem é semear o que veio do
     // pedido, e isso não se grava; abrir um pedido COM rascunho é outra coisa
     // — o restauro corrige o que lá está (tira marcadores provisórios de fotos
     // que nunca chegaram a existir, acerta o total pelo «Preço final» do
     // pedido) e essas correcções TÊM de ficar gravadas.
-    if (!hadDraft) aAbrir.current = true;
+    if (!hadDraft) aAbrirRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -315,8 +315,8 @@ export function useAberturaDoEstudio({
       }
       if (!active) return;
       if (draft) {
-        serverStamp.current = typeof draft.updatedAt === "string" ? draft.updatedAt : null;
-        docDoServidor.current = ehObjecto(draft.doc) ? draft.doc : null;
+        serverStampRef.current = typeof draft.updatedAt === "string" ? draft.updatedAt : null;
+        docDoServidorRef.current = ehObjecto(draft.doc) ? draft.doc : null;
       }
 
       const carimboDoServidor = draft ? Date.parse(draft.updatedAt ?? "") || 0 : 0;
@@ -399,7 +399,7 @@ export function useAberturaDoEstudio({
        * medido, sete rondas em oito.
        */
       const semOsQueElaTocou = Object.fromEntries(
-        Object.entries(doDoServidor).filter(([chave]) => !camposTocados.current.has(chave)),
+        Object.entries(doDoServidor).filter(([chave]) => !camposTocadosRef.current.has(chave)),
       ) as Partial<StudioDoc>;
       // A abertura ACABA AQUI quando há rascunho no servidor.
       //
@@ -409,7 +409,7 @@ export function useAberturaDoEstudio({
       // uma abertura derivada do pedido, é trabalho vindo de outro dispositivo
       // com uma correcção aplicada em cima. Ver o bloco «A ABERTURA TAMBÉM NÃO
       // É TRABALHO POR GRAVAR».
-      aAbrir.current = false;
+      aAbrirRef.current = false;
       setDoc((d) => {
         const merged = { ...d, ...semOsQueElaTocou };
         const limpo = stripPendingImages({
@@ -448,7 +448,7 @@ export function useAberturaDoEstudio({
         // MERGIDO (dos adicionais e do modo de IVA que vieram do servidor), por
         // isso lê-se aqui dentro — a mesma razão que a montagem tem escrita.
         const base = mandaOPedido ? paraOEcra : (baseDoDoc(doDoServidor) ?? null);
-        if (base != null && !camposTocados.current.has("__total")) {
+        if (base != null && !camposTocadosRef.current.has("__total")) {
           setTotalInput(textoDoTotal(base));
         }
         const adoptado = paraOEcra == null ? limpo : aplicarBase(limpo, paraOEcra);
@@ -456,8 +456,8 @@ export function useAberturaDoEstudio({
         // pode voltar ao que estava no ecrã antes de o rascunho do servidor
         // chegar (revisão de 13/11) — e a gravação seguinte escrevê-lo-ia por
         // cima do trabalho bom.
-        docAssente.current = adoptado;
-        historico.current = [];
+        docAssenteRef.current = adoptado;
+        historicoRef.current = [];
         return adoptado;
       });
       // O que estava marcado como «vindo do pedido» deixou de estar no ecrã: o

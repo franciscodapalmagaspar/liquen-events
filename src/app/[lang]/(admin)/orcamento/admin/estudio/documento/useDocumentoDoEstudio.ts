@@ -40,9 +40,9 @@ export function useDocumentoDoEstudio({ quote }: EntradaDocumentoDoEstudio) {
    * histórico não pode redesenhar a página, ou escrever numa caixa de texto
    * passava a redesenhar o formulário inteiro a cada tecla.
    */
-  const historico = useRef<StudioDoc[]>([]);
+  const historicoRef = useRef<StudioDoc[]>([]);
   /** O documento «assente»: o da abertura, ou o da última fotografia. */
-  const docAssente = useRef<StudioDoc | null>(null);
+  const docAssenteRef = useRef<StudioDoc | null>(null);
   /**
    * Os marcadores provisórios que JÁ se resolveram (o caminho em que a foto
    * assentou, ou `null` se falhou). Um documento reposto pelo ⌘Z ou pelo
@@ -51,12 +51,14 @@ export function useDocumentoDoEstudio({ quote }: EntradaDocumentoDoEstudio) {
    * as células ficavam a carregar para sempre e o envio preso (revisão de
    * 13/11). Repor passa por aqui.
    */
-  const marcadoresResolvidos = useRef<Map<string, string | null>>(new Map());
+  const marcadoresResolvidosRef = useRef<Map<string, string | null>>(new Map());
   const semMarcadoresMortos = (d: StudioDoc): StudioDoc =>
-    marcadoresResolvidos.current.size === 0
+    marcadoresResolvidosRef.current.size === 0
       ? d
       : mapImagePaths(d, (p) =>
-          marcadoresResolvidos.current.has(p) ? (marcadoresResolvidos.current.get(p) ?? null) : p,
+          marcadoresResolvidosRef.current.has(p)
+            ? (marcadoresResolvidosRef.current.get(p) ?? null)
+            : p,
         );
   /**
    * Há alguma coisa para desfazer? Isto É estado, ao contrário do histórico:
@@ -95,20 +97,20 @@ export function useDocumentoDoEstudio({ quote }: EntradaDocumentoDoEstudio) {
    * serviços). Os `setDoc` do sistema — semear os textos fixos, aplicar o
    * preço do pedido, o próprio merge — não marcam nada, de propósito.
    */
-  const camposTocados = useRef<Set<string>>(new Set());
+  const camposTocadosRef = useRef<Set<string>>(new Set());
 
   const patch = (p: Partial<StudioDoc>) => {
-    for (const chave of Object.keys(p)) camposTocados.current.add(chave);
+    for (const chave of Object.keys(p)) camposTocadosRef.current.add(chave);
     setDoc((d) => ({ ...d, ...p }));
   };
 
   return {
-    camposTocados,
+    camposTocadosRef,
     doc,
-    docAssente,
+    docAssenteRef,
     docRef,
-    historico,
-    marcadoresResolvidos,
+    historicoRef,
+    marcadoresResolvidosRef,
     patch,
     podeDesfazer,
     semMarcadoresMortos,

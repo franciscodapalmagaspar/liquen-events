@@ -30,7 +30,7 @@ export function useBibliotecaDeFotos({
 }: EntradaBibliotecaDeFotos) {
   const { setCoverAt } = capa;
   const { porFotoNaPagina } = disposicao;
-  const { marcadoresResolvidos, setDoc } = documento;
+  const { marcadoresResolvidosRef, setDoc } = documento;
   const { picker } = escolha;
   const { setAssetOriginais, setAssetUrls, setThemeOrigins } = fotos;
   const { paginaDaFoto } = fotosDaPagina;
@@ -130,7 +130,7 @@ export function useBibliotecaDeFotos({
       return next;
     });
     if (trocas.size > 0) {
-      for (const [m, p] of trocas) marcadoresResolvidos.current.set(m, p);
+      for (const [m, p] of trocas) marcadoresResolvidosRef.current.set(m, p);
       setDoc((d) => mapImagePaths(d, (p) => trocas.get(p) ?? p));
     }
     if (novas.length === 0) return;
@@ -158,7 +158,7 @@ export function useBibliotecaDeFotos({
   function onDroppedFromLibrary(marcadores: string[]) {
     if (marcadores.length === 0) return;
     const perdidos = new Set(marcadores);
-    for (const m of marcadores) marcadoresResolvidos.current.set(m, null);
+    for (const m of marcadores) marcadoresResolvidosRef.current.set(m, null);
     setDoc((d) => mapImagePaths(d, (p) => (perdidos.has(p) ? null : p)));
     setAssetUrls((prev) => {
       const next = { ...prev };

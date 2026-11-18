@@ -30,7 +30,7 @@ export interface EntradaTotalDaProposta {
 }
 
 export function useTotalDaProposta({ documento, onQuoteUpdated, quote }: EntradaTotalDaProposta) {
-  const { camposTocados, doc, patch } = documento;
+  const { camposTocadosRef, doc, patch } = documento;
   /**
    * O preço da proposta que não chegou ao pedido — ver `mandarPrecoAoPedido`.
    * `null` é o normal: ou nunca falhou, ou a última tentativa passou.
@@ -52,7 +52,7 @@ export function useTotalDaProposta({ documento, onQuoteUpdated, quote }: Entrada
   const [sinalEscrito, setSinalEscrito] = useState<string | null>(null);
   /** A percentagem do sinal quando ela entrou na caixa — é para lá que se volta
    *  se o que escrever deixar de ser válido. */
-  const sinalAntes = useRef(SINAL_POR_OMISSAO);
+  const sinalAntesRef = useRef(SINAL_POR_OMISSAO);
 
   // ── Total estruturado + IVA ──
   // O modo efetivo: explícito no doc, senão detetado a partir do texto livre
@@ -162,10 +162,10 @@ export function useTotalDaProposta({ documento, onQuoteUpdated, quote }: Entrada
 
   /** O que se grava no pedido, com a mão travada: escrever "3000" são quatro
    *  teclas e não podem ser quatro gravações. */
-  const gravarPreco = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const gravarPrecoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** O último valor que ESTE ecrã mandou gravar — para a resposta que volta do
    *  servidor não disparar outra vez a sincronização e entrar em ciclo. */
-  const precoEnviado = useRef<number | undefined>(quote.quotedPrice);
+  const precoEnviadoRef = useRef<number | undefined>(quote.quotedPrice);
   /**
    * ── E O QUE CHEGOU NO `quote`, QUE É COISA DIFERENTE ────────────────────
    *
@@ -187,7 +187,7 @@ export function useTotalDaProposta({ documento, onQuoteUpdated, quote }: Entrada
    * certa: «o número que veio é diferente do último que veio?». Na montagem
    * não é — a hidratação já aplicou o que havia a aplicar.
    */
-  const doPedidoVisto = useRef<number | undefined>(quote.quotedPrice);
+  const doPedidoVistoRef = useRef<number | undefined>(quote.quotedPrice);
 
   function persistirPreco(
     escrito: number | undefined,
@@ -204,9 +204,9 @@ export function useTotalDaProposta({ documento, onQuoteUpdated, quote }: Entrada
       escrito == null || opcoes?.jaEfectivo
         ? escrito
         : baseDoEcraParaOPedido(escrito, opcoes?.doc ?? doc);
-    precoEnviado.current = base;
-    if (gravarPreco.current) clearTimeout(gravarPreco.current);
-    gravarPreco.current = setTimeout(() => {
+    precoEnviadoRef.current = base;
+    if (gravarPrecoRef.current) clearTimeout(gravarPrecoRef.current);
+    gravarPrecoRef.current = setTimeout(() => {
       void tentarGravarOPreco(base ?? null);
     }, 600);
   }
@@ -223,7 +223,7 @@ export function useTotalDaProposta({ documento, onQuoteUpdated, quote }: Entrada
       // escreveu outro valor, que entretanto partiu — não pode voltar ao ecrã:
       // o pedido com o preço antigo fazia a sincronização saltar o campo a meio
       // da escrita. Só a resposta do último valor enviado conta.
-      if (base !== (precoEnviado.current ?? null)) return;
+      if (base !== (precoEnviadoRef.current ?? null)) return;
       if (r.estado === "gravado") {
         setPrecoPorChegar(null);
         // `quote` pode faltar num 200 de corpo ilegível — ver `ResultadoDoPreco`.
@@ -256,7 +256,7 @@ export function useTotalDaProposta({ documento, onQuoteUpdated, quote }: Entrada
     // O total não vive no `doc` (é um texto à parte), mas a regra é a mesma:
     // ver `camposTocados`. Sem esta marca, o merge do rascunho reescrevia a
     // caixa do total a meio de ela estar a escrever o valor.
-    camposTocados.current.add("__total");
+    camposTocadosRef.current.add("__total");
     setTotalInput(raw);
     /**
      * ── O QUE NÃO É UM VALOR DIZ-SE, E NÃO SE GRAVA ─────────────────────────
@@ -335,7 +335,7 @@ export function useTotalDaProposta({ documento, onQuoteUpdated, quote }: Entrada
     baseDoEcraParaOPedido,
     composeTotalText,
     desvio,
-    doPedidoVisto,
+    doPedidoVistoRef,
     duasFormas,
     erroDoTotal,
     escrito,
@@ -344,11 +344,11 @@ export function useTotalDaProposta({ documento, onQuoteUpdated, quote }: Entrada
     pctSinal,
     persistirPreco,
     precoAGravar,
-    precoEnviado,
+    precoEnviadoRef,
     precoPorChegar,
     setSinalEscrito,
     setTotalInput,
-    sinalAntes,
+    sinalAntesRef,
     sinalEscrito,
     split,
     tentarGravarOPreco,

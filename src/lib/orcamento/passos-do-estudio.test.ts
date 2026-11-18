@@ -135,11 +135,9 @@ describe("os passos e o botão de enviar lêem a mesma lista", () => {
   });
 
   it("o estúdio passa aos passos e ao índice a lista do envio (`faltasDoEnvio`)", async () => {
-    const { readFileSync } = await import("node:fs");
-    const fonte = readFileSync(
-      new URL("../../app/[lang]/(admin)/orcamento/admin/ProposalStudio.tsx", import.meta.url),
-      "utf8",
-    );
+    // O estúdio inteiro (o componente e as peças que saíram dele).
+    const { fonteDoEstudio } = await import("../../../test/ficheiros-do-estudio");
+    const fonte = fonteDoEstudio();
     expect(fonte).toContain("estadoDosPassos(seccoes, faltasDoEnvio, sent)");
     expect(fonte).not.toMatch(/estadoDosPassos\(seccoes, faltas,/);
     expect(fonte).not.toMatch(/<NavEstudio[^>]*faltas=\{faltas\}/);

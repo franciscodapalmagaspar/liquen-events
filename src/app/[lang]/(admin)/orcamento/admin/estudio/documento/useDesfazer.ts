@@ -24,8 +24,8 @@ export function useDesfazer({
   toast,
   total,
 }: EntradaDesfazer) {
-  const { doc, historico, semMarcadoresMortos, setDoc, setPodeDesfazer } = documento;
-  const { baseDoEcraParaOPedido, persistirPreco, precoEnviado, setTotalInput } = total;
+  const { doc, historicoRef, semMarcadoresMortos, setDoc, setPodeDesfazer } = documento;
+  const { baseDoEcraParaOPedido, persistirPreco, precoEnviadoRef, setTotalInput } = total;
 
   /**
    * Volta ao documento anterior. Chamada pelo `Cmd/Ctrl+Z` e pelo botão
@@ -35,7 +35,7 @@ export function useDesfazer({
    * gravação); por isso desfazer tira DOIS e usa o penúltimo.
    */
   function desfazer(): boolean {
-    const h = historico.current;
+    const h = historicoRef.current;
     const ultimo = h[h.length - 1];
     let anterior: StudioDoc;
     /**
@@ -50,9 +50,9 @@ export function useDesfazer({
     } else {
       if (h.length < 2) return false;
       anterior = h[h.length - 2];
-      historico.current = h.slice(0, -1);
+      historicoRef.current = h.slice(0, -1);
     }
-    setPodeDesfazer(historico.current.length >= 2);
+    setPodeDesfazer(historicoRef.current.length >= 2);
     anterior = semMarcadoresMortos(anterior);
     setDoc(anterior);
     // O campo do total é estado à parte (aceita texto a meio de ser escrito),
@@ -64,7 +64,7 @@ export function useDesfazer({
     // o «Preço final» do pedido — margem, Estatísticas, faturas — ficava com o
     // número desfeito.
     const doPedido = base == null ? undefined : baseDoEcraParaOPedido(base, anterior);
-    if (doPedido !== precoEnviado.current) persistirPreco(base, { doc: anterior });
+    if (doPedido !== precoEnviadoRef.current) persistirPreco(base, { doc: anterior });
     return true;
   }
 

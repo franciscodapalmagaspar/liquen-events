@@ -22,7 +22,7 @@ export function useHidratarFotos({ fotos, quote, toast }: EntradaHidratarFotos) 
     setAssetOriginais,
     setAssetUrls,
     setEstadoDosUrls,
-    urlsMortos,
+    urlsMortosRef,
   } = fotos;
 
   // ── Hydrate signed URLs for images already in this draft ──
@@ -81,7 +81,7 @@ export function useHidratarFotos({ fotos, quote, toast }: EntradaHidratarFotos) 
            * célula desta sessão já viu morrer (403/404) não pode ganhar ao
            * fresco só por ter o prazo em dia. Ver `urlsMortos`.
            */
-          const vivo_ = (u?: string) => (u && urlsMortos.current.has(u) ? undefined : u);
+          const vivo_ = (u?: string) => (u && urlsMortosRef.current.has(u) ? undefined : u);
           setAssetUrls((prev) => {
             const next = { ...prev };
             // A miniatura ganha ao original: é este o caminho que corre quando se
@@ -138,7 +138,15 @@ export function useHidratarFotos({ fotos, quote, toast }: EntradaHidratarFotos) 
         }
       }
     },
-    [quote.id],
+    [
+      quote.id,
+      setAssetCores,
+      setAssetMedias,
+      setAssetOriginais,
+      setAssetUrls,
+      setEstadoDosUrls,
+      urlsMortosRef,
+    ],
   );
 
   /**

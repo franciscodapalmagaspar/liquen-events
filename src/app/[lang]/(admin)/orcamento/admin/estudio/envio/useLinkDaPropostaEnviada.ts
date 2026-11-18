@@ -33,5 +33,5 @@ export function useLinkDaPropostaEnviada({ envio, quote }: EntradaLinkDaProposta
     return () => {
       vivo = false;
     };
-  }, [quote.id]);
+  }, [quote.id, setLinkDaProposta]);
 }

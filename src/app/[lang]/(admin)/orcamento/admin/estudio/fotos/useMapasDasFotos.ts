@@ -88,10 +88,10 @@ export function useMapasDasFotos() {
    * cada foto que morre numa grelha de vinte e quatro era um redesenho por
    * nada.
    */
-  const urlsMortos = useRef<Set<string>>(new Set());
+  const urlsMortosRef = useRef<Set<string>>(new Set());
   /** Esta célula provou que este URL não abre. Ver `urlsMortos`. */
   const marcarUrlMorto = useCallback((url: string) => {
-    urlsMortos.current.add(url);
+    urlsMortosRef.current.add(url);
   }, []);
   /**
    * A cor dominante de cada fotografia, `caminho → "#rrggbb"`.
@@ -157,6 +157,6 @@ export function useMapasDasFotos() {
     setEstadoDosUrls,
     setThemeOrigins,
     themeOrigins,
-    urlsMortos,
+    urlsMortosRef,
   };
 }

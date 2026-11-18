@@ -40,10 +40,10 @@ export function useProntaParaEnviar({
   traducoes,
 }: EntradaProntaParaEnviar) {
   const { doc } = documento;
-  const { canal, pdfPreparado, pdfVisto, sent } = envio;
+  const { canal, pdfPreparadoRef, pdfVisto, sent } = envio;
   const { assetUrls } = fotos;
   const { step } = passos;
-  const { fotosPorConfirmar, pedirOPdfAgora } = pdfDaProposta;
+  const { fotosPorConfirmar, pedirOPdfAgoraRef } = pdfDaProposta;
   const { money } = total;
   const { idiomaDoPdf } = traducoes;
 
@@ -151,21 +151,32 @@ export function useProntaParaEnviar({
    */
   useEffect(() => {
     if (step !== "enviar" || sent || temErros || fotosPorConfirmar > 0 || busy !== null) return;
-    if (!retratoAgora || pdfPreparado.current?.retrato === retratoAgora) return;
+    if (!retratoAgora || pdfPreparadoRef.current?.retrato === retratoAgora) return;
     const espera = setTimeout(() => {
       // Um PDF inteiro é o trabalho mais caro do servidor: não se desenha para
       // um separador que ninguém está a ver (3/11).
       if (document.hidden) return;
       const desenhado = stripPendingImages(doc);
       const retrato = retratoDoPdf(desenhado, idiomaDoPdf);
-      const promessa = pedirOPdfAgora.current(desenhado, false);
-      pdfPreparado.current = { retrato, promessa };
+      const promessa = pedirOPdfAgoraRef.current(desenhado, false);
+      pdfPreparadoRef.current = { retrato, promessa };
       promessa.catch(() => {
-        if (pdfPreparado.current?.promessa === promessa) pdfPreparado.current = null;
+        if (pdfPreparadoRef.current?.promessa === promessa) pdfPreparadoRef.current = null;
       });
     }, 4000);
     return () => clearTimeout(espera);
-  }, [step, sent, temErros, fotosPorConfirmar, busy, retratoAgora, doc, idiomaDoPdf]);
+  }, [
+    step,
+    sent,
+    temErros,
+    fotosPorConfirmar,
+    busy,
+    retratoAgora,
+    doc,
+    idiomaDoPdf,
+    pdfPreparadoRef,
+    pedirOPdfAgoraRef,
+  ]);
 
   return {
     aoSaberQueFaltam,

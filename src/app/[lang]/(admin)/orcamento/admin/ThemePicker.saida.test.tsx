@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { fonteDoEstudio } from "../../../../../../test/ficheiros-do-estudio";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -50,7 +51,7 @@ describe("a folha da biblioteca de temas fecha-se", () => {
   });
 
   it("o estúdio segura o nó enquanto ela sai, e é o MESMO nó", () => {
-    const s = fonte("ProposalStudio.tsx");
+    const s = fonteDoEstudio();
 
     expect(
       s,
@@ -75,7 +76,7 @@ describe("a folha da biblioteca de temas fecha-se", () => {
   });
 
   it("enquanto sai, lê o que estava a mostrar — e não um nulo", () => {
-    const s = fonte("ProposalStudio.tsx");
+    const s = fonteDoEstudio();
     const bloco = s.slice(s.indexOf("{pickerNoEcra && ("));
     const ate = bloco.slice(0, bloco.indexOf("\n      )}"));
 

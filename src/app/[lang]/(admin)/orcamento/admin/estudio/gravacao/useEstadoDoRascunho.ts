@@ -43,17 +43,17 @@ export function useEstadoDoRascunho({
     voltou: voltouUmaGravacao,
     avisoDoSoLocalPorDar,
   } = useEstadoDaGravacao(toast);
-  const hydrated = useRef(false);
+  const hydratedRef = useRef(false);
   /** `updatedAt` do rascunho do servidor tal como o lemos — é com isto que o
    *  servidor deteta que alguém gravou por cima entretanto. */
-  const serverStamp = useRef<string | null>(null);
+  const serverStampRef = useRef<string | null>(null);
   /** O documento tal como o servidor o tem, da última vez que se falou com
    *  ele. É a base contra a qual se diz «mudei estes campos» — ver
    *  `camposMudados`. */
-  const docDoServidor = useRef<Record<string, unknown> | null>(null);
+  const docDoServidorRef = useRef<Record<string, unknown> | null>(null);
   /** Já avisámos desta gravação cruzada? (uma vez chega; não a cada gravação) */
-  const warnedOverwrite = useRef(false);
-  const avisouJuncao = useRef(false);
+  const warnedOverwriteRef = useRef(false);
+  const avisouJuncaoRef = useRef(false);
   /** A abertura assentou (o rascunho local e o do servidor já foram lidos)?
    *  Sem isto a conferência olhava para um ecrã a meio de ser montado. */
   const [aberturaAssente, setAberturaAssente] = useState(false);
@@ -67,7 +67,7 @@ export function useEstadoDoRascunho({
   // Ctrl/Cmd+Enter dizer «guardado» só quando o for mesmo, em vez de o dizer
   // por ter escrito no `localStorage` — que era o erro original, em ponto
   // pequeno.
-  const flushDraft = useRef<() => Promise<ResultadoDaGravacao>>(async () => ({
+  const flushDraftRef = useRef<() => Promise<ResultadoDaGravacao>>(async () => ({
     estado: "so-local",
   }));
 
@@ -93,7 +93,7 @@ export function useEstadoDoRascunho({
    * efeito correr outra vez — aí sim, com a versão boa à mão. O que essa
    * segunda passagem NÃO é está logo a seguir.
    */
-  const montagem = useRef(true);
+  const montagemRef = useRef(true);
   /**
    * ══════════════════════════════════════════════════════════════════════════
    * A ABERTURA TAMBÉM NÃO É TRABALHO POR GRAVAR
@@ -123,9 +123,9 @@ export function useEstadoDoRascunho({
    * abertura é uma alteração como outra qualquer — e tem de ser gravada, senão
    * o que fica no servidor é a versão do meio.
    */
-  const aAbrir = useRef(false);
-  const marcaDaAbertura = useRef<string | null>(null);
-  const jaGravou = useRef(false);
+  const aAbrirRef = useRef(false);
+  const marcaDaAberturaRef = useRef<string | null>(null);
+  const jaGravouRef = useRef(false);
   /** O que se compara com a abertura: só o que é TRABALHO DELA. Os mapas de
    *  apoio (`assetUrls`, `themeOrigins`) ficam de fora de propósito — são
    *  memória de endereços que a hidratação vai buscar ao servidor, e mudam
@@ -142,27 +142,27 @@ export function useEstadoDoRascunho({
     // `null` (a marca ainda não foi tirada) NUNCA é igual a uma marca: quando
     // há rascunho guardado a abertura não se marca de todo, e o estúdio grava
     // como sempre gravou.
-    () => !jaGravou.current && marcaDaAbertura.current === marcaDoTrabalho(),
+    () => !jaGravouRef.current && marcaDaAberturaRef.current === marcaDoTrabalho(),
     [marcaDoTrabalho],
   );
 
   return {
-    aAbrir,
+    aAbrirRef,
     aGravarNoServidor,
     aberturaAssente,
     avisoDoSoLocalPorDar,
-    avisouJuncao,
-    docDoServidor,
-    flushDraft,
+    avisouJuncaoRef,
+    docDoServidorRef,
+    flushDraftRef,
     gravacao,
     gravadoEm,
-    hydrated,
-    jaGravou,
-    marcaDaAbertura,
+    hydratedRef,
+    jaGravouRef,
+    marcaDaAberturaRef,
     marcaDoTrabalho,
     marcarGuardadoNoServidor,
     marcarQueDura,
-    montagem,
+    montagemRef,
     nadaPorGravar,
     naoDuraAoDeploy,
     partiuUmaGravacao,
@@ -170,12 +170,12 @@ export function useEstadoDoRascunho({
     porGravarRef,
     registarNaoDura,
     registarSoLocal,
-    serverStamp,
+    serverStampRef,
     setAberturaAssente,
     setGravadoEm,
     setPorGravar,
     soNesteComputador,
     voltouUmaGravacao,
-    warnedOverwrite,
+    warnedOverwriteRef,
   };
 }

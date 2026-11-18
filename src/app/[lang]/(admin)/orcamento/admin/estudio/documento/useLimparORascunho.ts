@@ -26,18 +26,18 @@ export interface EntradaLimparORascunho {
   SIDE_KEY: string;
   camposPorConfirmar: ReturnType<typeof useCamposPorConfirmar>;
   confirmacoes: ReturnType<typeof useConfirmacoes>;
-  docDoServidor: RefObject<Record<string, unknown> | null>;
+  docDoServidorRef: RefObject<Record<string, unknown> | null>;
   documento: ReturnType<typeof useDocumentoDoEstudio>;
   envio: ReturnType<typeof useEstadoDoEnvio>;
   fotos: ReturnType<typeof useMapasDasFotos>;
   passos: ReturnType<typeof usePassosDoEstudio>;
   quote: Quote;
   reversiveis: ReturnType<typeof useAccoesReversiveis>;
-  serverStamp: RefObject<string | null>;
+  serverStampRef: RefObject<string | null>;
   setRefEdited: Dispatch<SetStateAction<boolean>>;
   toast: ReturnType<typeof useToast>["toast"];
   total: ReturnType<typeof useTotalDaProposta>;
-  warnedOverwrite: RefObject<boolean>;
+  warnedOverwriteRef: RefObject<boolean>;
 }
 
 export function useLimparORascunho({
@@ -45,18 +45,18 @@ export function useLimparORascunho({
   SIDE_KEY,
   camposPorConfirmar,
   confirmacoes,
-  docDoServidor,
+  docDoServidorRef,
   documento,
   envio,
   fotos,
   passos,
   quote,
   reversiveis,
-  serverStamp,
+  serverStampRef,
   setRefEdited,
   toast,
   total,
-  warnedOverwrite,
+  warnedOverwriteRef,
 }: EntradaLimparORascunho) {
   const { setPorConfirmar } = camposPorConfirmar;
   const { registarNoHistorico } = confirmacoes;
@@ -146,9 +146,9 @@ export function useLimparORascunho({
     }
     // E no servidor — senão o rascunho limpo aqui reaparecia no dispositivo
     // seguinte, que é precisamente o que guardá-lo lá veio resolver.
-    serverStamp.current = null;
-    docDoServidor.current = null;
-    warnedOverwrite.current = false;
+    serverStampRef.current = null;
+    docDoServidorRef.current = null;
+    warnedOverwriteRef.current = false;
     void fetch(`/api/orcamento/${quote.id}/proposta-rascunho`, { method: "DELETE" }).catch(() => {
       /* sem rede: fica para a próxima limpeza; nada se perde por isso */
     });

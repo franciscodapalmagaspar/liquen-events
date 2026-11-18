@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 /**
@@ -30,4 +30,15 @@ export function ficheirosDoEstudio(): string[] {
     .map((p) => path.relative(ADMIN, p).split(path.sep).join("/"))
     .sort();
   return ["ProposalStudio.tsx", ...doEstudio];
+}
+
+/**
+ * O texto do estúdio inteiro — o componente e as peças, juntos —, para os
+ * testes que perguntam «isto existe algures no estúdio?». Em que ficheiro
+ * vive é um pormenor da arrumação, e não a regra que o teste prende.
+ */
+export function fonteDoEstudio(): string {
+  return ficheirosDoEstudio()
+    .map((f) => readFileSync(path.join(ADMIN, f), "utf8"))
+    .join("\n");
 }

@@ -21,7 +21,7 @@ export interface EntradaMoodBoards {
   documento: ReturnType<typeof useDocumentoDoEstudio>;
   hidratarAssets: (
     vivo?: () => boolean,
-    { daAbertura }?: { daAbertura?: boolean },
+    opcoes?: { daAbertura?: boolean },
   ) => Promise<EstadoDosUrls>;
   quote: Quote;
   reversiveis: ReturnType<typeof useAccoesReversiveis>;
@@ -40,7 +40,7 @@ export function useMoodBoards({
   setFotosACopiar,
   toast,
 }: EntradaMoodBoards) {
-  const { camposTocados, doc, docRef, setDoc } = documento;
+  const { camposTocadosRef, doc, docRef, setDoc } = documento;
   const { setARemover } = reversiveis;
   const { setSeleccionadas } = seleccao;
 
@@ -87,7 +87,7 @@ export function useMoodBoards({
       setDoc((d) => {
         const next = update(d.serviceGroups);
         if (next === d.serviceGroups) return d;
-        if (!soMudaramOsIds(d.serviceGroups, next)) camposTocados.current.add("serviceGroups");
+        if (!soMudaramOsIds(d.serviceGroups, next)) camposTocadosRef.current.add("serviceGroups");
         const comServicos = { ...d, serviceGroups: next };
         if (voltaram && levado && d.moodBoards === levado.depois) {
           return {
@@ -125,7 +125,7 @@ export function useMoodBoards({
         );
       }
     },
-    [anular],
+    [anular, camposTocadosRef, docRef, setDoc],
   );
 
   // ── Mood boards (decoracao) ──

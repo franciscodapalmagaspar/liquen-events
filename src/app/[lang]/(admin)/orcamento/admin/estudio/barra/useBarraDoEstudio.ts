@@ -247,7 +247,7 @@ export function useBarraDoEstudio({
       1000,
     );
     return () => clearTimeout(t);
-  }, [limpo]);
+  }, [limpo, setLimpo]);
 
   return {
     barraCompacta,

@@ -247,7 +247,9 @@ describe("o preço do pedido não chega ao total do estúdio em cru", () => {
         "totalAmountParaBase(quotedPrice, modo, next.vatRate);",
     ],
   ])("e apanha o defeito de %s", (_nome, defeito) => {
-    const comDefeito = `${PARTES[0]}\nfunction __ensaio() {\n${defeito}\n}\n`;
+    // Sobre o estúdio inteiro, e não só o componente: os apelidos do preço do
+    // pedido (`doPedido`) nascem nos ganchos que saíram dele.
+    const comDefeito = `${CODIGO}\nfunction __ensaio() {\n${defeito}\n}\n`;
     expect(travessiasSemConversao(comDefeito).length).toBeGreaterThan(0);
   });
 
@@ -260,7 +262,7 @@ describe("o preço do pedido não chega ao total do estúdio em cru", () => {
     ["a montagem", "setTotalInput(textoDoTotal(baseDoPedidoParaOEcra(quote.quotedPrice, d)));"],
     ["a hidratação", "return aplicarBase(limpo, baseDoPedidoParaOEcra(doPedido, limpo));"],
   ])("e não grita com %s feita como deve ser", (_nome, correcto) => {
-    const certo = `${PARTES[0]}\nfunction __ensaio() {\nconst doPedido = quote.quotedPrice;\n${correcto}\n}\n`;
+    const certo = `${CODIGO}\nfunction __ensaio() {\nconst doPedido = quote.quotedPrice;\n${correcto}\n}\n`;
     expect(travessiasSemConversao(certo)).toEqual([]);
   });
 });

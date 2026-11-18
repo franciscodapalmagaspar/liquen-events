@@ -105,7 +105,7 @@ export function useConferenciaComOEnviado({
   /** A ir buscar o documento que seguiu, para o repor. */
   const [aReporOEnviado, setAReporOEnviado] = useState(false);
   /** A conferência com o enviado corre UMA vez por abertura. */
-  const conferidoComOEnviado = useRef(false);
+  const conferidoComOEnviadoRef = useRef(false);
 
   /**
    * ════════════════════════════════════════════════════════════════════════
@@ -135,13 +135,13 @@ export function useConferenciaComOEnviado({
   }
 
   useEffect(() => {
-    if (!aberturaAssente || conferidoComOEnviado.current) return;
+    if (!aberturaAssente || conferidoComOEnviadoRef.current) return;
     // Enviar NESTA sessão põe no ecrã exactamente o documento que seguiu — não
     // há nada para conferir, e a lista de versões ainda nem o conhece.
     if (sent) return;
     // Uma proposta a meio de ser escrita não tem total nenhum para comparar.
     if (!(totais.aPagar > 0)) return;
-    conferidoComOEnviado.current = true;
+    conferidoComOEnviadoRef.current = true;
     let vivo = true;
     const aPagarAqui = round2(totais.aPagar);
     (async () => {

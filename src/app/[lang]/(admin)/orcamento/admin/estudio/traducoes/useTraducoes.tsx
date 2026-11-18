@@ -1,6 +1,5 @@
 "use client";
 import { useMemo, useState } from "react";
-import { porqueFalhou } from "@/lib/erro-do-servidor";
 import { useToast } from "../../Toast";
 import {
   IDIOMA_POR_OMISSAO,

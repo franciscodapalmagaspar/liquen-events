@@ -32,7 +32,7 @@ export function useCarregarFotos({
   setUploading,
   toast,
 }: EntradaCarregarFotos) {
-  const { marcadoresResolvidos, setDoc } = documento;
+  const { marcadoresResolvidosRef, setDoc } = documento;
   const { setAssetCores, setAssetOriginais, setAssetUrls } = fotos;
 
   // ── Image upload ──
@@ -177,7 +177,7 @@ export function useCarregarFotos({
         // que falhou sai. Um marcador que ela já tirou não volta a entrar.
         const trocas = new Map<string, string | null>();
         marcadores.forEach((m, i) => trocas.set(m, results[i]?.path ?? null));
-        for (const [m, p] of trocas) marcadoresResolvidos.current.set(m, p);
+        for (const [m, p] of trocas) marcadoresResolvidosRef.current.set(m, p);
         setDoc((d) => mapImagePaths(d, (p) => (trocas.has(p) ? (trocas.get(p) ?? null) : p)));
         setAssetUrls((prev) => {
           const next = { ...prev };

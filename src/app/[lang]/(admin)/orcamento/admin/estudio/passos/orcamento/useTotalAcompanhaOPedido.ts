@@ -16,19 +16,19 @@ import type { RefObject } from "react";
 
 export interface EntradaTotalAcompanhaOPedido {
   documento: ReturnType<typeof useDocumentoDoEstudio>;
-  hydrated: RefObject<boolean>;
+  hydratedRef: RefObject<boolean>;
   quote: Quote;
   total: ReturnType<typeof useTotalDaProposta>;
 }
 
 export function useTotalAcompanhaOPedido({
   documento,
-  hydrated,
+  hydratedRef,
   quote,
   total,
 }: EntradaTotalAcompanhaOPedido) {
   const { setDoc } = documento;
-  const { doPedidoVisto, precoEnviado, setTotalInput } = total;
+  const { doPedidoVistoRef, precoEnviadoRef, setTotalInput } = total;
 
   // ── O preço mudou na Gestão do pedido: aparece aqui ─────────────────────
   // O outro sentido do mesmo número. Sem isto voltava a haver duas verdades:
@@ -41,12 +41,12 @@ export function useTotalAcompanhaOPedido({
     const doPedido = quote.quotedPrice;
     // Primeiro a pergunta certa: MUDOU o que vem de fora? A montagem também
     // corre este efeito, e na montagem não mudou nada. Ver `doPedidoVisto`.
-    const mudou = doPedido !== doPedidoVisto.current;
-    doPedidoVisto.current = doPedido;
-    if (!hydrated.current) return;
+    const mudou = doPedido !== doPedidoVistoRef.current;
+    doPedidoVistoRef.current = doPedido;
+    if (!hydratedRef.current) return;
     if (!mudou) return;
-    if (doPedido === precoEnviado.current) return;
-    precoEnviado.current = doPedido;
+    if (doPedido === precoEnviadoRef.current) return;
+    precoEnviadoRef.current = doPedido;
     setDoc((d) => {
       const mode: VatMode = d.totalVatMode ?? detectVatMode(d.totalText || d.totalEstimatedText);
       // O pedido guarda o que o casal paga sem IVA; o campo do estúdio mostra
@@ -67,5 +67,5 @@ export function useTotalAcompanhaOPedido({
         ? { ...d, totalAmount: amount, totalVatMode: mode, totalEstimatedText: text }
         : { ...d, totalAmount: amount, totalVatMode: mode, totalText: text };
     });
-  }, [quote.quotedPrice]);
+  }, [quote.quotedPrice, doPedidoVistoRef, hydratedRef, precoEnviadoRef, setDoc, setTotalInput]);
 }

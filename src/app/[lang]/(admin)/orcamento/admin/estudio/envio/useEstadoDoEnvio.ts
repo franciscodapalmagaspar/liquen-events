@@ -89,12 +89,12 @@ export function useEstadoDoEnvio({ busy, quote }: EntradaEstadoDoEnvio) {
    * botão (ver o efeito «PREPARADO ANTES DE ELA CARREGAR»). `retrato` diz de
    * que versão é; uma versão diferente não o usa.
    */
-  const pdfPreparado = useRef<{ retrato: string; promessa: Promise<PdfPronto> } | null>(null);
+  const pdfPreparadoRef = useRef<{ retrato: string; promessa: Promise<PdfPronto> } | null>(null);
   /**
    * O que seguiu no último envio: a proposta gravada (para ir buscar o PDF
    * guardado) e, se ainda estiver à mão, o próprio ficheiro.
    */
-  const enviada = useRef<{ id: string | null; pdf: Promise<PdfPronto> | null } | null>(null);
+  const enviadaRef = useRef<{ id: string | null; pdf: Promise<PdfPronto> | null } | null>(null);
 
   return {
     assuntoDoEmail,
@@ -103,13 +103,13 @@ export function useEstadoDoEnvio({ busy, quote }: EntradaEstadoDoEnvio) {
     canal,
     confirmSend,
     corpoDoEmail,
-    enviada,
+    enviadaRef,
     escolherCanal,
     fimDoPdf,
     linkDaProposta,
     modeloDoEmail,
     pdfNoEcra,
-    pdfPreparado,
+    pdfPreparadoRef,
     pdfVisto,
     sent,
     setAssuntoDoEmail,

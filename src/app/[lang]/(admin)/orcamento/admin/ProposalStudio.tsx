@@ -179,7 +179,10 @@ import { useConferenciaComOEnviado } from "./estudio/versoes/useConferenciaComOE
 import { useCopiaEModelos } from "./estudio/versoes/useCopiaEModelos";
 import { useTraducoes } from "./estudio/traducoes/useTraducoes";
 import { useCapa } from "./estudio/passos/evento/useCapa";
-import { useSeleccaoDeFotos } from "./estudio/passos/inspiracao/useSeleccaoDeFotos";
+import {
+  useSeleccaoDeFotos,
+  useSeleccaoSegueAFotografia,
+} from "./estudio/passos/inspiracao/useSeleccaoDeFotos";
 import { useDobrasDosBoards } from "./estudio/passos/inspiracao/useDobrasDosBoards";
 import { useMoodBoards } from "./estudio/passos/inspiracao/useMoodBoards";
 import { useArrumacaoDosBoards } from "./estudio/passos/inspiracao/useArrumacaoDosBoards";
@@ -290,15 +293,12 @@ export default function ProposalStudio({
   const { amostras, apontarGeracao } = useAmostrasDeGeracao();
   const documento = useDocumentoDoEstudio({ quote });
   const {
-    camposTocados,
+    camposTocadosRef,
     doc,
-    docAssente,
-    docRef,
-    historico,
-    marcadoresResolvidos,
+    docAssenteRef,
+    historicoRef,
     patch,
     podeDesfazer,
-    semMarcadoresMortos,
     setDoc,
     setPodeDesfazer,
   } = documento;
@@ -327,16 +327,9 @@ export default function ProposalStudio({
   const envioAdiado = useEnvioAdiado();
   const enviarAgora = useRef<() => void>(() => {});
   const camposPorConfirmar = useCamposPorConfirmar();
-  const { confirmado, realce, setPorConfirmar } = camposPorConfirmar;
+  const { confirmado, realce } = camposPorConfirmar;
   const reversiveis = useAccoesReversiveis();
-  const {
-    aRemover,
-    confirmacaoDeDinheiro,
-    limpo,
-    setARemover,
-    setConfirmacaoDeDinheiro,
-    setLimpo,
-  } = reversiveis;
+  const { confirmacaoDeDinheiro, limpo, setConfirmacaoDeDinheiro } = reversiveis;
   const fotos = useMapasDasFotos();
   const {
     aspetosDasFotos,
@@ -347,18 +340,13 @@ export default function ProposalStudio({
     estadoDosUrls,
     marcarUrlMorto,
     registarAspeto,
-    setAssetCores,
     setAssetMedias,
     setAssetOriginais,
     setAssetUrls,
-    setEstadoDosUrls,
-    setThemeOrigins,
     themeOrigins,
-    urlsMortos,
   } = fotos;
   const capa = useCapa({ documento, fotos, quote });
-  const { caminhoDaCapa, focoAutoDaCapa, idxDaCapa, removeCoverAt, setCoverAt, tamanhoDaCapa } =
-    capa;
+  const { focoAutoDaCapa, idxDaCapa, removeCoverAt, setCoverAt, tamanhoDaCapa } = capa;
   const [refEdited, setRefEdited] = useState(false);
   /**
    * ── O CARREGAMENTO DE FOTOS, CONTADO ────────────────────────────────────
@@ -405,43 +393,26 @@ export default function ProposalStudio({
     canal,
     confirmSend,
     corpoDoEmail,
-    enviada,
     escolherCanal,
     fimDoPdf,
     linkDaProposta,
-    modeloDoEmail,
     pdfNoEcra,
-    pdfPreparado,
     pdfVisto,
     sent,
     setAssuntoDoEmail,
-    setAvancoDaEnviada,
-    setBytesDoPdf,
     setConfirmSend,
     setCorpoDoEmail,
-    setLinkDaProposta,
     setModeloDoEmail,
     setPdfNoEcra,
-    setPdfSaiu,
     setPdfVisto,
     setSent,
   } = envio;
   const passos = usePassosDoEstudio();
   const { formularioDosPassos, irParaPasso, passoDoEnvio, setStep, step } = passos;
   const escolha = useEscolhaDeFotos();
-  const {
-    aArrastar,
-    lupa,
-    picker,
-    pickerNoEcra,
-    repetidas,
-    setAArrastar,
-    setLupa,
-    setPicker,
-    setRepetidas,
-  } = escolha;
+  const { aArrastar, lupa, picker, pickerNoEcra, setAArrastar, setLupa, setPicker } = escolha;
   const tempoNaProposta = useTempoNaProposta({ quote });
-  const { anotarSeccao, tempoMostrado } = tempoNaProposta;
+  const { anotarSeccao } = tempoNaProposta;
 
   /**
    * O campo a que o aviso de ortografia mandou ir, à espera de ser desenhado.
@@ -469,67 +440,53 @@ export default function ProposalStudio({
     versao?: "pt" | "en";
   } | null>(null);
   const seleccao = useSeleccaoDeFotos({ documento });
-  const { alternarSeleccao, seleccionadas, setSeleccionadas } = seleccao;
+  const { seleccionadas, setSeleccionadas } = seleccao;
   const rascunho = useEstadoDoRascunho({ documento, refEdited, toast, traducoes });
   const {
-    aAbrir,
+    aAbrirRef,
     aGravarNoServidor,
     aberturaAssente,
     avisoDoSoLocalPorDar,
-    avisouJuncao,
-    docDoServidor,
-    flushDraft,
+    avisouJuncaoRef,
+    docDoServidorRef,
+    flushDraftRef,
     gravacao,
     gravadoEm,
-    hydrated,
-    jaGravou,
-    marcaDaAbertura,
+    hydratedRef,
+    jaGravouRef,
+    marcaDaAberturaRef,
     marcaDoTrabalho,
-    marcarGuardadoNoServidor,
-    marcarQueDura,
-    montagem,
+    montagemRef,
     nadaPorGravar,
     naoDuraAoDeploy,
-    partiuUmaGravacao,
     porGravar,
     porGravarRef,
-    registarNaoDura,
-    registarSoLocal,
-    serverStamp,
-    setAberturaAssente,
+    serverStampRef,
     setGravadoEm,
     setPorGravar,
     soNesteComputador,
-    voltouUmaGravacao,
-    warnedOverwrite,
+    warnedOverwriteRef,
   } = rascunho;
   const total = useTotalDaProposta({ documento, onQuoteUpdated, quote });
   const {
-    amountParaBase,
-    baseDoEcraParaOPedido,
     composeTotalText,
     desvio,
-    doPedidoVisto,
     duasFormas,
     erroDoTotal,
     escrito,
     money,
     onTotalInput,
     pctSinal,
-    persistirPreco,
     precoAGravar,
-    precoEnviado,
     precoPorChegar,
     setSinalEscrito,
-    setTotalInput,
-    sinalAntes,
+    sinalAntesRef,
     sinalEscrito,
     split,
     tentarGravarOPreco,
     totais,
     totalInput,
     vatMode,
-    writeTotal,
   } = total;
   const rascunhoSobreposto = useRascunhoSobreposto({ documento, quote, reversiveis, toast, total });
   const { aRepor, reporSobreposto, setSobreposto, sobreposto } = rascunhoSobreposto;
@@ -609,7 +566,7 @@ export default function ProposalStudio({
       document.removeEventListener("visibilitychange", aoVoltar);
       window.removeEventListener("focus", aoVoltar);
     };
-  }, [hidratarAssets]);
+  }, [hidratarAssets, setAssetMedias, setAssetOriginais, setAssetUrls]);
 
   /**
    * ── HÁ SERVIÇO DE TRADUÇÃO NESTE SERVIDOR? ────────────────────────────────
@@ -633,7 +590,7 @@ export default function ProposalStudio({
     return () => {
       vivo = false;
     };
-  }, []);
+  }, [setTraducao]);
 
   // ── Auto-compose the reference until the user overrides it ──
   useEffect(() => {
@@ -642,7 +599,7 @@ export default function ProposalStudio({
       const next = buildRef(d);
       return d.ref === next ? d : { ...d, ref: next };
     });
-  }, [doc.template, doc.eventType, doc.clientNames, doc.eventDate, refEdited]);
+  }, [doc.template, doc.eventType, doc.clientNames, doc.eventDate, refEdited, setDoc]);
   /**
    * E a abertura acaba no PRIMEIRO GESTO DELA — não num relógio.
    *
@@ -654,7 +611,7 @@ export default function ProposalStudio({
    */
   useEffect(() => {
     const fechar = () => {
-      aAbrir.current = false;
+      aAbrirRef.current = false;
     };
     // `input` e `change` estão aqui por uma razão que não é teórica: nem toda a
     // escrita passa por uma tecla. O preenchimento automático do browser, um
@@ -666,15 +623,15 @@ export default function ProposalStudio({
     return () => {
       for (const g of gestos) window.removeEventListener(g, fechar, true);
     };
-  }, []);
+  }, [aAbrirRef]);
 
   useEffect(() => {
-    if (!hydrated.current) return;
-    if (montagem.current) {
-      montagem.current = false;
+    if (!hydratedRef.current) return;
+    if (montagemRef.current) {
+      montagemRef.current = false;
       return;
     }
-    if (aAbrir.current) {
+    if (aAbrirRef.current) {
       // Enquanto durar a abertura, o que está no ecrã É a abertura. Não se
       // fixa na primeira passagem porque a abertura não é uma: o restauro (ou
       // a semeadura) é a primeira, e atrás dela vêm as derivadas — os
@@ -682,8 +639,8 @@ export default function ProposalStudio({
       // do servidor, as fotos que a hidratação vai buscar. Nenhuma delas é
       // trabalho dela, e fixar a marca antes de todas fazia o alarme acender
       // por causa de um `id` que o próprio estúdio acabou de escrever.
-      marcaDaAbertura.current = marcaDoTrabalho();
-      docAssente.current = doc;
+      marcaDaAberturaRef.current = marcaDoTrabalho();
+      docAssenteRef.current = doc;
       return;
     }
     if (nadaPorGravar()) return;
@@ -714,32 +671,49 @@ export default function ProposalStudio({
     // A primeira mudança desde o documento assente (a abertura, ou a última
     // gravação): ele entra no histórico, para a PRIMEIRA mudança também se
     // poder desfazer — e logo, sem esperar pela fotografia dos 800 ms.
-    if (historico.current.length === 0 && docAssente.current) {
-      historico.current = [docAssente.current];
+    if (historicoRef.current.length === 0 && docAssenteRef.current) {
+      historicoRef.current = [docAssenteRef.current];
     }
-    if (historico.current.length > 0) setPodeDesfazer(true);
+    if (historicoRef.current.length > 0) setPodeDesfazer(true);
     // A mensagem do envio conta como trabalho por gravar: sem ela nesta lista, o
     // indicador dizia «guardado às 14:32» com o texto dela ainda por escrever no
     // rascunho — e é essa frase que faz uma pessoa fechar o portátil descansada.
     // `marcaDoTrabalho` na lista não muda nada: o `nadaPorGravar` já depende
     // dela, e o efeito já corria quando ela mudava. Fica escrita para a regra
     // das dependências não ter de ser lida duas vezes.
-  }, [doc, assetUrls, themeOrigins, refEdited, bilingue, nadaPorGravar, marcaDoTrabalho]);
+  }, [
+    doc,
+    assetUrls,
+    themeOrigins,
+    refEdited,
+    bilingue,
+    nadaPorGravar,
+    marcaDoTrabalho,
+    hydratedRef,
+    montagemRef,
+    aAbrirRef,
+    porGravarRef,
+    setPorGravar,
+    historicoRef,
+    docAssenteRef,
+    setPodeDesfazer,
+    marcaDaAberturaRef,
+  ]);
 
   useEffect(() => {
-    if (!hydrated.current) return;
+    if (!hydratedRef.current) return;
     const save = () => {
       // Uma fotografia para o Cmd+Z, tirada quando ela pára de escrever. Se
       // fosse a cada tecla, desfazer andava letra a letra e não servia para
       // nada; se fosse só nas remoções, não desfazia um texto trocado.
-      const ultimo = historico.current[historico.current.length - 1];
+      const ultimo = historicoRef.current[historicoRef.current.length - 1];
       if (!ultimo || JSON.stringify(ultimo) !== JSON.stringify(doc)) {
-        historico.current = [...historico.current, doc].slice(-MAX_HISTORICO);
+        historicoRef.current = [...historicoRef.current, doc].slice(-MAX_HISTORICO);
       }
-      docAssente.current = doc;
+      docAssenteRef.current = doc;
       // Dois, e não um: o último do histórico é o documento ACTUAL, portanto
       // com uma só fotografia não há nada anterior para onde voltar.
-      setPodeDesfazer(historico.current.length >= 2);
+      setPodeDesfazer(historicoRef.current.length >= 2);
 
       // NADA DE MARCADORES PROVISÓRIOS NO RASCUNHO GRAVADO.
       //
@@ -817,7 +791,7 @@ export default function ProposalStudio({
         setGravadoEm(new Date());
         // A partir daqui há rascunho gravado, e voltar ao estado de abertura
         // deixa de ser «nada por gravar» — ver o bloco da abertura.
-        jaGravou.current = true;
+        jaGravouRef.current = true;
         porGravarRef.current = false;
         setPorGravar(false);
       } catch {
@@ -836,16 +810,16 @@ export default function ProposalStudio({
         // trabalho de outra pessoa em silêncio, não.
         // Juntou-se sem pisar ninguém: dizê-lo uma vez, para ela saber porque
         // é que apareceu no ecrã texto que não escreveu.
-        if (r.juntou && !r.overwrote && !avisouJuncao.current) {
-          avisouJuncao.current = true;
+        if (r.juntou && !r.overwrote && !avisouJuncaoRef.current) {
+          avisouJuncaoRef.current = true;
           const quem = r.previousBy ? `por ${r.previousBy}` : "noutro sítio";
           toast(
             `Este rascunho estava a ser alterado ${quem}. Juntei as duas versões: o que mudaste ficou teu, e o que mudaram lá já está no ecrã.`,
             "info",
           );
         }
-        if (r.overwrote && !warnedOverwrite.current) {
-          warnedOverwrite.current = true;
+        if (r.overwrote && !warnedOverwriteRef.current) {
+          warnedOverwriteRef.current = true;
           /**
            * ── A FRASE MUDOU, E A MUDANÇA É O PONTO ─────────────────────────
            *
@@ -877,7 +851,7 @@ export default function ProposalStudio({
         return r;
       })();
     };
-    flushDraft.current = save;
+    flushDraftRef.current = save;
     // A abertura não se grava. O `flushDraft` fica montado à mesma — o
     // Ctrl/Cmd+Enter dos Serviços tem de continuar a poder gravar à ordem —,
     // mas o relógio dos 800 ms não arranca por causa de um documento que
@@ -906,6 +880,18 @@ export default function ProposalStudio({
     toast,
     enviarParaServidor,
     nadaPorGravar,
+    hydratedRef,
+    flushDraftRef,
+    historicoRef,
+    docAssenteRef,
+    setPodeDesfazer,
+    setGravadoEm,
+    jaGravouRef,
+    porGravarRef,
+    setPorGravar,
+    avisouJuncaoRef,
+    warnedOverwriteRef,
+    setSobreposto,
   ]);
 
   /**
@@ -933,9 +919,9 @@ export default function ProposalStudio({
    */
   useEffect(() => {
     return () => {
-      if (porGravarRef.current) void flushDraft.current();
+      if (porGravarRef.current) void flushDraftRef.current();
     };
-  }, []);
+  }, [flushDraftRef, porGravarRef]);
 
   /**
    * ════════════════════════════════════════════════════════════════════════
@@ -989,7 +975,7 @@ export default function ProposalStudio({
       const avisoGrandeVaiFalar = avisoDoSoLocalPorDar();
       setAGuardarAgora(true);
       try {
-        const r = await flushDraft.current();
+        const r = await flushDraftRef.current();
         if (r.estado === "guardado") {
           toast("Rascunho guardado no servidor.", "success");
         } else if (!avisoGrandeVaiFalar) {
@@ -999,7 +985,14 @@ export default function ProposalStudio({
         setAGuardarAgora(false);
       }
     })();
-  }, [toast, soNesteComputador, aGravarNoServidor, avisoDoSoLocalPorDar]);
+  }, [
+    toast,
+    soNesteComputador,
+    aGravarNoServidor,
+    avisoDoSoLocalPorDar,
+    porGravarRef,
+    flushDraftRef,
+  ]);
 
   /**
    * ════════════════════════════════════════════════════════════════════════
@@ -1025,7 +1018,7 @@ export default function ProposalStudio({
     nome: nomeNoRegisto,
     porGravar: porGravar || aGravarNoServidor > 0 || !!soNesteComputador,
     gravarJa: async (): Promise<ResultadoDoEcra> => {
-      const r = await flushDraft.current();
+      const r = await flushDraftRef.current();
       // A cópia local é feita SEMPRE (é síncrona e não depende de rede), por
       // isso o desfecho de uma recusa do servidor aqui é «só neste
       // computador» e nunca «não ficou guardado»: o trabalho existe, mas só
@@ -1058,7 +1051,7 @@ export default function ProposalStudio({
     );
   const resumoParaCopiar = resumoComLink(linkDaProposta ?? undefined);
   const somaDoTotal = useSomarOTotal({ camposPorConfirmar, documento, total });
-  const { somarOTotal } = somaDoTotal;
+
   const contas = useContasDoOrcamento({ documento });
   const {
     artigosDoDoc,
@@ -1092,7 +1085,6 @@ export default function ProposalStudio({
     fotosDaProposta,
     fotosDoPdf,
     planoDoPdf,
-    respostaDoPdf,
     totalDeFotos,
   } = paginasDaProposta;
   /**
@@ -1107,7 +1099,7 @@ export default function ProposalStudio({
   const repeticoes = useRepeticoesDasFotos({ documento, escolha, fotos, quote });
   const { historiaDaFoto, origemDaFoto } = repeticoes;
   const ordem = useOrdemDoOrcamento({ contas, documento, ordemDosBoards, toast });
-  const { arrumadoEExplicito, fixarOrdem, ordemSugerida } = ordem;
+  const { fixarOrdem, ordemSugerida } = ordem;
   const linhas = useLinhasDoOrcamento({ contas, documento, reversiveis, somaDoTotal, total });
   const {
     addBudgetItem,
@@ -1125,7 +1117,7 @@ export default function ProposalStudio({
     updateBudgetRow,
     updateExtraArtigo,
   } = linhas;
-  useTotalAcompanhaOPedido({ documento, hydrated, quote, total });
+  useTotalAcompanhaOPedido({ documento, hydratedRef, quote, total });
 
   function setTemplate(t: "decoracao" | "organizacao") {
     setDoc((d) => {
@@ -1180,13 +1172,8 @@ export default function ProposalStudio({
     setPainelDoEnvio,
   } = barra;
   const confirmacoes = useConfirmacoes({ documento, fotos, quote, reversiveis, toast, total });
-  const {
-    anularLimpeza,
-    confirmarDinheiro,
-    pedirConfirmacaoDeDinheiro,
-    perguntaDeRemocao,
-    registarNoHistorico,
-  } = confirmacoes;
+  const { anularLimpeza, confirmarDinheiro, pedirConfirmacaoDeDinheiro, perguntaDeRemocao } =
+    confirmacoes;
 
   /**
    * ════════════════════════════════════════════════════════════════════════
@@ -1247,18 +1234,18 @@ export default function ProposalStudio({
     SIDE_KEY,
     camposPorConfirmar,
     confirmacoes,
-    docDoServidor,
+    docDoServidorRef,
     documento,
     envio,
     fotos,
     passos,
     quote,
     reversiveis,
-    serverStamp,
+    serverStampRef,
     setRefEdited,
     toast,
     total,
-    warnedOverwrite,
+    warnedOverwriteRef,
   });
   const { clearDraft, trabalhoNoDocumento } = limpeza;
   const nota = useNotaDaSeccao({ documento });
@@ -1273,7 +1260,7 @@ export default function ProposalStudio({
   });
   const { handleUpload } = carregar;
   const fotosUsadasNoutras = useFotosUsadasNoutras({ documento, escolha, fotos, quote });
-  const { origensNoDocumento, usadasNoutras, usedThemePaths } = fotosUsadasNoutras;
+  const { usadasNoutras, usedThemePaths } = fotosUsadasNoutras;
   const moodBoards = useMoodBoards({
     anular,
     documento,
@@ -1306,10 +1293,10 @@ export default function ProposalStudio({
     eventosDasFotos,
     moverSeleccaoParaBoard,
     seleccionadasDoBoard,
-    substituirFotoDoBoard,
   } = fotosDosBoards;
   const dobras = useDobrasDosBoards({ campoAVisitar, documento, faltaAVisitar });
   const { alternarDobra, dobrados, dobrarTodos, escreverDobras } = dobras;
+  useSeleccaoSegueAFotografia({ documento, seleccao });
 
   /**
    * ── IR AO SÍTIO ONDE A FALTA SE RESOLVE ─────────────────────────────────
@@ -1429,7 +1416,7 @@ export default function ProposalStudio({
     toast,
     traducoes,
   });
-  const { descarregarAEnviada, fotosPorConfirmar, pedirOPdfAgora, preview } = pdfDaProposta;
+  const { descarregarAEnviada, fotosPorConfirmar, preview } = pdfDaProposta;
   const sugestoesDoPedido = useSugestoesDoPedido({ documento });
   const { sugestoes } = sugestoesDoPedido;
   useLinkDaPropostaEnviada({ envio, quote });
@@ -1484,7 +1471,6 @@ export default function ProposalStudio({
   });
   const {
     aoSaberQueFaltam,
-    contextoDoEnvio,
     fotosParaEscolhas,
     isDeco,
     pdfConfirmado,
@@ -1653,7 +1639,9 @@ export default function ProposalStudio({
               // Uma proposta acabada de abrir, com o que veio do pedido, não
               // pergunta nada (um aviso sempre ligado ensina a não o ler).
               const houveTrabalho =
-                camposTocados.current.size > 0 || docDoServidor.current != null || jaGravou.current;
+                camposTocadosRef.current.size > 0 ||
+                docDoServidorRef.current != null ||
+                jaGravouRef.current;
               const partes = trabalhoNoDocumento(doc);
               setCopiaSubstitui(
                 houveTrabalho ? (partes.length > 0 ? partes.join(", ") : "texto escrito") : null,
@@ -4366,11 +4354,11 @@ export default function ProposalStudio({
                                 patch({ depositPercent: n });
                               } else {
                                 setSinalEscrito(raw);
-                                patch({ depositPercent: sinalAntes.current });
+                                patch({ depositPercent: sinalAntesRef.current });
                               }
                             }}
                             onFocus={() => {
-                              sinalAntes.current = pctSinal;
+                              sinalAntesRef.current = pctSinal;
                             }}
                             onBlur={() => setSinalEscrito(null)}
                             aria-label="Percentagem do sinal"

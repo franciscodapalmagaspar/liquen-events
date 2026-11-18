@@ -49,7 +49,7 @@ export function useLinhasDoOrcamento({
   const { artigosDoDoc, convidados } = contas;
   const { doc, setDoc } = documento;
   const { setLimpo } = reversiveis;
-  const { somarOTotal } = somaDoTotal;
+  const { somarOTotalRef } = somaDoTotal;
   const { totalInput } = total;
 
   /**
@@ -61,7 +61,7 @@ export function useLinhasDoOrcamento({
    * resultado da última multiplicação, e é um número que ela reconhece.
    */
   function definirEscala(i: number, tipo: TipoDeEscala) {
-    somarOTotal.current = true;
+    somarOTotalRef.current = true;
     setDoc((d) => {
       const escalas = escalasDe(d as ProposalDoc);
       const porMesa = d.convidadosPorMesa ?? CONVIDADOS_POR_MESA_OMISSAO;
@@ -82,7 +82,7 @@ export function useLinhasDoOrcamento({
   }
 
   function definirUnitario(i: number, texto: string) {
-    somarOTotal.current = true;
+    somarOTotalRef.current = true;
     const n = normalizarValor(texto);
     setDoc((d) => {
       const escalas = escalasDe(d as ProposalDoc);
@@ -137,11 +137,11 @@ export function useLinhasDoOrcamento({
           (typeof preco === "number" && preco > 0 ? ` — valia ${eur(preco)}.` : "."),
       });
     }
-    somarOTotal.current = true;
+    somarOTotalRef.current = true;
     setDoc((d) => removerLinha(d, i));
   }
   function updateBudgetPrice(i: number, texto: string) {
-    somarOTotal.current = true;
+    somarOTotalRef.current = true;
     setDoc((d) => definirPreco(d, i, normalizarValor(texto)));
   }
   /** O artigo do Moloni de uma linha (5/11) — só para a faturação. */
@@ -153,7 +153,7 @@ export function useLinhasDoOrcamento({
     i: number,
     mudar: (atuais: SubpontoDoOrcamento[]) => SubpontoDoOrcamento[],
   ) {
-    somarOTotal.current = true;
+    somarOTotalRef.current = true;
     setDoc((d) => definirSubpontos(d, i, mudar(subpontosDe(d as ProposalDoc)[i] ?? [])));
   }
   /** Dividir a linha: o primeiro subponto nasce com o preço e o artigo dela —

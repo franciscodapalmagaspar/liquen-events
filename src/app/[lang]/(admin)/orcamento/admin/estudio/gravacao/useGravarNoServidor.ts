@@ -23,13 +23,13 @@ export function useGravarNoServidor({
 }: EntradaGravarNoServidor) {
   const { setDoc } = documento;
   const {
-    docDoServidor,
+    docDoServidorRef,
     marcarGuardadoNoServidor,
     marcarQueDura,
     partiuUmaGravacao,
     registarNaoDura,
     registarSoLocal,
-    serverStamp,
+    serverStampRef,
     voltouUmaGravacao,
   } = rascunho;
 
@@ -48,15 +48,15 @@ export function useGravarNoServidor({
         // deixa juntar esta gravação com a de outra pessoa campo a campo, em
         // vez de a última escrita levar o documento inteiro (achado n.º 6).
         const enviado = ehObjecto(docGravavel) ? docGravavel : null;
-        const desde = docDoServidor.current;
+        const desde = docDoServidorRef.current;
         const r = await gravarRascunhoNoServidor(quote.id, {
           doc: docGravavel,
-          baseUpdatedAt: serverStamp.current,
+          baseUpdatedAt: serverStampRef.current,
           ...(enviado && desde ? camposMudados(desde, enviado) : {}),
         });
         if (r.estado === "guardado") {
-          if (r.updatedAt) serverStamp.current = r.updatedAt;
-          docDoServidor.current = r.doc ?? enviado;
+          if (r.updatedAt) serverStampRef.current = r.updatedAt;
+          docDoServidorRef.current = r.doc ?? enviado;
           // O que veio da outra pessoa vai para o ecrã — mas só nos campos em
           // que esta não mexeu entretanto (a gravação demora; ela pode ter
           // continuado a escrever).
@@ -103,6 +103,9 @@ export function useGravarNoServidor({
       onEstadoDoPedido,
       partiuUmaGravacao,
       voltouUmaGravacao,
+      docDoServidorRef,
+      serverStampRef,
+      setDoc,
     ],
   );
 

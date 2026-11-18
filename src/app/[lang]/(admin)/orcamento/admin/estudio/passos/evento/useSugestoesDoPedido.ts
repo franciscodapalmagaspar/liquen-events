@@ -56,7 +56,7 @@ export function useSugestoesDoPedido({ documento }: EntradaSugestoesDoPedido) {
     return () => {
       vivo = false;
     };
-  }, []);
+  }, [setDoc]);
 
   return { sugestoes };
 }

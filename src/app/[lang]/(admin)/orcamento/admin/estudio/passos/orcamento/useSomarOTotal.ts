@@ -29,10 +29,10 @@ export function useSomarOTotal({ camposPorConfirmar, documento, total }: Entrada
    * proposta antiga com o total escrito à mão não muda sozinha por ser aberta
    * (fica o aviso e o «Usar …» de sempre).
    */
-  const somarOTotal = useRef(false);
+  const somarOTotalRef = useRef(false);
   useEffect(() => {
-    if (!somarOTotal.current) return;
-    somarOTotal.current = false;
+    if (!somarOTotalRef.current) return;
+    somarOTotalRef.current = false;
     const d = desalinhamento(doc, dinheiroDaProposta(doc).base);
     if (!d || !(d.sugerido > 0)) return;
     confirmado("totalAmount");
@@ -41,5 +41,5 @@ export function useSomarOTotal({ camposPorConfirmar, documento, total }: Entrada
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc.budgetAmounts, doc.budgetItems]);
 
-  return { somarOTotal };
+  return { somarOTotalRef };
 }

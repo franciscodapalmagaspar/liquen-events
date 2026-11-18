@@ -69,9 +69,9 @@ export function useEnviarAProposta({
     assuntoDoEmail,
     canal,
     corpoDoEmail,
-    enviada,
+    enviadaRef,
     modeloDoEmail,
-    pdfPreparado,
+    pdfPreparadoRef,
     pdfVisto,
     sent,
     setConfirmSend,
@@ -352,10 +352,10 @@ export function useEnviarAProposta({
       // confirmação "Proposta enviada ✓" em vez do botão pronto a disparar.
       // Só quando há mesmo o que confirmar.
       if (saiu) {
-        enviada.current = {
+        const preparado = pdfPreparadoRef.current;
+        enviadaRef.current = {
           id: typeof data?.id === "string" ? data.id : null,
-          pdf:
-            pdfPreparado.current?.retrato === retratoDoEnvio ? pdfPreparado.current.promessa : null,
+          pdf: preparado?.retrato === retratoDoEnvio ? preparado.promessa : null,
         };
         setSent(true);
         onSent?.();

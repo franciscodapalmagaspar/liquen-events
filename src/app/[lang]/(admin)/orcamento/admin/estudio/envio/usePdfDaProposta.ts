@@ -48,8 +48,8 @@ export function usePdfDaProposta({
   const { barraCompacta } = barra;
   const { doc } = documento;
   const {
-    enviada,
-    pdfPreparado,
+    enviadaRef,
+    pdfPreparadoRef,
     setAvancoDaEnviada,
     setBytesDoPdf,
     setPdfNoEcra,
@@ -133,9 +133,9 @@ export function usePdfDaProposta({
 
   // A preparação em segundo plano corre num efeito, e o efeito quer sempre o
   // `pedirOPdf` deste render (o idioma e o pedido de agora).
-  const pedirOPdfAgora = useRef(pedirOPdf);
+  const pedirOPdfAgoraRef = useRef(pedirOPdf);
   useEffect(() => {
-    pedirOPdfAgora.current = pedirOPdf;
+    pedirOPdfAgoraRef.current = pedirOPdf;
   });
 
   async function preview({ rascunho = false }: { rascunho?: boolean } = {}) {
@@ -154,11 +154,11 @@ export function usePdfDaProposta({
        * botão não dar nada.
        */
       const jaPedido =
-        !rascunho && pdfPreparado.current?.retrato === retrato
-          ? await pdfPreparado.current.promessa.catch(() => null)
+        !rascunho && pdfPreparadoRef.current?.retrato === retrato
+          ? await pdfPreparadoRef.current.promessa.catch(() => null)
           : null;
       const pdf = jaPedido ?? (await pedirOPdf(desenhado, rascunho));
-      if (!rascunho) pdfPreparado.current = { retrato, promessa: Promise.resolve(pdf) };
+      if (!rascunho) pdfPreparadoRef.current = { retrato, promessa: Promise.resolve(pdf) };
       const { blob } = pdf;
       // O tamanho serve o ecrã do email, que confirma o anexo antes de ele
       // seguir: aqui é MEDIDO, e não a estimativa que se mostra sem isto.
@@ -258,7 +258,7 @@ export function usePdfDaProposta({
     setBusy("preview");
     let blob: Blob | null = null;
     try {
-      const doEnvio = enviada.current;
+      const doEnvio = enviadaRef.current;
       blob = (await doEnvio?.pdf?.catch(() => null))?.blob ?? null;
       if (!blob && doEnvio?.id) {
         // Pelo `descarregar` da casa: a rota do guardado manda o tamanho, e a
@@ -299,5 +299,5 @@ export function usePdfDaProposta({
    *  e partilhar o nome era o caminho para uma delas passar a mentir. */
   const fotosPorConfirmar = countPendingImages(doc);
 
-  return { descarregarAEnviada, fotosPorConfirmar, pedirOPdfAgora, preview };
+  return { descarregarAEnviada, fotosPorConfirmar, pedirOPdfAgoraRef, preview };
 }

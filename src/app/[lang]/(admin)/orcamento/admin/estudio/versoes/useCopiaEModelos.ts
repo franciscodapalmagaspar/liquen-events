@@ -21,7 +21,7 @@ export interface EntradaCopiaEModelos {
   documento: ReturnType<typeof useDocumentoDoEstudio>;
   hidratarAssets: (
     vivo?: () => boolean,
-    { daAbertura }?: { daAbertura?: boolean },
+    opcoes?: { daAbertura?: boolean },
   ) => Promise<EstadoDosUrls>;
   reversiveis: ReturnType<typeof useAccoesReversiveis>;
   setRefEdited: Dispatch<SetStateAction<boolean>>;

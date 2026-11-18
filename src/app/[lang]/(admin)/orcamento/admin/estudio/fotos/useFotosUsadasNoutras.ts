@@ -78,7 +78,7 @@ export function useFotosUsadasNoutras({
     return () => {
       vivo = false;
     };
-  }, [quote.id]);
+  }, [quote.id, setRepetidas]);
 
   const usedThemePaths = useMemo(() => {
     if (!picker) return [];

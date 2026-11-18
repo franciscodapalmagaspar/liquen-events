@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { fonteDoEstudio } from "../../../../../../test/ficheiros-do-estudio";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -139,7 +140,7 @@ describe("a barra de destinos do telemóvel", () => {
    */
   it("o aviso afasta-se também da barra de acção do estúdio", () => {
     const TOAST = readFileSync(join(RAIZ, "Toast.tsx"), "utf8");
-    const ESTUDIO = readFileSync(join(RAIZ, "ProposalStudio.tsx"), "utf8");
+    const ESTUDIO = fonteDoEstudio();
 
     /**
      * ── E DEIXOU DE HAVER DUAS POSIÇÕES ─────────────────────────────────
@@ -186,7 +187,10 @@ describe("a barra de destinos do telemóvel", () => {
     for (const nome of QUATRO) {
       // Sem comentários: esta casa explica a avaria por escrito ao lado do
       // sítio onde ela esteve, e uma varredura que os leia acusa a explicação.
-      const fonte = readFileSync(join(RAIZ, nome), "utf8").replace(/\/\*[\s\S]*?\*\//g, " ");
+      // O estúdio são o componente e as peças que saíram dele.
+      const texto =
+        nome === "ProposalStudio.tsx" ? fonteDoEstudio() : readFileSync(join(RAIZ, nome), "utf8");
+      const fonte = texto.replace(/\/\*[\s\S]*?\*\//g, " ");
       if (!fonte.includes("--bo-barra-inferior")) continue;
       const m = fonte.match(/lg:(?:bottom-0|pb-0|bottom-\[calc\((?![^)]*--bo-barra-inferior))/);
       if (m) reincidentes.push(`${nome} (${m[0]})`);
@@ -338,7 +342,7 @@ describe("a folga por baixo da barra do estúdio mede o `sticky`, e não a janel
    * calculado responde certo em qualquer caixa; a altura da janela responde
    * certo só numa.
    */
-  const ESTUDIO = readFileSync(join(RAIZ, "ProposalStudio.tsx"), "utf8");
+  const ESTUDIO = fonteDoEstudio();
   const medicao = /const porBaixo = [^;]+;/.exec(ESTUDIO)?.[0] ?? "";
 
   it("lê o `bottom` do próprio elemento", () => {
