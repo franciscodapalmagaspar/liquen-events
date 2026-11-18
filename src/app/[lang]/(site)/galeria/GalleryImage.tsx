@@ -538,7 +538,7 @@ export default function GalleryImage({
               : undefined
           }
         >
-          <span className="rounded bg-black/55 px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-white/85">
+          <span className="rounded bg-black/55 px-2 py-1 text-miuda uppercase tracking-[0.18em] text-white/85">
             {unavailableLabel}
           </span>
         </span>

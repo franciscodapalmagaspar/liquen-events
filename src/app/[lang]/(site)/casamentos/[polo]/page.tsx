@@ -156,7 +156,7 @@ export default async function PoloPage({
         <div className="relative z-10 w-full max-w-7xl mx-auto px-6 lg:px-16 py-24 lg:py-28">
           <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_minmax(0,460px)] gap-10 lg:gap-16 items-center">
             <div className="text-white">
-              <p className="text-[10px] tracking-[0.35em] uppercase text-white/70">{c.eyebrow}</p>
+              <p className="text-miuda tracking-[0.35em] uppercase text-white/70">{c.eyebrow}</p>
               <h1 className="mt-4 text-[34px] sm:text-[46px] lg:text-[56px] font-bold uppercase tracking-display leading-[1.05]">
                 {c.h1}
               </h1>
@@ -183,7 +183,7 @@ export default async function PoloPage({
       {polo.espacos.length > 0 && (
         <section className="bg-surface border-b border-foreground/8 py-20 lg:py-24">
           <div className="max-w-7xl mx-auto px-6 lg:px-16">
-            <p className="text-[10px] tracking-[0.35em] uppercase text-foreground/45">
+            <p className="text-miuda tracking-[0.35em] uppercase text-foreground/45">
               {en ? "Venues" : "Espaços"}
             </p>
             <h2 className="mt-3 text-[24px] sm:text-[30px] font-bold uppercase tracking-display leading-tight max-w-3xl">
@@ -259,7 +259,7 @@ export default async function PoloPage({
             `alvos-de-toque-do-sitio.test.tsx` monta a Home, o Contacto, a
             Destination e um Serviço, e nunca esta página.
           */}
-          <div className="flex flex-wrap items-center gap-x-8 gap-y-3 text-[11px] tracking-[0.25em] uppercase">
+          <div className="flex flex-wrap items-center gap-x-8 gap-y-3 text-miuda tracking-[0.25em] uppercase">
             <Link
               href={localizeHref("/orcamento", locale) + "?tipo=casamentos"}
               className="alvo-toque underline hover:text-moss"

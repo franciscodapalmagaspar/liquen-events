@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { log } from "@/lib/logger";
 import AvisoLegal from "@/components/AvisoLegal";
+import { LETRA_MIUDA } from "@/lib/letra-miuda";
 
 /**
  * Global error boundary — catches failures in the root layout itself, which
@@ -75,7 +76,7 @@ export default function GlobalError({
             style={{
               letterSpacing: "0.4em",
               textTransform: "uppercase",
-              fontSize: 10,
+              fontSize: LETRA_MIUDA,
               opacity: 0.4,
             }}
           >

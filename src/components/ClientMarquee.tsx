@@ -41,7 +41,7 @@ function Mark({
   if (failed || !logo) {
     return (
       <div className="me-12 flex h-8 flex-shrink-0 items-center sm:me-16 sm:h-10" {...hidden}>
-        <span className="text-foreground/68 text-[10px] sm:text-xs font-medium tracking-[0.2em] uppercase whitespace-nowrap">
+        <span className="text-foreground/68 text-miuda sm:text-xs font-medium tracking-[0.2em] uppercase whitespace-nowrap">
           {name}
         </span>
       </div>

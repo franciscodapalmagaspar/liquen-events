@@ -8,6 +8,8 @@ import { localizeHref, type Locale } from "@/lib/i18n/config";
 import { ALTURA_BARRA_FIXA_PX, ehRotaSocial } from "@/lib/meta/barra";
 import { aoMudarConsentimento } from "@/lib/meta/click-id";
 import { aplicarConsentimentoGoogle } from "@/components/GoogleTag";
+import { Glass } from "@/components/Glass";
+import { useEntradaEmVideoVisivel } from "@/components/useEntradaEmVideoVisivel";
 
 // Minimal RGPD cookie-consent bar. It only governs the Google tag's Consent
 // Mode signals (ad/analytics cookies) — the site's own first-party essentials
@@ -70,6 +72,8 @@ export default function ConsentBanner({ locale }: { locale: Locale }) {
    */
   const [show, setShow] = useState(true);
   const pathname = usePathname();
+  // Por cima do vídeo da entrada a barra não é vidro — ver «LIQUID GLASS» em baixo.
+  const entradaVisivel = useEntradaEmVideoVisivel(pathname);
   // The consent bar governs Google's public-visitor tracking; it has no place
   // over the authenticated back office (…/orcamento/admin[/…], locale-prefixed
   // in EN), where it would also sit on top of the mobile nav and intercept its
@@ -175,7 +179,12 @@ export default function ConsentBanner({ locale }: { locale: Locale }) {
   const acimaDaBarra = ehRotaSocial(pathname);
 
   return (
-    <div
+    <Glass
+      superficie="painel"
+      quando="(pointer: fine)"
+      ativo={!entradaVisivel}
+      soComMotor
+      adiar
       // role="region" (a labelled landmark), NOT "dialog": the bar is
       // non-modal — it doesn't trap focus or block the page, so a dialog role
       // would be a false modal claim. It also kept colliding with the real
@@ -185,6 +194,10 @@ export default function ConsentBanner({ locale }: { locale: Locale }) {
       // `barra-consentimento` é a alça do CSS que esconde isto a quem já
       // escolheu, antes da primeira pintura. Ver o script no `<head>`.
       /**
+       * (17/11: o que se segue CONTINUA a valer — por cima do vídeo a barra
+       * não tem desfoque nenhum. O vidro de 17/11 só se monta quando o vídeo
+       * sai do ecrã; ver «LIQUID GLASS» no fim deste comentário.)
+       *
        * SEM desfoque também no computador (29/10). Ela: «o site no PC está a
        * travar mesmo imenso, principalmente na parte do vídeo». O aviso
        * aparece por cima do vídeo da entrada, e aí o `backdrop-filter` volta a
@@ -267,8 +280,38 @@ export default function ConsentBanner({ locale }: { locale: Locale }) {
        * da entrada: o browser volta a desfocar o vídeo em cada fotograma. É o
        * mesmo custo que já o tinha tirado dos ecrãs de toque. Fica igual em
        * todo o lado: 75 % sem desfoque, o mínimo para o texto passar 4,5:1.
+       *
+       * ── LIQUID GLASS, COMO NO IPHONE (17/11) ──────────────────────────
+       * Ele: «os cookies eu quero colocar transparente iphone». A barra é um
+       * `<Glass>` — o MESMO motor do back office (`lib/liquid-glass.ts`), e não
+       * um segundo vidro — na linha «painel, cartão» da tabela da Parte 3 do
+       * `docs/LIQUID-GLASS.md` (bisel 16, força 12, desfoque 2, saturação
+       * 1,5): o fundo dobra na aresta em vez de só se desfocar.
+       *
+       *  · NUNCA por cima do vídeo da entrada (`ativo`). As duas lições de
+       *    cima (29/10 e 9/11) continuam a mandar: um `backdrop-filter` fixo
+       *    por cima do vídeo é recalculado em cada fotograma dele. Enquanto o
+       *    vídeo está no ecrã (`useEntradaEmVideoVisivel`, um
+       *    IntersectionObserver) a barra é só tinta; o vidro monta-se quando
+       *    ele sai, e desmonta-se se ele voltar.
+       *  · Sem motor (Safari e Firefox), só tinta (`soComMotor`): o recurso
+       *    do motor seria um `blur(12px)` fixo — o mesmo custo outra vez.
+       *  · Só com rato (`quando`). No toque fica a tinta e o rebordo, que
+       *    são CSS: o desfoque num `fixed` já engasgou o deslize do iPhone
+       *    (globals.css, «NO TOQUE, O AVISO NÃO DESFOCA»).
+       *  · `adiar`: o motor chega quando o browser fica livre, por `import()`.
+       *    Na primeira pintura (o LCP de várias páginas é ESTE texto) só há
+       *    CSS, e o JavaScript do arranque não cresce.
+       *  · A tinta passa ao `sage-800` a 72 %: o `sage-700` a 75 % dava 4,39:1
+       *    sobre uma página branca (MEDIDO na captura; a conta dava 4,44), e
+       *    o verde mais fundo deixa ver mais do fundo com mais contraste —
+       *    ~4,97:1 no pior caso, que é o branco liso (a refracção e o
+       *    desfoque não clareiam o branco). O teste refaz a conta pelos tokens.
+       *  · Sem transparência (`prefers-reduced-transparency`,
+       *    `prefers-contrast: more`) fica opaca; nas cores forçadas, as do
+       *    sistema (globals.css).
        */
-      className="barra-consentimento fixed inset-x-3 z-[70] rounded-2xl border border-white/12 bg-sage-700/75 px-4 py-3.5 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.45)] sm:inset-x-auto sm:left-5 sm:w-[22rem]"
+      className="barra-consentimento fixed inset-x-3 z-[70] rounded-2xl border border-white/12 bg-sage-800/72 px-4 py-3.5 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.45)] sm:inset-x-auto sm:left-5 sm:w-[22rem]"
       style={{
         // Fora das rotas sociais nada muda: `bottom: 0` (da classe) e o
         // preenchimento a respeitar a zona segura do iPhone.
@@ -309,19 +352,19 @@ export default function ConsentBanner({ locale }: { locale: Locale }) {
           <button
             type="button"
             onClick={() => choose(false)}
-            className="toque alvo-toque rounded-full border border-white/55 px-4 py-1.5 text-[11px] uppercase tracking-[0.16em] text-white transition-colors hover:bg-white hover:text-sage-800"
+            className="toque alvo-toque rounded-full border border-white/55 px-4 py-1.5 text-miuda uppercase tracking-[0.16em] text-white transition-colors hover:bg-white hover:text-sage-800"
           >
             {t.decline}
           </button>
           <button
             type="button"
             onClick={() => choose(true)}
-            className="toque alvo-toque rounded-full border border-white/55 px-4 py-1.5 text-[11px] uppercase tracking-[0.16em] text-white transition-colors hover:bg-white hover:text-sage-800"
+            className="toque alvo-toque rounded-full border border-white/55 px-4 py-1.5 text-miuda uppercase tracking-[0.16em] text-white transition-colors hover:bg-white hover:text-sage-800"
           >
             {t.accept}
           </button>
         </div>
       </div>
-    </div>
+    </Glass>
   );
 }

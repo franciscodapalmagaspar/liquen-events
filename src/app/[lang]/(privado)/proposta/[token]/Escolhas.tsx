@@ -212,7 +212,7 @@ export default function Escolhas({ escolhas, escolhido, fotos, token, textos, em
                     <span className="flex items-baseline justify-between gap-3">
                       <span className="text-foreground/85 text-sm font-medium">{rotulo}</span>
                       {escolhida && (
-                        <span className="shrink-0 text-moss text-[10px] uppercase tracking-[0.18em]">
+                        <span className="shrink-0 text-moss text-miuda uppercase tracking-[0.18em]">
                           {textos.escolhida}
                         </span>
                       )}

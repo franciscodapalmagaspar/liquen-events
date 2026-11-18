@@ -404,10 +404,18 @@ async function limparCachesDoBackOffice() {
   );
 }
 
-self.addEventListener("message", (event) => {
+// Só as páginas DESTA origem podem pedir a limpeza. O browser já só deixa
+// falar com o service worker quem é da mesma origem; a verificação fica aqui
+// na mesma, para a regra não depender só disso. (A página também limpa
+// directamente — ver `limpar-caches-ao-sair.ts` —, por isso um browser que
+// não preencha a origem não deixa nada para trás.)
+function aoReceberMensagem(event) {
+  if (event.origin !== self.location.origin) return;
   if (!event.data || event.data.tipo !== "limpar-back-office") return;
   event.waitUntil(limparCachesDoBackOffice().catch(() => undefined));
-});
+}
+
+self.addEventListener("message", aoReceberMensagem);
 
 // ── Web Push (back office) ──────────────────────────────────────────────────
 

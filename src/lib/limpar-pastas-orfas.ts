@@ -194,7 +194,10 @@ export async function limparPastasDePedidosApagados(
       log.info("limpeza: pasta de pedido apagado saiu do armazenamento", {
         pasta,
         ficheiros,
-        candidataDesde: visto,
+        // A data já lida e validada (`desde`), e não o texto tal como estava
+        // gravado: o registo leva sempre o mesmo formato, e o que o caderno
+        // tiver de estranho não segue para o registo nem para os alertas.
+        candidataDesde: new Date(desde).toISOString(),
       });
     }
   }

@@ -710,7 +710,7 @@ export default function SafeImage({
       */}
       {exhausted && unavailableLabel && (
         <span className="pointer-events-none absolute inset-0 flex items-end justify-start p-3">
-          <span className="rounded bg-black/55 px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-white/85">
+          <span className="rounded bg-black/55 px-2 py-1 text-miuda uppercase tracking-[0.18em] text-white/85">
             {unavailableLabel}
           </span>
         </span>

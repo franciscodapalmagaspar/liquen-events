@@ -70,12 +70,14 @@ mesmo dia num papel que se entrega à equipa na manhã do evento.
 `docs/LIQUID-GLASS.md` é o documento dela sobre o material — porque é que um
 `backdrop-filter: blur()` não é Liquid Glass, o que é preciso acrescentar-lhe, e
 a tabela de valores por superfície. O motor está em `src/lib/liquid-glass.ts` e a
-ponte para React em `ui/Glass.tsx`.
+ponte para React em `src/components/Glass.tsx`.
 
-A **Parte −1** regista as quatro decisões em que a execução se afastou do
+A **Parte −1** regista as cinco decisões em que a execução se afastou do
 documento — a primeira superfície não é a que ele nomeia (a barra do portal do
 cliente não existe), o `cluster()` ficou de fora até haver o que fundir, as
-curvas `linear()` já cá estavam, e o `position` do `.lg` vive no JS e não no CSS.
+curvas `linear()` já cá estavam, o `position` do `.lg` vive no JS e não no CSS,
+e (17/11) a barra de cookies do site usa o mesmo `<Glass>`, agora em
+`src/components/Glass.tsx`, com o motor carregado por `import()` e só com rato.
 
 E as duas regras da Parte 5 que nenhum ficheiro consegue fazer cumprir sozinho,
 portanto ficam aqui: **uma camada de vidro por ecrã** — vidro sobre vidro

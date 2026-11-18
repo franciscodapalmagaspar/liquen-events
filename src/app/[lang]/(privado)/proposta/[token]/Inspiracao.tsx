@@ -823,12 +823,12 @@ export default function Inspiracao({
             type="button"
             onClick={recarregar}
             disabled={arecarregar}
-            className="alvo-toque text-foreground/60 hover:text-moss inline-flex items-center justify-center text-[11px] tracking-[0.14em] uppercase transition-colors disabled:opacity-50"
+            className="alvo-toque text-foreground/60 hover:text-moss inline-flex items-center justify-center text-miuda tracking-[0.14em] uppercase transition-colors disabled:opacity-50"
           >
             {textos.recarregarFotos}
           </button>
           {recarregarFalhou && (
-            <span role="status" className="mt-2 block text-[11px] text-foreground/70">
+            <span role="status" className="mt-2 block text-miuda text-foreground/70">
               {textos.recarregarFalhou}
             </span>
           )}
