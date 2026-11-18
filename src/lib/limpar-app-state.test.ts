@@ -139,14 +139,15 @@ describe("o plano da noite", () => {
     expect(plano.ficam).toBe(1);
   });
 
-  it("o que passa do tecto de bytes da cópia fica para a noite seguinte", async () => {
+  it("ao chegar ao tecto de bytes da cópia pára de ler; o resto fica para a noite seguinte", async () => {
     st.valores = new Map<string, unknown>([
       [`ligacao-de-proposta:${P_APAGADA}`, { codigo: "x".repeat(TECTO_DE_BYTES_NA_COPIA) }],
       ["proposal-draft:q-apagado", { doc: {} }],
     ]);
     const { plano } = await planear();
-    expect(plano.saem.map((s) => s.motivo)).toEqual(["lapide", "rascunho-sem-pedido"]);
-    expect(plano.ficam).toBe(1);
+    // Pára no primeiro que não cabe: o resto nem se lê, e fica para amanhã.
+    expect(plano.saem.map((s) => s.motivo)).toEqual(["lapide"]);
+    expect(plano.ficam).toBe(2);
   });
 
   it("um espaço que não se leu inteiro: não sai nada", async () => {

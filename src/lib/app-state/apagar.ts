@@ -1,7 +1,9 @@
 import "server-only";
 import { getSupabase } from "@/lib/supabase";
 import { log } from "@/lib/logger";
-import { comTecto, TEMPO_POR_TENTATIVA_MS } from "./tecto";
+import { comTecto, PAUSA_MS, TEMPO_POR_TENTATIVA_MS, TENTATIVAS } from "./tecto";
+import { motivoDaFalha, oFicheiroEhEfemero, type ResultadoDeEscrita } from "./resultado";
+import { vigiarChave } from "./vigiar";
 import { emFila, escreverFicheiro, mudarFicheiro, readFileState } from "./ficheiro";
 
 /**
@@ -133,6 +135,7 @@ export async function apagarEstadoSeNaoMudou(
   chave: string,
   versao: string,
 ): Promise<"apagado" | "mudou" | "falhou"> {
+  vigiarChave(chave);
   const sb = getSupabase();
   if (!sb) {
     try {
@@ -156,5 +159,49 @@ export async function apagarEstadoSeNaoMudou(
   } catch (err) {
     log.error("app-state: apagar condicional falhou", err, { chave });
     return "falhou";
+  }
+}
+
+/**
+ * Apaga a linha, e DIZ se apagou — o par de {@link setState}, com o mesmo
+ * resultado (`gravado` quer dizer «a mudança chegou ao sítio onde fica»).
+ *
+ * Existe para não se gravar `null` no lugar de apagar: uma chave a `null` lê-se
+ * como «não há», mas a linha fica para sempre (eram 103 lápides de rascunhos a
+ * 17/11 — docs/ESTRUTURA-DOS-DADOS.md, G3). Apagar o que não existe não é erro.
+ */
+export async function apagarEstado(key: string): Promise<ResultadoDeEscrita> {
+  vigiarChave(key);
+  const sb = getSupabase();
+  if (sb) {
+    let ultimoErro: unknown = null;
+    for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {
+      try {
+        const { error } = await comTecto(
+          sb.from("app_state").delete().eq("key", key),
+          TEMPO_POR_TENTATIVA_MS,
+        );
+        if (!error) return { gravado: true, duradouro: true, onde: "servidor" };
+        ultimoErro = error;
+      } catch (err) {
+        ultimoErro = err;
+      }
+      if (motivoDaFalha(ultimoErro) !== "escrita-recusada") break;
+      if (tentativa < TENTATIVAS) await new Promise((r) => setTimeout(r, PAUSA_MS * tentativa));
+    }
+    const motivo = motivoDaFalha(ultimoErro);
+    log.error("app-state: apagar falhou", ultimoErro, { key, motivo });
+    return { gravado: false, duradouro: false, onde: "nenhures", motivo };
+  }
+  try {
+    await mudarFicheiro((todos) => {
+      delete todos[key];
+    });
+    return oFicheiroEhEfemero()
+      ? { gravado: true, duradouro: false, onde: "ficheiro-efemero" }
+      : { gravado: true, duradouro: true, onde: "ficheiro" };
+  } catch (err) {
+    log.error("app-state: apagar em ficheiro falhou", err, { key });
+    return { gravado: false, duradouro: false, onde: "nenhures", motivo: "escrita-recusada" };
   }
 }

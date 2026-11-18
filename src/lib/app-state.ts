@@ -1,10 +1,17 @@
 import "server-only";
 import { getSupabase } from "./supabase";
-import { eRelogioAdiantado, isMissingTable, lerComNovaTentativa } from "./repository";
+import { lerComNovaTentativa } from "./repository";
 import { log } from "./logger";
 import { vigiarChave, vigiarValor } from "./app-state/vigiar";
 import { comTecto, PAUSA_MS, TEMPO_POR_TENTATIVA_MS, TENTATIVAS } from "./app-state/tecto";
 import { emFila, escreverFicheiro, mudarFicheiro, readFileState } from "./app-state/ficheiro";
+import { motivoDaFalha, oFicheiroEhEfemero, type ResultadoDeEscrita } from "./app-state/resultado";
+export {
+  oFicheiroEhEfemero,
+  type MotivoDeFalha,
+  type OndeFicou,
+  type ResultadoDeEscrita,
+} from "./app-state/resultado";
 
 /**
  * Tiny persistent key-value state for operational markers (e.g. the list of
@@ -48,103 +55,6 @@ import { emFila, escreverFicheiro, mudarFicheiro, readFileState } from "./app-st
  * `onde: "ficheiro-efemero"`: a escrita aconteceu, e não conta como guardada
  * onde não dura.
  */
-
-/**
- * Porque é que a escrita não ficou. Não é decoração: cada um destes tem uma
- * resolução DIFERENTE do lado de quem gere a instalação, e é essa a diferença
- * entre um «Erro interno» que não indica caminho nenhum e uma frase que diz o
- * que fazer a seguir.
- *
- *  - `tabela-em-falta`  → falta correr o `db/schema.sql` no Supabase;
- *  - `sem-permissao`    → a tabela existe mas a chave usada não a pode escrever
- *                         (chave `anon` em vez da `service_role`, ou uma
- *                         política de RLS a recusar a linha);
- *  - `escrita-recusada` → tudo o resto: rede, tempo esgotado, avaria.
- */
-export type MotivoDeFalha = "tabela-em-falta" | "sem-permissao" | "escrita-recusada";
-
-/**
- * ════════════════════════════════════════════════════════════════════════════
- * O MESMO FICHEIRO É UM SÍTIO NUMA MÁQUINA E NÃO É UM SÍTIO EM VERCEL
- * ════════════════════════════════════════════════════════════════════════════
- *
- * Na máquina de alguém, o `data/app-state.json` é o servidor local: sobrevive a
- * fechar o portátil, é visível de qualquer navegador que fale com ele, e é o
- * recurso legítimo de quem trabalha sem base de dados. Em Vercel, o MESMO
- * ficheiro vive no disco da função — não sobrevive a um deploy, e muitas vezes
- * nem à invocação seguinte, porque o contentor é reciclado.
- *
- * A diferença é o AMBIENTE, e é por isso que a distinção vive aqui e não numa
- * propriedade do ficheiro. A regra é a MESMA que o `repository.assertWritableInProd`
- * e o restauro (`backup-restore.replaceAll`) já usam para recusar escritas —
- * deliberadamente a mesma, para não haver duas ideias diferentes de «isto é
- * produção» a divergirem com o tempo.
- *
- * Lê-se na hora e não no arranque do módulo: os testes trocam o ambiente por
- * caso, e um valor congelado à importação fazia o segundo caso responder o do
- * primeiro.
- */
-export function oFicheiroEhEfemero(): boolean {
-  return process.env.NODE_ENV === "production";
-}
-
-/**
- * Onde a escrita ficou mesmo.
- *
- *  - `servidor`         → a tabela `app_state`. Dura.
- *  - `ficheiro`         → o `data/app-state.json` de uma máquina de trabalho.
- *                         Dura o que a máquina durar, que é o que se pede.
- *  - `ficheiro-efemero` → o mesmo ficheiro, no disco de uma função serverless.
- *                         Melhor do que nada — quem gravou ainda o relê nesta
- *                         invocação — e insuficiente: um deploy apaga-o.
- *  - `nenhures`         → não ficou.
- */
-export type OndeFicou = "servidor" | "ficheiro" | "ficheiro-efemero" | "nenhures";
-
-/**
- * O que aconteceu a uma escrita.
- *
- * São DUAS perguntas, e confundi-las foi o defeito:
- *
- *  - `gravado`   → «a escrita aconteceu nalgum lado?». É o que a maior parte de
- *                  quem chama precisa: distingue uma edição que foi escrita de
- *                  uma que se perdeu na hora.
- *  - `duradouro` → «esse lado sobrevive a um deploy?». É a pergunta que faltava.
- *                  Uma escrita no disco efémero da função responde `true` à
- *                  primeira e `false` a esta, e quem diz «Guardado» à pessoa
- *                  que está a trabalhar tem de olhar para as duas.
- */
-export interface ResultadoDeEscrita {
-  gravado: boolean;
-  duradouro: boolean;
-  onde: OndeFicou;
-  motivo?: MotivoDeFalha;
-}
-
-/** Uma escrita recusada por falta de autorização — do Postgres (42501,
- *  `insufficient_privilege`) ou da política de RLS, que o PostgREST devolve com
- *  o mesmo código e a mensagem da política. */
-function ehSemPermissao(err: unknown): boolean {
-  if (!err || typeof err !== "object") return false;
-  if ((err as { code?: unknown }).code === "42501") return true;
-  const msg = (err as { message?: unknown }).message;
-  return (
-    typeof msg === "string" &&
-    /permission denied|row-level security|insufficient[_ ]privilege|not authorized|jwt/i.test(msg)
-  );
-}
-
-function motivoDaFalha(err: unknown): MotivoDeFalha {
-  // O relógio adiantado (PGRST303, «JWT issued at future») é PASSAGEIRO e
-  // repete-se — mas a mensagem diz «JWT», e a regra de baixo tomava-o por uma
-  // permissão recusada, que nunca se repete. Resultado: nenhuma escrita nem
-  // leitura do app_state repetia o erro mais comum (auditoria de 13/11). A
-  // mesma deteção do `repository.ts` (`eRelogioAdiantado`).
-  if (eRelogioAdiantado(err)) return "escrita-recusada";
-  if (isMissingTable(err)) return "tabela-em-falta";
-  if (ehSemPermissao(err)) return "sem-permissao";
-  return "escrita-recusada";
-}
 
 /**
  * A leitura falhou (o Supabase não respondeu, ou respondeu com erro) — o que
@@ -435,7 +345,7 @@ export async function gravarEstadoSeNaoMudou<T>(
   }
 }
 
-export { apagarEstadoPorPrefixo } from "./app-state/apagar";
+export { apagarEstado, apagarEstadoPorPrefixo } from "./app-state/apagar";
 
 /**
  * Grava, e DIZ se gravou.
@@ -501,50 +411,6 @@ export async function setState<T>(key: string, value: T): Promise<ResultadoDeEsc
     return { gravado: true, duradouro: true, onde: "ficheiro" };
   } catch (err) {
     log.error("app-state: escrita em ficheiro falhou", err, { key });
-    return { gravado: false, duradouro: false, onde: "nenhures", motivo: "escrita-recusada" };
-  }
-}
-
-/**
- * Apaga a linha, e DIZ se apagou — o par de {@link setState}, com o mesmo
- * resultado (`gravado` quer dizer «a mudança chegou ao sítio onde fica»).
- *
- * Existe para não se gravar `null` no lugar de apagar: uma chave a `null` lê-se
- * como «não há», mas a linha fica para sempre (eram 103 lápides de rascunhos a
- * 17/11 — docs/ESTRUTURA-DOS-DADOS.md, G3). Apagar o que não existe não é erro.
- */
-export async function apagarEstado(key: string): Promise<ResultadoDeEscrita> {
-  vigiarChave(key);
-  const sb = getSupabase();
-  if (sb) {
-    let ultimoErro: unknown = null;
-    for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {
-      try {
-        const { error } = await comTecto(
-          sb.from("app_state").delete().eq("key", key),
-          TEMPO_POR_TENTATIVA_MS,
-        );
-        if (!error) return { gravado: true, duradouro: true, onde: "servidor" };
-        ultimoErro = error;
-      } catch (err) {
-        ultimoErro = err;
-      }
-      if (motivoDaFalha(ultimoErro) !== "escrita-recusada") break;
-      if (tentativa < TENTATIVAS) await new Promise((r) => setTimeout(r, PAUSA_MS * tentativa));
-    }
-    const motivo = motivoDaFalha(ultimoErro);
-    log.error("app-state: apagar falhou", ultimoErro, { key, motivo });
-    return { gravado: false, duradouro: false, onde: "nenhures", motivo };
-  }
-  try {
-    await mudarFicheiro((todos) => {
-      delete todos[key];
-    });
-    return oFicheiroEhEfemero()
-      ? { gravado: true, duradouro: false, onde: "ficheiro-efemero" }
-      : { gravado: true, duradouro: true, onde: "ficheiro" };
-  } catch (err) {
-    log.error("app-state: apagar em ficheiro falhou", err, { key });
     return { gravado: false, duradouro: false, onde: "nenhures", motivo: "escrita-recusada" };
   }
 }

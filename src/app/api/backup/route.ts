@@ -90,10 +90,45 @@ async function listInvoiceCounters(): Promise<unknown[]> {
  * conjunto que o registo não conhece também não.
  */
 const LEITURAS_DO_APP_STATE = {
+  // ── Os rascunhos do Estúdio de Propostas ────────────────────────────────
+  //
+  // O maior bloco de trabalho IRRECUPERÁVEL do sistema, e durante todo este
+  // tempo era precisamente o que a cópia saltava. Uma proposta por acabar —
+  // fotos escolhidas do bucket, mood boards compostos, textos, valores — é
+  // trabalho de horas que não existe em mais lado nenhum: as propostas
+  // ENVIADAS têm a sua coluna `doc` (essa já vem em `proposals`), mas o que
+  // ainda não seguiu vive só aqui.
+  //
+  // ATENÇÃO ao que isto leva da tabela `app_state`: leva o espaço de nomes dos
+  // rascunhos (`proposal-draft:`) e MAIS NADA. Os marcadores de operação da
+  // mesma tabela ficam de fora de propósito — ver `PARTIALLY_BACKED_UP`, que é
+  // onde essa decisão está escrita e onde o ficheiro a vai buscar.
+  //
+  // `listProposalDrafts` LANÇA quando a varredura não se conseguiu fazer
+  // inteira, e é isso que faz este conjunto aparecer em `incomplete` em vez de
+  // sair vazio com ar de "não havia rascunhos nenhuns".
   proposalDrafts: listProposalDrafts,
+
+  // As CÓPIAS dos emails de proposta que saíram (`envio-de-proposta:…`), pelo
+  // mesmo caminho e pela mesma razão: a cópia levava a PROPOSTA e não levava o
+  // email que a acompanhou. No dia da reposição, a pergunta que se faz ao
+  // telefone — «o que é que nós lhes escrevemos?» — voltava a não ter resposta.
+  //
+  // `listEnviosDeProposta` também LANÇA quando a varredura fica truncada: é
+  // isso que põe o conjunto em `incomplete` em vez de o deixar sair vazio com
+  // ar de «não se enviou nada».
   proposalEmails: listEnviosDeProposta,
+
+  // O índice do Vercel Blob (`blob:i:…`, 17/11): a única lista do que está no
+  // Blob, que nunca se lista no dia a dia. Sem ele, uma base reposta deixava
+  // os ficheiros lá, pagos e invisíveis. Ver `armazenamento/indice-na-copia.ts`.
   indiceDoBlob: listIndiceDoBlob,
 } satisfies Record<ConjuntoDaCopia, () => Promise<unknown[]>>;
+
+/** Os conjuntos do `app_state` na cópia, um por leitura — nunca escritos à mão. */
+const CONJUNTOS_DO_APP_STATE: readonly BackupDataset[] = Object.entries(LEITURAS_DO_APP_STATE).map(
+  ([key, list]) => ({ key, table: "app_state", list }),
+);
 
 /**
  * TUDO o que a cópia leva.
@@ -168,49 +203,9 @@ export const BACKUP_DATASETS: readonly BackupDataset[] = [
     table: "service_catalog",
     list: listarServicos,
   },
-  // ── Os rascunhos do Estúdio de Propostas ────────────────────────────────
-  //
-  // O maior bloco de trabalho IRRECUPERÁVEL do sistema, e durante todo este
-  // tempo era precisamente o que a cópia saltava. Uma proposta por acabar —
-  // fotos escolhidas do bucket, mood boards compostos, textos, valores — é
-  // trabalho de horas que não existe em mais lado nenhum: as propostas
-  // ENVIADAS têm a sua coluna `doc` (essa já vem em `proposals`), mas o que
-  // ainda não seguiu vive só aqui.
-  //
-  // ATENÇÃO ao que isto leva da tabela `app_state`: leva o espaço de nomes dos
-  // rascunhos (`proposal-draft:`) e MAIS NADA. Os marcadores de operação da
-  // mesma tabela ficam de fora de propósito — ver `PARTIALLY_BACKED_UP`, que é
-  // onde essa decisão está escrita e onde o ficheiro a vai buscar.
-  //
-  // `listProposalDrafts` LANÇA quando a varredura não se conseguiu fazer
-  // inteira, e é isso que faz este conjunto aparecer em `incomplete` em vez de
-  // sair vazio com ar de "não havia rascunhos nenhuns".
-  {
-    key: "proposalDrafts",
-    table: "app_state",
-    list: LEITURAS_DO_APP_STATE.proposalDrafts,
-  },
-  // As CÓPIAS dos emails de proposta que saíram (`envio-de-proposta:…`), pelo
-  // mesmo caminho e pela mesma razão: a cópia levava a PROPOSTA e não levava o
-  // email que a acompanhou. No dia da reposição, a pergunta que se faz ao
-  // telefone — «o que é que nós lhes escrevemos?» — voltava a não ter resposta.
-  //
-  // `listEnviosDeProposta` também LANÇA quando a varredura fica truncada: é
-  // isso que põe o conjunto em `incomplete` em vez de o deixar sair vazio com
-  // ar de «não se enviou nada».
-  {
-    key: "proposalEmails",
-    table: "app_state",
-    list: LEITURAS_DO_APP_STATE.proposalEmails,
-  },
-  // O índice do Vercel Blob (`blob:i:…`, 17/11): a única lista do que está no
-  // Blob, que nunca se lista no dia a dia. Sem ele, uma base reposta deixava
-  // os ficheiros lá, pagos e invisíveis. Ver `armazenamento/indice-na-copia.ts`.
-  {
-    key: "indiceDoBlob",
-    table: "app_state",
-    list: LEITURAS_DO_APP_STATE.indiceDoBlob,
-  },
+  // Os espaços do `app_state` (rascunhos, envios, índice do Blob): ver
+  // `LEITURAS_DO_APP_STATE`, que os deriva do registo dos espaços.
+  ...CONJUNTOS_DO_APP_STATE,
 ] as const;
 
 /**

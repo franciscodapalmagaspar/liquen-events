@@ -120,6 +120,17 @@ describe("comparar-esquemas", () => {
     ]);
   });
 
+  it("lê várias cláusulas num `alter table`, o `set/drop not null` e as listas", () => {
+    const sql =
+      igual +
+      "alter table public.coisas add column if not exists a text[], add column if not exists b int;\n" +
+      "alter table public.coisas alter column nota set not null;\n";
+    const lido = esquemaDoSql(sql).get("coisas");
+    expect(lido?.get("a")).toMatchObject({ tipo: "string[]", anulavel: true });
+    expect(lido?.get("b")).toMatchObject({ tipo: "number", anulavel: true });
+    expect(lido?.get("nota")).toMatchObject({ anulavel: false });
+  });
+
   it("um tipo SQL que não conhece é um erro, não um `string` por omissão", () => {
     expect(() => esquemaDoSql(sql("  id interval primary key"))).toThrow(/interval/);
   });

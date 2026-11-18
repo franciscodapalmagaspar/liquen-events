@@ -1,4 +1,4 @@
-import { ESPACOS } from "./espacos";
+import { ESPACOS, espacoDaChave, type NomeDoEspaco } from "./espacos";
 import type { LinhaVarrida } from "./varrer";
 
 /**
@@ -58,21 +58,28 @@ export const ORDEM_DE_SAIDA: readonly MotivoDeSaida[] = [
 export const IDADE_MINIMA_HORAS = 24;
 const HORA_MS = 60 * 60 * 1000;
 
-/** Os campos de topo que as regras leem (o resto do valor não se traz). */
-export const CAMPOS_POR_ESPACO: Readonly<Record<string, readonly string[]>> = {
-  [ESPACOS.ligacoes.chave]: ["propostaId", "pedidoId"],
-  [ESPACOS.ligacoesInversas.chave]: ["codigo"],
-  [ESPACOS.propostaWeb.chave]: ["validoAte"],
-};
+/**
+ * Os espaços que a noite limpa, e os campos de topo que as regras leem de cada
+ * um (o resto do valor não se traz).
+ */
+export const CAMPOS_DOS_ESPACOS_LIMPOS = {
+  rascunhos: [],
+  enviosDeProposta: [],
+  ligacoes: ["propostaId"],
+  ligacoesInversas: ["codigo"],
+  propostaWeb: ["validoAte"],
+} as const satisfies Partial<Record<NomeDoEspaco, readonly string[]>>;
 
-/** Os espaços que a noite limpa. */
-export const ESPACOS_LIMPOS: readonly string[] = [
-  ESPACOS.rascunhos.chave,
-  ESPACOS.enviosDeProposta.chave,
-  ESPACOS.ligacoes.chave,
-  ESPACOS.ligacoesInversas.chave,
-  ESPACOS.propostaWeb.chave,
-];
+type EspacoLimpo = keyof typeof CAMPOS_DOS_ESPACOS_LIMPOS;
+
+const ehEspacoLimpo = (nome: string | null): nome is EspacoLimpo =>
+  nome !== null && Object.hasOwn(CAMPOS_DOS_ESPACOS_LIMPOS, nome);
+
+/** Os prefixos dos espaços limpos, com os campos a ler de cada um. */
+export const ESPACOS_LIMPOS: readonly { prefixo: string; campos: readonly string[] }[] =
+  Object.keys(CAMPOS_DOS_ESPACOS_LIMPOS)
+    .filter(ehEspacoLimpo)
+    .map((nome) => ({ prefixo: ESPACOS[nome].chave, campos: CAMPOS_DOS_ESPACOS_LIMPOS[nome] }));
 
 export interface QuemExiste {
   /** Os pedidos, os vivos e os da Reciclagem. */
@@ -107,33 +114,34 @@ function ligacaoViva(campos: LinhaVarrida["campos"], existe: QuemExiste): boolea
 }
 
 /** Órfã: a regra de cada espaço, sem a idade (que se vê à parte). */
-function orfa(l: LinhaVarrida, existe: QuemExiste, ligacoes: Map<string, boolean | null>) {
-  const { key, campos } = l;
-  if (key.startsWith(ESPACOS.rascunhos.chave)) {
-    const pedido = resto(key, ESPACOS.rascunhos.chave).split("--")[0];
-    return existe.pedidos.has(pedido) ? null : "rascunho-sem-pedido";
+function orfa(
+  espaco: EspacoLimpo,
+  l: LinhaVarrida,
+  existe: QuemExiste,
+  ligacoes: Map<string, boolean | null>,
+): MotivoDeSaida | null {
+  const id = resto(l.key, ESPACOS[espaco].chave);
+  switch (espaco) {
+    case "rascunhos":
+      return existe.pedidos.has(id.split("--")[0]) ? null : "rascunho-sem-pedido";
+    case "enviosDeProposta":
+      return existe.pedidos.has(id) ? null : "envio-sem-pedido";
+    case "ligacoes":
+      return ligacoes.get(l.key) === false ? "ligacao-sem-proposta" : null;
+    case "ligacoesInversas": {
+      if (existe.propostas.has(id)) return null;
+      // O inverso segue o código para que aponta: fica se esse estiver vivo.
+      const codigo = texto(l.campos.codigo);
+      const viva = codigo === null ? undefined : ligacoes.get(`${ESPACOS.ligacoes.chave}${codigo}`);
+      return viva === true || viva === null ? null : "ligacao-sem-proposta";
+    }
+    case "propostaWeb": {
+      const { proposta } = partesDaPropostaWeb(l.key);
+      return proposta !== null && !existe.propostas.has(proposta)
+        ? "proposta-web-sem-proposta"
+        : null;
+    }
   }
-  if (key.startsWith(ESPACOS.enviosDeProposta.chave)) {
-    const pedido = resto(key, ESPACOS.enviosDeProposta.chave);
-    return existe.pedidos.has(pedido) ? null : "envio-sem-pedido";
-  }
-  if (key.startsWith(ESPACOS.ligacoesInversas.chave)) {
-    if (existe.propostas.has(resto(key, ESPACOS.ligacoesInversas.chave))) return null;
-    // O inverso segue o código para que aponta: fica se esse estiver vivo.
-    const codigo = texto(campos.codigo);
-    const viva = codigo === null ? undefined : ligacoes.get(`${ESPACOS.ligacoes.chave}${codigo}`);
-    return viva === true || viva === null ? null : "ligacao-sem-proposta";
-  }
-  if (key.startsWith(ESPACOS.ligacoes.chave)) {
-    return ligacoes.get(key) === false ? "ligacao-sem-proposta" : null;
-  }
-  if (key.startsWith(ESPACOS.propostaWeb.chave)) {
-    const { proposta } = partesDaPropostaWeb(key);
-    return proposta !== null && !existe.propostas.has(proposta)
-      ? "proposta-web-sem-proposta"
-      : null;
-  }
-  return null;
 }
 
 function motivoDaLinha(
@@ -142,14 +150,16 @@ function motivoDaLinha(
   ligacoes: Map<string, boolean | null>,
   agora: number,
 ): MotivoDeSaida | null {
-  if (!ESPACOS_LIMPOS.some((p) => l.key.startsWith(p))) return null;
+  // O espaço é o do REGISTO (o prefixo mais longo), não o do primeiro `if`.
+  const espaco = espacoDaChave(l.key);
+  if (!ehEspacoLimpo(espaco)) return null;
   if (l.nula) return "lapide";
-  if (l.key.startsWith(ESPACOS.propostaWeb.chave)) {
+  if (espaco === "propostaWeb") {
     const validoAte = l.campos.validoAte;
     const retrato = partesDaPropostaWeb(l.key).tipo === "retrato";
     if (retrato && typeof validoAte === "number" && validoAte < agora) return "retrato-expirado";
   }
-  const motivo = orfa(l, existe, ligacoes);
+  const motivo = orfa(espaco, l, existe, ligacoes);
   if (!motivo) return null;
   // Sem base de dados (desenvolvimento) não há data, e não há noite a meio.
   if (l.escritaEm === null) return motivo;
@@ -176,7 +186,7 @@ export function oQueSaiDoAppState(
   const linhas = todas.filter((l) => vistas.get(l.key) === 1);
   const ligacoes = new Map<string, boolean | null>();
   for (const l of linhas) {
-    if (l.key.startsWith(ESPACOS.ligacoes.chave) && !l.nula) {
+    if (espacoDaChave(l.key) === "ligacoes" && !l.nula) {
       ligacoes.set(l.key, ligacaoViva(l.campos, existe));
     }
   }

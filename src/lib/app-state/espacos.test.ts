@@ -21,6 +21,9 @@ const FUNCOES_DO_APP_STATE = new Set([
   "lerEstadoComVersao",
   "gravarEstadoSeNaoMudou",
   "apagarEstadoPorPrefixo",
+  "apagarEstado",
+  "apagarLapides",
+  "apagarEstadoSeNaoMudou",
 ]);
 
 /** O texto fixo do início de um literal (o literal todo, ou a cabeça do modelo). */
@@ -45,7 +48,7 @@ export function chavesDoFicheiro(fonte: string, nome = "f.ts"): string[] {
   const importadas = new Set<string>();
   for (const d of sf.statements) {
     if (!ts.isImportDeclaration(d) || !ts.isStringLiteral(d.moduleSpecifier)) continue;
-    if (!/(^|\/)app-state$/.test(d.moduleSpecifier.text)) continue;
+    if (!/(^|\/)app-state(\/apagar)?$/.test(d.moduleSpecifier.text)) continue;
     const nomes = d.importClause?.namedBindings;
     if (nomes && ts.isNamedImports(nomes)) {
       for (const e of nomes.elements) {

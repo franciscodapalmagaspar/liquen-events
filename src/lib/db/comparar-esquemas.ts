@@ -18,6 +18,7 @@
  * Só para testes e ferramentas: importa o compilador de TypeScript, e nada da
  * aplicação o deve importar.
  */
+import "server-only";
 import ts from "typescript";
 
 /** Uma coluna, reduzida ao que as duas descrições conseguem dizer. */
@@ -93,9 +94,14 @@ function colunaDaDefinicao(def: string): [string, Coluna] | null {
   const m = /^([a-z_][a-z0-9_]*)\s+([a-z0-9_]+)/i.exec(def);
   if (!m || NAO_SAO_COLUNAS.has(m[1].toLowerCase())) return null;
   const tipoSql = m[2].toLowerCase();
-  const tipo = TIPO_TS[tipoSql];
-  if (!tipo) throw new Error(`Tipo SQL sem correspondência em comparar-esquemas.ts: ${tipoSql}`);
-  const resto = def.slice(m[0].length).toLowerCase();
+  const base = TIPO_TS[tipoSql];
+  if (!base) throw new Error(`Tipo SQL sem correspondência em comparar-esquemas.ts: ${tipoSql}`);
+  let resto = def.slice(m[0].length).toLowerCase();
+  // `double precision`, `timestamp with time zone`: a segunda palavra é do tipo.
+  // `text[]`: uma lista (o gerador escreve `string[]`).
+  const lista = /^(\s+\w+)*?\s*\[\]/.exec(resto);
+  if (lista) resto = resto.slice(lista[0].length);
+  const tipo = lista ? `${base}[]` : base;
   const anulavel = !/\bnot\s+null\b|\bprimary\s+key\b/.test(resto);
   return [m[1], { tipo, anulavel, tipoSql }];
 }
@@ -128,13 +134,20 @@ export function esquemaDoSql(sqlComComentarios: string): Esquema {
     esquema.set(m[1], colunas);
   }
 
-  const acrescento = /alter table public\.(\w+)\s+add column if not exists\s+([^;]+);/gi;
-  for (let m = acrescento.exec(sql); m; m = acrescento.exec(sql)) {
-    const coluna = colunaDaDefinicao(m[2].trim());
-    if (!coluna) continue;
+  // Cada `alter table`, com as suas cláusulas separadas por vírgulas de topo:
+  // `add column if not exists …` e `alter column … set/drop not null`.
+  const alteracao = /alter table (?:only )?public\.(\w+)\s+([^;]+);/gi;
+  for (let m = alteracao.exec(sql); m; m = alteracao.exec(sql)) {
     const colunas = esquema.get(m[1]) ?? new Map<string, Coluna>();
-    colunas.set(...coluna);
-    esquema.set(m[1], colunas);
+    for (const clausula of porVirgulasDeTopo(m[2])) {
+      const nova = /^add column if not exists\s+([\s\S]+)$/i.exec(clausula);
+      const coluna = nova ? colunaDaDefinicao(nova[1].trim()) : null;
+      if (coluna) colunas.set(...coluna);
+      const nulo = /^alter column\s+(\w+)\s+(set|drop) not null$/i.exec(clausula);
+      const alvo = nulo ? colunas.get(nulo[1]) : undefined;
+      if (nulo && alvo) alvo.anulavel = nulo[2].toLowerCase() === "drop";
+    }
+    if (colunas.size > 0) esquema.set(m[1], colunas);
   }
 
   return esquema;

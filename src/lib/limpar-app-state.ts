@@ -4,7 +4,6 @@ import { gravarEstadoSeNaoMudou, getStates, lerEstadoComVersao } from "@/lib/app
 import { apagarEstadoSeNaoMudou, apagarLapides } from "@/lib/app-state/apagar";
 import { ESPACOS } from "@/lib/app-state/espacos";
 import {
-  CAMPOS_POR_ESPACO,
   ESPACOS_LIMPOS,
   contarPorMotivo,
   oQueSaiDoAppState,
@@ -54,6 +53,8 @@ export const TEMPO_DO_PLANO_MS = 15_000;
 const LIMITE_POR_ESPACO = 5000;
 /** Apagar uma a uma, mas não todas ao mesmo tempo. */
 const EM_PARALELO = 6;
+/** Valores lidos de cada vez para a cópia. */
+const LOTE_DE_VALORES = 20;
 
 export const CHAVE_DO_REGISTO = `${ESPACOS.registosDasLimpezas.chave}app-state`;
 
@@ -133,17 +134,14 @@ export async function planearLimpezaDoAppState(
     return null;
   }
   const lidos = await Promise.all(
-    ESPACOS_LIMPOS.map((prefixo) =>
-      varrerPrefixo(prefixo, {
-        campos: CAMPOS_POR_ESPACO[prefixo] ?? [],
-        limite: LIMITE_POR_ESPACO,
-      }),
+    ESPACOS_LIMPOS.map(({ prefixo, campos }) =>
+      varrerPrefixo(prefixo, { campos, limite: LIMITE_POR_ESPACO }),
     ),
   );
   const incompleto = lidos.findIndex((l) => !l.completa);
   if (incompleto >= 0) {
     log.warn("limpeza do app_state: um espaço não se leu inteiro — nada sai esta noite", {
-      prefixo: ESPACOS_LIMPOS[incompleto],
+      prefixo: ESPACOS_LIMPOS[incompleto].prefixo,
     });
     return null;
   }
@@ -164,25 +162,30 @@ export async function planearLimpezaDoAppState(
 export async function prepararCopia(
   plano: PlanoDaNoite,
 ): Promise<{ plano: PlanoDaNoite; naCopia: LinhaQueSai[] }> {
-  const porLer = plano.saem.filter((s) => !s.nula).map((s) => s.key);
-  const valores = porLer.length > 0 ? await getStates<unknown>(porLer) : new Map<string, unknown>();
-
   const saem: Saida[] = [];
   const naCopia: LinhaQueSai[] = [];
   let bytes = 0;
-  let ficam = plano.ficam;
-  for (const s of plano.saem) {
-    const valor = s.nula ? null : valores.get(s.key);
-    const tamanho = valor === undefined ? Infinity : JSON.stringify(valor).length;
-    if (bytes + tamanho > TECTO_DE_BYTES_NA_COPIA) {
-      ficam++;
-      continue;
+  let cheio = false;
+  // Pela ordem de saída, em lotes: chegando ao tecto, pára de LER (não traz
+  // valores que já não cabiam para os deitar fora).
+  for (let i = 0; i < plano.saem.length && !cheio; i += LOTE_DE_VALORES) {
+    const lote = plano.saem.slice(i, i + LOTE_DE_VALORES);
+    const porLer = lote.filter((s) => !s.nula).map((s) => s.key);
+    const valores = porLer.length > 0 ? await getStates<unknown>(porLer) : new Map();
+    for (const s of lote) {
+      const valor = s.nula ? null : valores.get(s.key);
+      if (valor === undefined) continue; // não se leu: não vai, não sai
+      const tamanho = JSON.stringify(valor).length;
+      if (bytes + tamanho > TECTO_DE_BYTES_NA_COPIA) {
+        cheio = true;
+        break;
+      }
+      bytes += tamanho;
+      naCopia.push({ key: s.key, motivo: s.motivo, value: valor });
+      saem.push(s);
     }
-    bytes += tamanho;
-    naCopia.push({ key: s.key, motivo: s.motivo, value: valor });
-    saem.push(s);
   }
-  return { plano: { saem, ficam }, naCopia };
+  return { plano: { saem, ficam: plano.ficam + plano.saem.length - saem.length }, naCopia };
 }
 
 /** Os ids de uma lista da cópia; `null` se a lista não tem a forma esperada. */
