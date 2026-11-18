@@ -17,3 +17,19 @@ describe("o «Pedir proposta» do canto", () => {
     expect(fonte).toContain('className="text-chamada ');
   });
 });
+
+describe("o «Pedir proposta» do canto e a chamada final da página", () => {
+  it("esconde-se quando a chamada final (com o seu próprio botão) está no ecrã", () => {
+    expect(fonte).toContain('"footer, [data-chamada-final]"');
+    expect(fonte).toContain("[mounted, pathname]");
+  });
+  it("e as páginas com chamada final marcam-na", () => {
+    for (const pagina of ["clientes", "servicos", "sobre"]) {
+      const p = readFileSync(
+        join(process.cwd(), `src/app/[lang]/(site)/${pagina}/page.tsx`),
+        "utf8",
+      );
+      expect(p, pagina).toContain("<section data-chamada-final");
+    }
+  });
+});

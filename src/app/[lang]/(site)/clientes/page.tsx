@@ -62,7 +62,9 @@ const MOSAIC_POOL = [
   "/imagens/EW1_1404.jpg",
   "/imagens/teresinhaeze-909.jpg",
   "/imagens/matilde-e-tomas27.jpg",
-  "/imagens/DJI_20250913190635_0120_D.jpg",
+  // Era a vista aérea do mesmo casamento que o fundo da chamada final; o dono
+  // (18/11) pediu outra, porque as duas ficavam juntas e quase iguais.
+  "/imagens/EW1_1100.jpg",
   "/imagens/stephanie-mizio-555.jpg",
 ];
 
@@ -156,10 +158,7 @@ export default async function ClientesPage({ params }: { params: Promise<{ lang:
         <div className="veu-texto veu-texto--esquerda [--veu-recuo-baixo:3.5rem] lg:[--veu-recuo-baixo:5rem] relative z-10 max-w-7xl mx-auto w-full px-6 lg:px-16 pb-14 lg:pb-20">
           <AnimateIn>
             <div className="max-w-md">
-              <p className="text-white/70 text-miuda tracking-[0.5em] uppercase mb-3 flex items-center gap-3">
-                <span className="w-6 h-px bg-gold flex-shrink-0" />
-                {t.clientes.heroEyebrow}
-              </p>
+              {/* Sem o «Quem confia em nós» por cima (pedido do dono, 18/11). */}
               <h1 className="text-white font-semibold uppercase tracking-display text-[18px] sm:text-[21px] leading-snug">
                 <TituloPalavraAPalavra
                   texto={`${t.clientes.heroTitleLine1} ${t.clientes.heroTitleMoss}`}
@@ -352,7 +351,7 @@ export default async function ClientesPage({ params }: { params: Promise<{ lang:
         <HeroWarm> do layout pré-aquece as capas das outras cinco páginas, e
         esta é a de /contacto. Mexer no `sizes` daqui não os evita.
       */}
-      <section className="relative py-36 lg:py-52 overflow-hidden">
+      <section data-chamada-final className="relative py-36 lg:py-52 overflow-hidden">
         <SafeImage
           src="/imagens/DJI_20250913190635_0120_D.jpg"
           alt={t.common.imageAlt.clientesAerial}

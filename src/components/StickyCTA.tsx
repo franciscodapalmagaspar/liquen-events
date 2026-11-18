@@ -70,17 +70,27 @@ export default function StickyCTA() {
   // copyright / footer links.
   useEffect(() => {
     if (!mounted) return;
-    const footer = document.querySelector("footer");
-    if (!footer) return;
-    const io = new IntersectionObserver(([entry]) => setAtFooter(entry.isIntersecting), {
-      rootMargin: "0px 0px -40px 0px",
-    });
-    io.observe(footer);
+    // E também quando a chamada final da página (`data-chamada-final`, com o
+    // seu próprio «Pedir proposta») está no ecrã: os dois botões ficavam um
+    // por cima do outro no telemóvel (captura do dono, 18/11).
+    const alvos = [...document.querySelectorAll<HTMLElement>("footer, [data-chamada-final]")];
+    if (alvos.length === 0) return;
+    const aVista = new Set<Element>();
+    const io = new IntersectionObserver(
+      (entradas) => {
+        for (const e of entradas) {
+          if (e.isIntersecting) aVista.add(e.target);
+          else aVista.delete(e.target);
+        }
+        setAtFooter(aVista.size > 0);
+      },
+      { rootMargin: "0px 0px -40px 0px" },
+    );
+    for (const alvo of alvos) io.observe(alvo);
     return () => io.disconnect();
-    // The <footer> lives in the persistent root layout, so it's the same node on
-    // every route — observe it once when we mount idly, not tear-down/recreate
-    // the observer on each client-side navigation.
-  }, [mounted]);
+    // A chamada final muda de página para página: volta a procurar-se a cada
+    // navegação (o rodapé é o mesmo nó, mas é barato voltar a observá-lo).
+  }, [mounted, pathname]);
 
   if (hidden || !mounted) return null;
 

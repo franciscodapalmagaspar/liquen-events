@@ -11,7 +11,6 @@ import { pageMetadata } from "@/lib/page-metadata";
 import { BreadcrumbJsonLd, FaqJsonLd } from "@/components/JsonLd";
 import WhatsAppIcon from "@/components/WhatsAppIcon";
 import Parallax from "@/components/Parallax";
-import RatingBadge from "@/components/RatingBadge";
 import { waHref } from "@/data";
 import { SITE } from "@/lib/site";
 import { getDictionary, normalizeLocale, localizeHref } from "@/lib/i18n";
@@ -82,21 +81,11 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
         <div className="absolute inset-0 flex flex-col justify-end px-6 lg:px-16 pb-14 lg:pb-20">
           <div className="max-w-7xl mx-auto w-full">
             <div className="max-w-md">
-              <p className="text-white/70 text-miuda tracking-[0.5em] uppercase mb-3 flex items-center gap-3">
-                <span className="w-6 h-px bg-gold flex-shrink-0" />
-                {tf.heroEyebrow}
-              </p>
+              {/* Só o título (pedido do dono, 18/11): sem o «Fale connosco» por
+                  cima nem as estrelas por baixo. */}
               <h1 className="text-white font-semibold uppercase tracking-display text-[18px] sm:text-[21px] leading-snug">
                 <TituloPalavraAPalavra texto={`${tf.heroTitleLine1} ${tf.heroTitleMoss}`} />
               </h1>
-              <div className="mt-4">
-                <RatingBadge
-                  label={t.common.reviewsLabel}
-                  ptFormat={locale === "pt"}
-                  starClassName="text-gold"
-                  textClassName="text-white/75"
-                />
-              </div>
             </div>
           </div>
         </div>
@@ -243,7 +232,7 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
               {/* Redes — os ícones do rodapé (pedido do dono, 18/11: «em vez de
                   estar Instagram, LinkedIn, Facebook, coloca os logos»). O nome
                   vai no `aria-label`; `alvo-toque` dá os 44 px ao dedo. */}
-              <div className="flex items-center gap-6">
+              <div className="flex items-center justify-center gap-6">
                 {[
                   { label: "Instagram", href: SITE.instagram, Icone: IconeInstagram },
                   { label: "Facebook", href: SITE.facebook, Icone: IconeFacebook },
