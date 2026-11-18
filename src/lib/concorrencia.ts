@@ -62,3 +62,6 @@ export async function pool<T>(
     if (!stop()) await worker(item);
   });
 }
+
+/** Quantas escritas de um lote do back office podem estar no ar ao mesmo tempo. */
+export const ESCRITAS_EM_SIMULTANEO = 4;

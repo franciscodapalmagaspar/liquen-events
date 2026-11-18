@@ -43,7 +43,6 @@ import { aEscrever, dentroDeUmaJanela, procuraDaVista, VIEW_KEYS } from "./atalh
 import { separadorQuandoAPropostaChega, type SeparadorPorDecidir } from "./separador-por-decidir";
 import { useGravacaoAutomatica, useTravaoDeSaida } from "./useGravacaoAutomatica";
 import { fetchComTecto, respostaDeHttp, type RespostaDoEnvio } from "@/lib/gravar-com-tecto";
-import { camposNoPainel, seguirOServidor } from "@/lib/orcamento/pedidos/painel-do-pedido";
 import { useInscricaoNoRegisto } from "./registo-de-gravacoes";
 import { onIdle } from "@/lib/onIdle";
 import { marcarSaidaDeProposito } from "./entrada-destino";
@@ -969,36 +968,9 @@ export default function AdminClient({
     (updated: Quote) => {
       const antes = selectedRef.current;
       substituirPedido(updated);
-      if (!antes || antes.id !== updated.id) return;
-      // A regra (o que ela não mexeu segue o servidor) é uma só e tem testes:
-      // `seguirOServidor`, em `lib/orcamento/pedidos/painel-do-pedido.ts`.
-      const a = camposNoPainel(antes);
-      const d = camposNoPainel(updated);
-      setEditStatus((v) => seguirOServidor(v, a.status, d.status));
-      setEditPrice((v) => seguirOServidor(v, a.preco, d.preco));
-      setEditAssigned((v) => seguirOServidor(v, a.responsavel, d.responsavel));
-      setEditDate((v) => seguirOServidor(v, a.data, d.data));
-      setEditGuests((v) => seguirOServidor(v, a.convidados, d.convidados));
-      setEditLocation((v) => seguirOServidor(v, a.local, d.local));
-      setEditNome((v) => seguirOServidor(v, a.nome, d.nome));
-      setEditEmail((v) => seguirOServidor(v, a.email, d.email));
-      setEditTelefone((v) => seguirOServidor(v, a.telefone, d.telefone));
-      // Os `set*` do `useEdicaoDoPedido` são os do `useState` — estáveis. Vão na
-      // lista porque a regra não os reconhece através do hook; a identidade desta
-      // função continua a ser uma só.
+      if (antes && antes.id === updated.id) edicao.absorver(antes, updated);
     },
-    [
-      substituirPedido,
-      setEditAssigned,
-      setEditDate,
-      setEditEmail,
-      setEditGuests,
-      setEditLocation,
-      setEditNome,
-      setEditPrice,
-      setEditStatus,
-      setEditTelefone,
-    ],
+    [substituirPedido, edicao.absorver],
   );
 
   /**

@@ -10,6 +10,3 @@ export const LIST_PAGE_SIZE = 50;
 
 /** Até quantos pedidos se arquivam de uma vez sem perguntar (revisão · 3). */
 export const ARQUIVAR_SEM_PERGUNTAR = 10;
-
-/** Quantas escritas de um lote do back office podem estar no ar ao mesmo tempo. */
-export const ESCRITAS_EM_SIMULTANEO = 4;

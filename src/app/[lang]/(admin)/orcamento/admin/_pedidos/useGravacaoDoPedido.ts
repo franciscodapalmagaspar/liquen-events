@@ -178,9 +178,11 @@ export function useGravacaoDoPedido({
             porque: (await porqueRecusou(res)) ?? undefined,
           });
         }
-        // Um 200 com corpo ilegível é um 200: gravou. Repetir mandava outra vez
-        // as linhas do histórico (lá em baixo diz-se que veio sem o pedido).
-        guardado = (await res.json().catch(() => null)) as Quote | null;
+        // Um 200 com corpo ilegível é um 200: GRAVOU. Não se repete (repetir
+        // mandava outra vez as linhas do histórico) — relê-se o pedido.
+        guardado =
+          ((await res.json().catch(() => null)) as Quote | null) ??
+          (await lerOPedidoGravado(selected.id));
         // Um estado novo gravado pelo formulário («Ganho», «Perdido») arrasta
         // a proposta no servidor: a lista leve relê-se, depois do PATCH.
         if ("status" in body) asPropostasMudaram();
@@ -341,4 +343,19 @@ export function useGravacaoDoPedido({
     void guardarTudoDoPedido();
   }
   return { guardarTudoDoPedido, guardarAgora };
+}
+
+/** O pedido inteiro, como ficou gravado — ou `null` se nem isso se leu. */
+async function lerOPedidoGravado(id: string): Promise<Quote | null> {
+  try {
+    const res = await fetchComTecto(`/api/orcamento/${encodeURIComponent(id)}`, {
+      cache: "no-store",
+    });
+    // Sem o cabeçalho é a versão curta da rota pública (sessão caída): não serve.
+    if (!res.ok || res.headers.get("x-pedido") !== "completo") return null;
+    const q = (await res.json().catch(() => null)) as Quote | null;
+    return q?.id ? q : null;
+  } catch {
+    return null;
+  }
 }

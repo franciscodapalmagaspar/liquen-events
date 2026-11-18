@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Quote } from "./types";
+import type { Quote } from "@/lib/orcamento/types";
 import { HISTORICO_MAXIMO, juntarAoHistorico } from "./juntar-ao-historico";
 
 type Linha = NonNullable<Quote["activityLog"]>[number];

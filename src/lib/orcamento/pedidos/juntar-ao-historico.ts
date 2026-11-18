@@ -1,4 +1,4 @@
-import type { Quote } from "./types";
+import type { Quote } from "@/lib/orcamento/types";
 
 type Historico = NonNullable<Quote["activityLog"]>;
 

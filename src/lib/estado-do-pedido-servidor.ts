@@ -7,6 +7,7 @@ import {
 } from "@/lib/orcamento/estado-do-pedido";
 import { getQuoteStatus, updateQuoteWith } from "@/lib/quotes-store";
 import { log } from "@/lib/logger";
+import { HISTORICO_MAXIMO } from "@/lib/orcamento/pedidos/juntar-ao-historico";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -42,7 +43,7 @@ import { log } from "@/lib/logger";
  */
 
 /** O mesmo tecto que o PATCH do pedido aplica ao histórico. */
-const MAX_HISTORICO = 5000;
+const MAX_HISTORICO = HISTORICO_MAXIMO;
 
 /**
  * Regista um acontecimento no pedido e sobe-lhe o estado, se for caso disso.

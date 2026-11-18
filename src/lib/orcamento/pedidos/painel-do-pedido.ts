@@ -79,7 +79,8 @@ export function textoMudou(escrito: string, gravado: string | null | undefined):
  * porque é trabalho dela à espera de «Guardar».
  */
 export function seguirOServidor<T extends string>(noEcra: T, antes: T, depois: T): T {
-  return noEcra === antes ? depois : noEcra;
+  // «Não mexeu» é a mesma pergunta do «o que falta gravar»: `textoMudou`.
+  return textoMudou(noEcra, antes) ? noEcra : depois;
 }
 
 /** Os campos do painel que seguem o servidor, como o painel os escreve. */

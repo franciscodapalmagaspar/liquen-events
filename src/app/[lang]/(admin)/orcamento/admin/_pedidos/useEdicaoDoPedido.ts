@@ -3,7 +3,11 @@
 import { useCallback, useState } from "react";
 import { lerNumero } from "@/lib/numero-escrito";
 import { oQueFaltaGravar } from "@/lib/orcamento/pedidos/o-que-falta-gravar";
-import type { PainelDoPedido } from "@/lib/orcamento/pedidos/painel-do-pedido";
+import {
+  camposNoPainel,
+  seguirOServidor,
+  type PainelDoPedido,
+} from "@/lib/orcamento/pedidos/painel-do-pedido";
 import { textoDoPreco } from "@/lib/orcamento/pedidos/textos-do-pedido";
 import type { Quote, QuoteStatus } from "@/lib/orcamento/types";
 import { parseMoney } from "../util";
@@ -75,6 +79,25 @@ export function useEdicaoDoPedido(aberto: Quote | null) {
   }, []);
 
   /**
+   * O pedido aberto voltou do servidor (o estúdio, um lote, um envio): cada
+   * campo que ela NÃO mexeu segue-o, o que ela mexeu fica — a regra é
+   * `seguirOServidor`, pura e com testes, sobre `camposNoPainel`.
+   */
+  const absorver = useCallback((antes: Quote, depois: Quote) => {
+    const a = camposNoPainel(antes);
+    const d = camposNoPainel(depois);
+    setEditStatus((v) => seguirOServidor(v, a.status, d.status));
+    setEditPrice((v) => seguirOServidor(v, a.preco, d.preco));
+    setEditAssigned((v) => seguirOServidor(v, a.responsavel, d.responsavel));
+    setEditDate((v) => seguirOServidor(v, a.data, d.data));
+    setEditGuests((v) => seguirOServidor(v, a.convidados, d.convidados));
+    setEditLocation((v) => seguirOServidor(v, a.local, d.local));
+    setEditNome((v) => seguirOServidor(v, a.nome, d.nome));
+    setEditEmail((v) => seguirOServidor(v, a.email, d.email));
+    setEditTelefone((v) => seguirOServidor(v, a.telefone, d.telefone));
+  }, []);
+
+  /**
    * ══════════════════════════════════════════════════════════════════════════
    * O NÚMERO DE CONVIDADOS, LIDO ANTES DE SAIR DO ECRÃ
    * ══════════════════════════════════════════════════════════════════════════
@@ -128,6 +151,7 @@ export function useEdicaoDoPedido(aberto: Quote | null) {
   } = oQueFaltaGravar(aberto, painel);
 
   return {
+    absorver,
     editPrice,
     setEditPrice,
     editNotes,

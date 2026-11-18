@@ -90,3 +90,9 @@ describe("o pedido que voltou do servidor: que campos do painel o seguem", () =>
     expect(seguirOServidor("950", antes.preco, depois.preco)).toBe("950");
   });
 });
+
+describe("seguirOServidor e textoMudou dão a mesma resposta", () => {
+  it("um espaço no fim não conta como mexido: o campo segue o servidor", () => {
+    expect(seguirOServidor("Ana", "Ana ", "Ana Marques")).toBe("Ana Marques");
+  });
+});

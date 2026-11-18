@@ -1,6 +1,5 @@
 import type { Quote, QuoteStatus } from "@/lib/orcamento/types";
-import { comLimite } from "@/lib/concorrencia";
-import { ESCRITAS_EM_SIMULTANEO } from "@/lib/orcamento/pedidos/regras-da-lista";
+import { comLimite, ESCRITAS_EM_SIMULTANEO } from "@/lib/concorrencia";
 import { reporEstadoDoPedido } from "../anular-estado";
 import { ARQUIVAR_SEM_PERGUNTAR } from "@/lib/orcamento/pedidos/regras-da-lista";
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
@@ -297,17 +296,15 @@ export function useAccoesEmLote({
     setAApagarLote(null);
     setLote({ titulo: "A apagar os pedidos…", feito: 0, total: ids.length });
     try {
-      const results = await Promise.all(
-        ids.map((id) =>
-          fetch(`/api/orcamento/${id}`, { method: "DELETE" })
-            .then(async (r) => (r.ok ? { id, corpo: await r.json().catch(() => null) } : null))
-            .catch(() => null)
-            // Ver `applyBulkStatus`: conta à passagem, sem serializar nada.
-            .then((v) => {
-              contarMaisUmNoLote();
-              return v;
-            }),
-        ),
+      // N de cada vez, como as outras escritas em lote (`lib/concorrencia.ts`).
+      const results = await comLimite(ids, ESCRITAS_EM_SIMULTANEO, (id) =>
+        fetch(`/api/orcamento/${id}`, { method: "DELETE" })
+          .then(async (r) => (r.ok ? { id, corpo: await r.json().catch(() => null) } : null))
+          .catch(() => null)
+          .then((v) => {
+            contarMaisUmNoLote();
+            return v;
+          }),
       );
       const apagados = results.filter((x): x is { id: string; corpo: unknown } => x !== null);
       const removed = new Set(apagados.map((x) => x.id));

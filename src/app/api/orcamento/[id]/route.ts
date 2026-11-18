@@ -24,7 +24,7 @@ import { canonizar } from "@/lib/proposta-versao";
 import { normalizarTelefone } from "@/lib/contacto-do-pedido";
 import { dominioRecebeEmail } from "@/lib/dominio-do-email";
 import { getDictionary } from "@/lib/i18n";
-import { juntarAoHistorico } from "@/lib/orcamento/juntar-ao-historico";
+import { HISTORICO_MAXIMO, juntarAoHistorico } from "@/lib/orcamento/pedidos/juntar-ao-historico";
 
 // The store is server-only and reaches for node:crypto — pin the Node runtime.
 export const runtime = "nodejs";
@@ -483,7 +483,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
               estadoDaTransicao = transicao.status;
               proximo.status = transicao.status;
               proximo.activityLog = [...(proximo.activityLog ?? []), transicao.entrada].slice(
-                -5000,
+                -HISTORICO_MAXIMO,
               );
             }
           } catch (e) {
