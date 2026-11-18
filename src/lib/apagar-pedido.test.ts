@@ -256,7 +256,8 @@ describe("o que NÃO se apaga", () => {
     expect(r.apagado).toBe(false);
     expect(dados.apagadas).toEqual([]);
     expect(r.falhou.join(" ")).toMatch(/não consegui verificar/i);
-    expect(r.motivo).toBe("tem-contrato");
+    // Não se apaga nada, mas também não se afirma um contrato que pode não existir.
+    expect(r.motivo).toBe("nao-verificado");
   });
 
   it("um pedido que não existe diz que não existe", async () => {
@@ -413,9 +414,8 @@ describe("P5: uma fatura também manda parar (registo fiscal, chave `set null`)"
     dados.faturasRebentam = true;
     const r = await apagarPedidoSemContrato("q1");
     expect(r.apagado).toBe(false);
-    // Recusa-se pela FATURA (o registo que não se pôde ver), não pelo contrato.
-    expect(r.motivo).toBe("tem-fatura");
-    expect(r.falhou).toContain("não consegui verificar se este pedido tem faturas");
+    expect(r.motivo).toBe("nao-verificado");
+    expect(r.falhou).toContain("não consegui verificar se este pedido tem contrato ou faturas");
     expect(dados.pedidosApagados).toEqual([]);
     expect(dados.rascunhosLimpos).toEqual([]);
   });
@@ -459,5 +459,15 @@ describe("P5: uma fatura que nasce a meio do apagar", () => {
     expect(r.motivo).toBeUndefined();
     expect(dados.pedidosApagados).toEqual([]);
     expect(r.falhou).toContain("nasceu uma fatura neste pedido enquanto se apagava");
+  });
+});
+
+describe("um registo fiscal VISTO vale mais do que uma leitura falhada", () => {
+  it("com um contrato visto e as faturas por ler, recusa pelo contrato", async () => {
+    dados.contratos = [contrato("q1")];
+    dados.faturasRebentam = true;
+    const r = await apagarPedidoSemContrato("q1");
+    expect(r.motivo).toBe("tem-contrato");
+    expect(dados.pedidosApagados).toEqual([]);
   });
 });

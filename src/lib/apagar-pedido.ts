@@ -3,7 +3,7 @@ import { getQuote, deleteQuote } from "./quotes-store";
 import { listProposalsForQuote, deleteProposal } from "./proposals-store";
 import {
   ligacoesDoPedido,
-  NaoSeiSeHaRegistoFiscal,
+  fraseDasPropostasQueFicaram,
   oQueAindaPrende,
   registoFiscalDoPedido,
 } from "./o-que-prende-o-pedido";
@@ -65,7 +65,12 @@ import { log } from "@/lib/logger";
 export interface ResultadoDoApagamento {
   apagado: boolean;
   /** Só quando `apagado` é falso. */
-  motivo?: "tem-contrato" | "tem-fatura" | "nao-existe";
+  /**
+   * Só quando `apagado` é falso e NADA saiu. `nao-verificado`: não se conseguiu
+   * ler os contratos ou as faturas — não se apaga nada, e o ecrã diz a frase
+   * genérica (não afirma um contrato que pode não existir).
+   */
+  motivo?: "tem-contrato" | "tem-fatura" | "nao-verificado" | "nao-existe";
   contou: {
     propostas: number;
     fotos: number;
@@ -91,7 +96,6 @@ const nadaSaiu = () => ({
 });
 
 const VAZIO = { propostas: 0, fotos: 0, rascunhos: 0, tarefas: 0 };
-const NADA_LIGADO = { contratos: 0, faturas: 0, propostas: 0, tarefas: 0 };
 
 /**
  * Apaga um pedido e tudo o que é dele, quando ele não deu origem a contrato.
@@ -139,21 +143,17 @@ export async function apagarPedidoSemContrato(
   //
   // E a FATURA também (P5, 17/11): é um registo fiscal como o contrato, e a
   // chave dela é `set null` — apagar o pedido apagava-lhe a origem de vez. O
-  // ecrã diz a frase genérica de sempre. As duas perguntas, e a do fim, são
-  // a mesma função: `o-que-prende-o-pedido.ts`.
+  // ecrã diz a frase genérica de sempre. As guardas vivem em
+  // `o-que-prende-o-pedido.ts` (esta é `registoFiscalDoPedido`).
   try {
     const fiscal = await registoFiscalDoPedido(id);
     if (fiscal) return { apagado: false, motivo: fiscal, contou, falhou, saiu };
   } catch (e) {
-    // Recusa-se pelo registo que não se conseguiu ver (contrato ou fatura).
-    const motivo = e instanceof NaoSeiSeHaRegistoFiscal ? e.motivo : "tem-contrato";
-    falhou.push(
-      motivo === "tem-fatura"
-        ? "não consegui verificar se este pedido tem faturas"
-        : "não consegui verificar se este pedido tem contrato",
-    );
+    // Não saber se há contrato não é o mesmo que saber que não há: não se
+    // apaga nada. Mas também não se afirma um contrato que pode não existir.
+    falhou.push("não consegui verificar se este pedido tem contrato ou faturas");
     log.error("apagar-pedido: leitura fiscal falhou — não se apaga nada", e, { pedido: id });
-    return { apagado: false, motivo, contou, falhou, saiu };
+    return { apagado: false, motivo: "nao-verificado", contou, falhou, saiu };
   }
 
   // ── As tarefas do pedido (auditoria de 12/11, n.º 7) ─────────────────────
@@ -219,7 +219,7 @@ export async function apagarPedidoSemContrato(
     const ficaram = await listProposalsForQuote(id);
     if (ficaram.length > 0) {
       if (!falhou.some((f) => f.startsWith("a proposta "))) {
-        falhou.push(...oQueAindaPrende({ ...NADA_LIGADO, propostas: ficaram.length }));
+        falhou.push(fraseDasPropostasQueFicaram(ficaram.length));
       }
       return { apagado: false, contou, falhou, saiu };
     }
@@ -285,7 +285,7 @@ export async function apagarPedidoSemContrato(
   // ── E o pedido, por último ───────────────────────────────────────────────
   //
   // Antes, outra vez o que pode ter nascido entretanto noutro ecrã — a mesma
-  // pergunta do início (`ligacoesDoPedido`). Um contrato ou uma fatura ficavam
+  // pergunta do início, alargada (`ligacoesDoPedido`). Um contrato ou uma fatura ficavam
   // sem origem pelo `set null`; uma proposta ficava solta com o nome do casal;
   // uma tarefa caía pela cascata sem relatório nem Reciclagem. Em qualquer
   // caso o pedido fica, e a próxima tentativa sabe o que há.
