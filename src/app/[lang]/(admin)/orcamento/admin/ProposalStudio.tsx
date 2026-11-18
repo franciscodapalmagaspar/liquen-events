@@ -89,7 +89,7 @@ import { useLarguraDaZona } from "./useMedida";
 import { useFotoComPlanoB } from "@/lib/useFotoComPlanoB";
 import AEnviarAProposta from "./AEnviarAProposta";
 import PerguntaAntesDoEnvio from "./PerguntaAntesDoEnvio";
-import { CABECALHOS_DA_PRE_VISUALIZACAO as CABECALHO } from "@/lib/orcamento/envio/contrato";
+import * as contrato from "@/lib/orcamento/envio/contrato";
 import { passoParaCorrigir, usePerguntasDoEnvio } from "./usePerguntasDoEnvio";
 import { guardarPdfVisto, lerPdfVisto, type PdfVisto } from "./pdf-visto";
 import { BotaoWhatsApp } from "./ui/BotaoWhatsApp";
@@ -305,8 +305,6 @@ import {
 } from "@/lib/orcamento/estudio/temas-e-fotos";
 import {
   avisoDeConteudoIncompleto,
-  cortesDoCabecalho,
-  normalizaCortes,
   textoDaGravacao,
   textoDoTotal,
   type EstadoDaGravacaoNoEcra,
@@ -330,7 +328,7 @@ import {
  * sair daqui, para nenhum teste nem chamador ter de mudar.
  */
 export { semAsFotosNasPaginas, semOTema, temasLevadosPelasLinhas };
-export { avisoDeConteudoIncompleto, cortesDoCabecalho, textoDaGravacao, textoDoTotal };
+export { avisoDeConteudoIncompleto, textoDaGravacao, textoDoTotal };
 export type { EstadoDaGravacaoNoEcra };
 export { contagemDePrecos, modoDoAdicional, textoDoAdicional };
 export type { ModoDeIvaDoAdicional };
@@ -6827,8 +6825,10 @@ export default function ProposalStudio({
     const blob = await res.blob();
     // A geração que acabou de acontecer ensina a próxima estimativa: quantas
     // fotos, quanto tempo, quantos bytes. Medido, não estimado.
-    if (res.headers.get(CABECALHO.pdfDaMemoria) !== "1")
+    const { CABECALHOS_DA_PRE_VISUALIZACAO: CABECALHO } = contrato;
+    if (res.headers.get(CABECALHO.pdfDaMemoria) !== "1") {
       apontarGeracao(totalDeFotos, Date.now() - comecou, blob.size);
+    }
     return {
       blob,
       chave: rascunho ? null : res.headers.get(CABECALHO.chaveDoPdf),
@@ -6911,7 +6911,7 @@ export default function ProposalStudio({
       const chave = rascunho ? null : pdf.chave;
       if (chave) setPdfVisto({ chave, retrato, confirmado: false, emFalta: pdf.emFalta });
       const emFalta = pdf.emFalta;
-      const cortes = cortesDoCabecalho(pdf.cortes);
+      const cortes = contrato.cortesDoCabecalho(pdf.cortes);
       const aviso = avisoDeConteudoIncompleto(emFalta, cortes);
       if (aviso) {
         toast(`PDF gerado, mas ${aviso}. Verifica antes de enviar.`, "error");
@@ -7145,7 +7145,7 @@ export default function ProposalStudio({
         return;
       }
       if (res.status === 409 && data?.precisaConfirmarCortes) {
-        const cortes = normalizaCortes(data.truncations);
+        const cortes = contrato.normalizaCortes(data.truncations);
         perguntas.perguntar({ tipo: "cortes", cortes, retrato: retratoDoEnvio });
         return;
       }
@@ -7171,7 +7171,7 @@ export default function ProposalStudio({
       // menos é o problema que originou esta contagem; saber que o email saiu
       // é secundário quando o documento que ele leva está incompleto.
       const emFalta = Number(data?.missingImages ?? 0);
-      const aviso = avisoDeConteudoIncompleto(emFalta, normalizaCortes(data?.truncations));
+      const aviso = avisoDeConteudoIncompleto(emFalta, contrato.normalizaCortes(data?.truncations));
       /**
        * ══════════════════════════════════════════════════════════════════════
        * «ENVIADA» SÓ QUANDO FOI MESMO ENVIADA

@@ -70,7 +70,7 @@ describe("a porta da pré-visualização", () => {
 
   it("o que a trava recusa não chega a ser desenhado", async () => {
     espias.travaDoPdfFinal.mockResolvedValue(
-      paraComRecusa(422, { error: "faltam os preços", faltas: [] }),
+      paraComRecusa({ status: 422, corpo: { error: "faltam os preços", faltas: [] } }),
     );
     const d = await atenderOEstudio(contexto({ mode: "preview", doc }));
     expect(d).toEqual({

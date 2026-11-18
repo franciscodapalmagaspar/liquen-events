@@ -40,14 +40,17 @@ export function guardasBaratas(
   // recusar depois é gastar o desenho por nada. O resto dele (o
   // `{{link_proposta}}`) só se resolve depois de a proposta estar gravada.
   if (excedeOTecto(corpo.textoDoEmail)) {
-    return paraComRecusa(400, {
-      error:
-        `O texto do email é demasiado longo (o máximo são ${MAXIMO_CORPO_ESCRITO} caracteres). ` +
-        `Encurta-o e volta a enviar — não foi enviado nada.`,
+    return paraComRecusa({
+      status: 400,
+      corpo: {
+        error:
+          `O texto do email é demasiado longo (o máximo são ${MAXIMO_CORPO_ESCRITO} caracteres). ` +
+          `Encurta-o e volta a enviar — não foi enviado nada.`,
+      },
     });
   }
   const completo = documentoCompleto(corpo.doc);
-  if (!completo.ok) return paraComRecusa(400, { error: completo.error });
+  if (!completo.ok) return paraComRecusa({ status: 400, corpo: { error: completo.error } });
   avisarDoIdiomaDesconhecido(corpo, pedidoId);
   const { chaveDoQueChegou, doc, grandeDemais } = prepararODocumento(
     completo.doc,
@@ -55,7 +58,10 @@ export function guardasBaratas(
     agora,
   );
   if (grandeDemais) {
-    return paraComRecusa(413, { error: "Proposta demasiado grande para ser guardada." });
+    return paraComRecusa({
+      status: 413,
+      corpo: { error: "Proposta demasiado grande para ser guardada." },
+    });
   }
   observarOCorpo(corpo.cru, pedidoId);
   return segue({ doc, chaveDoQueChegou });

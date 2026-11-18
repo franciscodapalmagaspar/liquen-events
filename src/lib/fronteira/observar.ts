@@ -101,9 +101,12 @@ export interface Desvio {
   problema: string;
 }
 
-/** Os desvios de um `safeParse` falhado, prontos a registar. */
+/** Quantos desvios vão para o registo de cada vez (a assinatura conta todos). */
+const DESVIOS_NO_REGISTO = 20;
+
+/** Os desvios de um `safeParse` falhado — todos. */
 export function desviosDe(erro: z.ZodError): Desvio[] {
-  return erro.issues.slice(0, 20).map((i) => ({
+  return erro.issues.map((i) => ({
     campo: i.path.map(String).join(".") || "(raiz)",
     problema: i.code,
   }));
@@ -128,13 +131,14 @@ export function observar(
 ): boolean {
   const r = esquema.safeParse(valor);
   if (r.success) return true;
-  const desvios = desviosDe(r.error);
+  const todos = desviosDe(r.error);
+  const desvios = todos.slice(0, DESVIOS_NO_REGISTO);
   // Os índices das listas saem da assinatura (`moodBoards.3.images.2` →
   // `moodBoards.*.images.*`), e as repetições também: o mesmo defeito em uma,
   // duas ou dez fotos diferentes é UM desvio,
   // e não quinhentos a esgotar a memória. O registo leva o caminho a sério.
   const normalizados = new Set(
-    desvios.map((d) => `${d.campo.replace(/\.\d+(?=\.|$)/g, ".*")}:${d.problema}`),
+    todos.map((d) => `${d.campo.replace(/\.\d+(?=\.|$)/g, ".*")}:${d.problema}`),
   );
   const assinatura = `${onde}|${[...normalizados].sort().join(",")}`;
   // Sem id (um modelo novo, ainda sem nome guardado): `null` — ver `oQueFazer`.

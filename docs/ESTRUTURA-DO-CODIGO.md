@@ -97,7 +97,11 @@ antes e depois (linhas, complexidade, peso das rotas).
    cópia do envio (`envios-de-proposta.ts`), o rodapé legal e os tipos de modelo
    (`proposal-templates.ts`). Os `z.enum(["pt","en"])` de `validation.ts` (a língua do
    FORMULÁRIO do site) e de `backup-restore.ts` (a do contrato) não são a língua da
-   proposta: são outras listas, que hoje calham ter os mesmos valores.
+   proposta: são outras listas, que hoje calham ter os mesmos valores. Os ids dos
+   impedimentos (`Impedimento.id`, em `proposal-progress.ts`) continuam texto: dar-lhes
+   um tipo fechado (`IdDoImpedimento`) é mexer num ficheiro que está no tecto da
+   catraca, e parte-se primeiro; até lá prende-os `travas-do-envio.test.ts`, pelo
+   comportamento.
 8. **O retrato de 80 respostas e 8 sequências (≈ 8 mil linhas de `.snap`) é andaime, não guarda
    permanente.** Vive enquanto as fases seguintes mexerem no envio (a 3 e a 4 mexem
    no estúdio que o chama). O critério para o reduzir é este: **no PR em que o

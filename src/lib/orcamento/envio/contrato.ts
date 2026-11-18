@@ -3,10 +3,11 @@
  * O CONTRATO DA ROTA DA PROPOSTA — O QUE ELA RESPONDE
  * ════════════════════════════════════════════════════════════════════════════
  *
- * Tipos, os nomes dos cabeçalhos e a codificação dos cortes — mais nada:
- * este ficheiro não importa
- * nada que corra (nem o zod, nem o servidor), por isso o estúdio, que corre no
- * browser, lê-o sem levar um byte a mais.
+ * Tipos, os nomes dos cabeçalhos e a codificação dos cortes — mais nada. O
+ * que corre aqui é só JavaScript da plataforma (`btoa`, `TextEncoder`) e
+ * `todos-os-valores.ts`; nem o zod nem o servidor entram, e
+ * `contrato.browser.test.ts` prende-o — o estúdio, que corre no browser, lê-o
+ * sem levar um byte a mais.
  *
  * Os CABEÇALHOS já prendem os dois lados: a rota escreve-os e o estúdio lê-os
  * pelos mesmos nomes ({@link CABECALHOS_DA_PRE_VISUALIZACAO}), e um nome mudado
@@ -123,12 +124,6 @@ export type Recusa =
         /** O domínio do email do cliente não recebe correio. */
         | { error: string; campo: "email" };
     };
-
-/** O corpo de uma recusa com este código. */
-export type CorpoDaRecusa<S extends Recusa["status"] = Recusa["status"]> = Extract<
-  Recusa,
-  { status: S }
->["corpo"];
 
 /** Uma falha — a base ou outro serviço não deixou: não é uma decisão sobre a
  *  proposta. O estúdio lê o 503 como avaria («tenta outra vez»,

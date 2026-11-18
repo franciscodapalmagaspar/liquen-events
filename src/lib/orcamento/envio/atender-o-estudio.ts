@@ -82,6 +82,9 @@ export interface Contexto {
   depoisDaResposta: (nome: string, trabalho: () => Promise<void>) => void;
 }
 
+/** O contexto sem o corpo: o que cada porta recebe ao lado do SEU corpo. */
+type Casca = Omit<Contexto, "corpo">;
+
 /**
  * ── DOIS ENVIOS EM VOO AO MESMO TEMPO (auditoria de 13/11, n.º 3) ───────
  *
@@ -94,18 +97,23 @@ export interface Contexto {
 const VALIDADE_DO_TRINCO_MS = (TECTO_DO_ENVIO_S + 15) * 1000;
 /** Um objecto novo a cada pedido: ninguém partilha (nem muda) a resposta de outro. */
 const aSerEnviada = (): Desfecho =>
-  desfecho.recusa(409, {
-    error:
-      "Esta proposta já está a ser enviada (carregou duas vezes, ou noutro separador). Espere uns segundos: se não aparecer como enviada, volte a carregar em enviar.",
-    aEnviar: true,
+  desfecho.recusa({
+    status: 409,
+    corpo: {
+      error:
+        "Esta proposta já está a ser enviada (carregou duas vezes, ou noutro separador). Espere uns segundos: se não aparecer como enviada, volte a carregar em enviar.",
+      aEnviar: true,
+    },
   });
 
 /**
  * O estúdio pediu: pré-visualizar ou enviar. «Pedido», nesta pasta, é sempre o
  * pedido do CLIENTE (`pedidoId`, o `Quote`); o pedido HTTP do estúdio é o `corpo`.
  */
-export async function atenderOEstudio(c: Contexto): Promise<Desfecho> {
-  const { corpo } = c;
+export async function atenderOEstudio(contexto: Contexto): Promise<Desfecho> {
+  // O corpo sai do contexto já estreitado pela porta: daqui para dentro há UM
+  // corpo por pedido, e é o da porta certa.
+  const { corpo, ...c } = contexto;
   if (corpo.modo === "preview") return preVisualizar(c, corpo);
   const r = await comTrinco(`envio-da-proposta:${c.pedidoId}`, VALIDADE_DO_TRINCO_MS, () =>
     enviar(c, corpo),
@@ -114,12 +122,12 @@ export async function atenderOEstudio(c: Contexto): Promise<Desfecho> {
 }
 
 /** Etapas 3 a 5, e o PDF como resposta. O rascunho não trava: é onde ela vê o que falta. */
-async function preVisualizar(c: Contexto, corpo: CorpoDaPreVisualizacao): Promise<Desfecho> {
+async function preVisualizar(c: Casca, corpo: CorpoDaPreVisualizacao): Promise<Desfecho> {
   // Se é rascunho, decide-o a LEITURA (`corpoLido`: só na pré-visualização, e
   // só com `true`). Daqui em diante é um valor só, para a trava, o desenho e
   // os cabeçalhos.
   const { rascunho } = corpo;
-  const preparado = await prepararEDesenhar(c, {
+  const preparado = await prepararEDesenhar(c, corpo, {
     trava: (envio) => (rascunho ? SEGUE : travaDoPdfFinal(envio)),
     segundaPassagem: false,
     rascunho,
@@ -141,8 +149,8 @@ async function preVisualizar(c: Contexto, corpo: CorpoDaPreVisualizacao): Promis
 }
 
 /** Etapas 3 a 13, com o trinco fechado. */
-async function enviar(c: Contexto, corpo: CorpoDoEnvio): Promise<Desfecho> {
-  const preparado = await prepararEDesenhar(c, {
+async function enviar(c: Casca, corpo: CorpoDoEnvio): Promise<Desfecho> {
+  const preparado = await prepararEDesenhar(c, corpo, {
     trava: (envio, chaveDoQueChegou) =>
       travaDoEnvio({
         ...envio,
@@ -248,10 +256,11 @@ interface Porta {
 
 /** Etapas 3 a 5: o que recusa antes de desenhar, e o desenho. */
 async function prepararEDesenhar(
-  c: Contexto,
+  c: Casca,
+  corpo: CorpoLido,
   porta: Porta,
 ): Promise<Passo<{ envio: EnvioDaProposta; desenho: PdfDesenhado; chaveDoQueChegou: string }>> {
-  const { pedidoId, quote, corpo } = c;
+  const { pedidoId, quote } = c;
   const guardas = guardasBaratas(pedidoId, corpo, c.agora());
   if (!guardas.segue) return guardas;
   const { doc, chaveDoQueChegou } = guardas.valor;

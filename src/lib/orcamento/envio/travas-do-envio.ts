@@ -81,6 +81,33 @@ export const TRAVAM_O_PDF_FINAL: ReadonlySet<string> = new Set([
   "fotos-a-mais",
 ]);
 
+/** As travas que são das FOTOGRAFIAS (a frase do PDF final diz-lo). */
+const SAO_DAS_FOTOGRAFIAS: ReadonlySet<string> = new Set([
+  "foto-escolhida-em-falta",
+  "fotos-a-mais",
+]);
+
+/**
+ * O que falta ao documento, pela regra do estúdio (`oQueFaltaParaEnviar`) — a
+ * MESMA conta para as duas travas; só o canal e o «já viu o PDF» mudam. As
+ * fotos escolhidas em falta contam-se como no estúdio
+ * (`fotosEscolhidasQueFaltam`): uma pasta que não responde deixa por acusar só
+ * as fotos dela; as outras contam.
+ */
+async function faltasDoDocumento(
+  c: Pick<EnvioDaProposta, "doc" | "quote" | "idioma" | "dinheiro">,
+  como: { canal: "email" | "whatsapp"; pdfVisto: boolean },
+): Promise<Impedimento[]> {
+  const fotosEmFalta = await fotosEscolhidasQueFaltam(c.doc);
+  return oQueFaltaParaEnviar(c.doc, c.dinheiro().gross, {
+    idioma: c.idioma,
+    fotosEscolhidasQueFaltam: fotosEmFalta,
+    canal: como.canal,
+    emailDoCliente: c.quote.email,
+    pdfVisto: como.pdfVisto,
+  });
+}
+
 /** Das faltas que a regra encontrou, as que travam E que esta lista recusa. */
 function queTravam(faltas: Impedimento[], lista: ReadonlySet<string>): Impedimento[] {
   return faltas.filter((f) => f.trava && lista.has(f.id));
@@ -107,14 +134,8 @@ export interface ContextoDaTrava extends EnvioDaProposta {
  * que não recebe correio. `SEGUE` quando pode seguir.
  */
 export async function travaDoEnvio(c: ContextoDaTrava): Promise<Passo> {
-  // A MESMA conta do estúdio (`fotosEscolhidasQueFaltam`). Uma pasta que
-  // não responde deixa por acusar só as fotos dela; as outras contam.
-  const escolhidasEmFalta = await fotosEscolhidasQueFaltam(c.doc);
-  const faltas = oQueFaltaParaEnviar(c.doc, c.dinheiro().gross, {
-    idioma: c.idioma,
-    fotosEscolhidasQueFaltam: escolhidasEmFalta,
+  const faltas = await faltasDoDocumento(c, {
     canal: c.porEmail ? "email" : "whatsapp",
-    emailDoCliente: c.quote.email,
     pdfVisto: c.pdfVisto !== null && c.pdfVisto === c.chaveDoQueChegou,
   });
   const travam = queTravam(faltas, TRAVAM_NO_SERVIDOR);
@@ -123,9 +144,12 @@ export async function travaDoEnvio(c: ContextoDaTrava): Promise<Passo> {
       id: c.pedidoId,
       erros: travam.map((f) => f.id),
     });
-    return paraComRecusa(422, {
-      error: `A proposta não pode seguir: ${travam.map(emMinuscula).join("; ")}.`,
-      faltas: travam,
+    return paraComRecusa({
+      status: 422,
+      corpo: {
+        error: `A proposta não pode seguir: ${travam.map(emMinuscula).join("; ")}.`,
+        faltas: travam,
+      },
     });
   }
   /**
@@ -139,7 +163,7 @@ export async function travaDoEnvio(c: ContextoDaTrava): Promise<Passo> {
       log.warn("proposta-doc: envio recusado, o domínio do email não recebe correio", {
         id: c.pedidoId,
       });
-      return paraComRecusa(422, { error: semDominio, campo: "email" });
+      return paraComRecusa({ status: 422, corpo: { error: semDominio, campo: "email" } });
     }
   }
   return SEGUE;
@@ -152,22 +176,17 @@ export async function travaDoEnvio(c: ContextoDaTrava): Promise<Passo> {
 export async function travaDoPdfFinal(
   c: Pick<EnvioDaProposta, "doc" | "quote" | "idioma" | "dinheiro">,
 ): Promise<Passo> {
-  const faltas = oQueFaltaParaEnviar(c.doc, c.dinheiro().gross, {
-    idioma: c.idioma,
-    fotosEscolhidasQueFaltam: await fotosEscolhidasQueFaltam(c.doc),
-    canal: "email",
-    emailDoCliente: c.quote.email,
-    pdfVisto: false,
-  });
+  const faltas = await faltasDoDocumento(c, { canal: "email", pdfVisto: false });
   const travam = queTravam(faltas, TRAVAM_O_PDF_FINAL);
   if (travam.length === 0) return SEGUE;
-  const soFotos = travam.every(
-    (f) => f.id === "foto-escolhida-em-falta" || f.id === "fotos-a-mais",
-  );
-  return paraComRecusa(422, {
-    error: `O PDF final só sai com ${
-      soFotos ? "as fotografias todas" : "os valores todos"
-    }: ${travam.map(emMinuscula).join("; ")}. Até lá, descarrega o rascunho.`,
-    faltas: travam,
+  const soFotos = travam.every((f) => SAO_DAS_FOTOGRAFIAS.has(f.id));
+  return paraComRecusa({
+    status: 422,
+    corpo: {
+      error: `O PDF final só sai com ${
+        soFotos ? "as fotografias todas" : "os valores todos"
+      }: ${travam.map(emMinuscula).join("; ")}. Até lá, descarrega o rascunho.`,
+      faltas: travam,
+    },
   });
 }

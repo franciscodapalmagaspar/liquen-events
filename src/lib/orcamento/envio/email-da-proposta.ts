@@ -9,6 +9,7 @@ import { resolverLigacaoDaProposta } from "@/lib/email-ligacao-reservada";
 import { textosDoEmailDaProposta } from "@/lib/email-proposta-textos";
 import { eCasamento } from "@/lib/proposal-evento";
 import { log } from "@/lib/logger";
+import { IDIOMA_POR_OMISSAO } from "@/lib/orcamento/listas-fechadas";
 import { cartaoDoPdf } from "./cartao-do-pdf";
 import type { EnvioDaProposta } from "./envio-da-proposta";
 
@@ -189,13 +190,13 @@ export async function escreverOEmail(p: ParaEscrever): Promise<EmailDaProposta> 
  */
 async function modeloDela(p: ParaEscrever, escritoAMao: boolean) {
   const { doc, quote, idioma, mensagem, acceptUrl } = p;
-  if (idioma !== "pt" && !mensagem && !escritoAMao) {
+  if (idioma !== IDIOMA_POR_OMISSAO && !mensagem && !escritoAMao) {
     log.warn(
       "proposta-doc: proposta noutra língua — o modelo «proposta-enviada» não é consultado, sai o texto da casa",
       { id: p.pedidoId, idioma },
     );
   }
-  if (escritoAMao || mensagem || idioma !== "pt") return null;
+  if (escritoAMao || mensagem || idioma !== IDIOMA_POR_OMISSAO) return null;
   return modeloParaEnvioAutomatico(
     "proposta-enviada",
     marcadoresDoPedido(quote, {

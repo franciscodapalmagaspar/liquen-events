@@ -21,7 +21,7 @@ import {
  * ordem de risco (as que escrevem primeiro)». Estas são as que gravam o que a
  * Catarina faz à mão — o rascunho do estúdio, o estado de uma proposta, os
  * modelos de email e os modelos de proposta. (O corpo do envio da proposta
- * vive com a sua etapa, em `orcamento/envio/ler-o-corpo.ts`.)
+ * vive com a sua etapa, em `orcamento/envio/esquema-do-corpo.ts`.)
  *
  * Todas em MODO DE OBSERVAR (`observar.ts`): a rota continua a decidir com as
  * verificações que já tinha, e o esquema só diz o que não bate. Cada esquema

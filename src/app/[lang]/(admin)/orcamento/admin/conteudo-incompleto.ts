@@ -10,10 +10,4 @@
  * fica UMA, a de `lib/`, e este módulo só a reexporta — duas frases do mesmo
  * aviso em dois sítios eram dois ecrãs a discordar no dia em que uma mudasse.
  */
-export {
-  avisoDeConteudoIncompleto,
-  cortesDoCabecalho,
-  fraseDeCorte,
-  normalizaCortes,
-  type Corte,
-} from "@/lib/orcamento/estudio/textos-do-estudio";
+export { avisoDeConteudoIncompleto, fraseDeCorte } from "@/lib/orcamento/estudio/textos-do-estudio";

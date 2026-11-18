@@ -1,10 +1,4 @@
-import type {
-  CabecalhosDaPreVisualizacao,
-  CorpoDaRecusa,
-  Falha,
-  Recusa,
-  RespostaDoEnvio,
-} from "./contrato";
+import type { CabecalhosDaPreVisualizacao, Falha, Recusa, RespostaDoEnvio } from "./contrato";
 import type { BytesDoPdf } from "./envio-da-proposta";
 
 /**
@@ -50,12 +44,7 @@ export function segue<T>(valor: T): Passo<T> {
  * (`desfecho.envio(…)` dá `{ tipo: "envio", … }`).
  */
 export const desfecho = Object.freeze({
-  recusa: <S extends Recusa["status"]>(status: S, corpo: CorpoDaRecusa<S>): Desfecho => ({
-    tipo: "recusa",
-    // O TypeScript não liga sozinho o `S` do código ao do corpo; a assinatura
-    // já os ligou à entrada, por isso o objecto é uma `Recusa` válida.
-    recusa: { status, corpo } as Recusa,
-  }),
+  recusa: (recusa: Recusa): Desfecho => ({ tipo: "recusa", recusa }),
   falha: (falha: Falha): Desfecho => ({ tipo: "falha", falha }),
   pdf: (pdf: BytesDoPdf, cabecalhos: CabecalhosDaPreVisualizacao): Desfecho => ({
     tipo: "pdf",
@@ -65,12 +54,11 @@ export const desfecho = Object.freeze({
   envio: (resposta: RespostaDoEnvio): Desfecho => ({ tipo: "envio", resposta }),
 });
 
-/** Pára com uma recusa: a proposta não pode seguir assim (400, 409, 413, 422). */
-export function paraComRecusa<S extends Recusa["status"]>(
-  status: S,
-  corpo: CorpoDaRecusa<S>,
-): Paragem {
-  return { segue: false, desfecho: desfecho.recusa(status, corpo) };
+/** Pára com uma recusa: a proposta não pode seguir assim. O código e o
+ *  corpo vêm juntos, numa {@link Recusa} — um corpo de pergunta com um 422
+ *  não compila. */
+export function paraComRecusa(recusa: Recusa): Paragem {
+  return { segue: false, desfecho: desfecho.recusa(recusa) };
 }
 
 /** Pára: a base não deixou (503 — o único código de uma falha). */

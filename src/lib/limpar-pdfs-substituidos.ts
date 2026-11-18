@@ -11,7 +11,7 @@ import { TABELAS_COM_CONTEUDO } from "@/lib/limpar-pastas-orfas";
 import { chaveDoPdf } from "@/lib/proposal-pdf-chave";
 import { idiomaDaProposta } from "@/lib/proposta-idioma";
 import type { ProposalDoc } from "@/lib/proposal-doc";
-import { IDIOMAS_DA_PROPOSTA } from "@/lib/orcamento/listas-fechadas";
+import { IDIOMAS_DA_PROPOSTA as LINGUAS } from "@/lib/orcamento/listas-fechadas";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -431,10 +431,7 @@ function osAtuais(linhas: readonly LinhaDoc[]) {
       // A língua gravada primeiro; e as outras também, que são contas de
       // processador sem leitura nenhuma — se ela mudar a língua de volta, o
       // ficheiro ainda lá está.
-      const linguas = new Set([
-        idiomaDaProposta(p as { idioma?: unknown }),
-        ...IDIOMAS_DA_PROPOSTA,
-      ]);
+      const linguas = new Set([idiomaDaProposta(p as { idioma?: unknown }), ...LINGUAS]);
       for (const l of linguas) atuais.add(`${pasta}/${chaveDoPdf(p.doc as ProposalDoc, l)}.pdf`);
     } catch {
       semChave.add(pasta);

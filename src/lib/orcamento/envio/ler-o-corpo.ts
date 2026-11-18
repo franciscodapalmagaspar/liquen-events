@@ -4,6 +4,7 @@ import {
   ehIdiomaDaProposta,
   IDIOMA_POR_OMISSAO,
   type IdiomaDaProposta,
+  type ModoDoPedido,
 } from "@/lib/orcamento/listas-fechadas";
 
 /**
@@ -51,7 +52,7 @@ interface OQueAsDuasPortasLeem {
 
 /** O corpo de uma PRÉ-VISUALIZAÇÃO. */
 export interface CorpoDaPreVisualizacao extends OQueAsDuasPortasLeem {
-  modo: "preview";
+  modo: Extract<ModoDoPedido, "preview">;
   /** O PDF sai marcado «RASCUNHO» (B1). Só existe aqui: um envio nunca manda
    *  um rascunho ao casal, e o tipo não o deixa dizer. */
   rascunho: boolean;
@@ -59,7 +60,7 @@ export interface CorpoDaPreVisualizacao extends OQueAsDuasPortasLeem {
 
 /** O corpo de um ENVIO. */
 export interface CorpoDoEnvio extends OQueAsDuasPortasLeem {
-  modo: "send";
+  modo: Extract<ModoDoPedido, "send">;
   /** A nota pessoal do passo «Enviar»: um envio nunca pára por ela. */
   mensagem: string;
   /** Só um `false` explícito cala o email (`canal.test.ts`). */

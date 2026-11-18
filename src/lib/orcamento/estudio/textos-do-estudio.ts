@@ -5,7 +5,7 @@
  * o componente reexporta o que já exportava, para nenhum chamador mudar.
  */
 import { quandoGravado } from "@/lib/quando-gravado";
-import { cortesDoCabecalho, normalizaCortes, type Corte } from "@/lib/orcamento/envio/contrato";
+import type { Corte } from "@/lib/orcamento/envio/contrato";
 
 // ── O que o PDF não leva ──
 //
@@ -20,9 +20,8 @@ import { cortesDoCabecalho, normalizaCortes, type Corte } from "@/lib/orcamento/
 // sucesso, e simplesmente nunca desenhadas. Vem agora do gerador já com o sítio
 // e a quantidade; aqui só se escreve a frase.
 
-/** Uma perda por composição, a sua forma e o cabeçalho que a traz: tudo do
- *  contrato da rota (`orcamento/envio/contrato.ts`), lido pelos dois lados. */
-export { cortesDoCabecalho, normalizaCortes, type Corte };
+/* A forma de um corte, a sua guarda e o cabeçalho que o traz são do
+ * contrato da rota (`orcamento/envio/contrato.ts`): importam-se de lá. */
 
 /** "Mood board «Cerimónia»: 3 fotos não entram no PDF". */
 export function fraseDeCorte(c: Corte): string {

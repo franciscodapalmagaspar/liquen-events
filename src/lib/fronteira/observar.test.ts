@@ -13,6 +13,21 @@ beforeEach(() => {
 });
 
 describe("a fronteira em modo de observar", () => {
+  it("o registo leva só 20 desvios, mas a assinatura conta todos", () => {
+    const aviso = vi.spyOn(log, "warn").mockImplementation(() => {});
+    const lista = z.array(z.looseObject({ a: z.string(), n: z.number().optional() }));
+    // 25 linhas com o mesmo defeito: um desvio só na assinatura, e 20 no registo.
+    const mau = Array.from({ length: 25 }, () => ({ a: 1 }));
+    observar(lista, mau, "lista", { id: "q1" });
+    expect((aviso.mock.calls[0][1] as { desvios: unknown[] }).desvios).toHaveLength(20);
+    // O mesmo caso outra vez, com o mesmo defeito: calado.
+    observar(lista, mau, "lista", { id: "q1" });
+    expect(aviso).toHaveBeenCalledTimes(1);
+    // Um defeito novo que só aparece depois do 20.º muda a assinatura: diz-se.
+    observar(lista, [...mau, { a: 1, n: "x" }], "lista", { id: "q1" });
+    expect(aviso).toHaveBeenCalledTimes(2);
+  });
+
   it("o que bate passa calado", () => {
     const aviso = vi.spyOn(log, "warn").mockImplementation(() => {});
     expect(observar(esquema, { nome: "x", extra: 1 }, "teste")).toBe(true);

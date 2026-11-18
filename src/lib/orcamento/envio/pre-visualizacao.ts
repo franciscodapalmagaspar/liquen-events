@@ -13,6 +13,12 @@ import type { IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
  * por isso vivem com o domínio e não na rota — que só os passa ao `NextResponse`.
  */
 
+/** O nome do ficheiro, por língua — uma língua nova não compila sem o seu. */
+const NOME_DO_FICHEIRO: Record<IdiomaDaProposta, { base: string; rascunho: string }> = {
+  pt: { base: "proposta-preview", rascunho: "-rascunho" },
+  en: { base: "proposal-preview", rascunho: "-draft" },
+};
+
 /**
  * Os cabeçalhos da PRÉ-VISUALIZAÇÃO — o corpo é o PDF, e é por aqui que o
  * estúdio sabe o que o documento não leva.
@@ -25,16 +31,14 @@ export function cabecalhosDaPreVisualizacao(p: {
   chaveDoQueChegou: string;
   pdfDaMemoria: boolean;
 }): CabecalhosDaPreVisualizacao {
-  const en = p.idioma === "en";
+  const nome = NOME_DO_FICHEIRO[p.idioma];
   return {
     "Content-Type": "application/pdf",
     // O nome do ficheiro segue a língua pedida. Quem descarrega pelo
     // estúdio nem chega a ver este nome (o botão escolhe o seu), mas quem
     // chamar a rota à mão fica com dois PDF distinguíveis na pasta em vez
     // de `proposta-preview (1).pdf`.
-    "Content-Disposition": `inline; filename="${en ? "proposal-preview" : "proposta-preview"}${
-      p.rascunho ? (en ? "-draft" : "-rascunho") : ""
-    }.pdf"`,
+    "Content-Disposition": `inline; filename="${nome.base}${p.rascunho ? nome.rascunho : ""}.pdf"`,
     // Quantas fotos não entraram. O gerador salta a que não resolve, por
     // isso sem este cabeçalho o PDF sai com fotos a menos e o estúdio não
     // tem como saber. É lido em ProposalStudio para avisar antes de enviar.
