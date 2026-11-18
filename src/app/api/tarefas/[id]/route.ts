@@ -4,7 +4,7 @@ import { isAuthed } from "@/lib/admin-auth";
 import { enviarParaAReciclagem, quemApagou } from "@/lib/reciclagem";
 import { updateTask } from "@/lib/tasks-store";
 import { taskUpdateSchema, firstError } from "@/lib/validation";
-import { respostaDeConflito, respostaDeMigracaoEmFalta } from "@/lib/resposta-de-conflito";
+import { respostaDeEscritaRecusada, respostaDeMigracaoEmFalta } from "@/lib/resposta-de-conflito";
 import { log } from "@/lib/logger";
 import { diaDoPrazo } from "@/lib/tarefas/prazo";
 
@@ -61,7 +61,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   } catch (err) {
     // Duas pessoas na mesma tarefa (uma risca-a no telemóvel, outra muda-lhe o
     // responsável) — ver o `touch` em tasks-store.
-    const conflito = respostaDeConflito(err);
+    const conflito = respostaDeEscritaRecusada(err);
     if (conflito) return conflito;
     const migracao = respostaDeMigracaoEmFalta(err, "As tarefas");
     if (migracao) return migracao;

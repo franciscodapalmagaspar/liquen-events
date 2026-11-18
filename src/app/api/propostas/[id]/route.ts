@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAuthed } from "@/lib/admin-auth";
 import { updateProposal } from "@/lib/proposals-store";
 import { enviarParaAReciclagem, quemApagou } from "@/lib/reciclagem";
-import { respostaDeConflito, respostaDeMigracaoEmFalta } from "@/lib/resposta-de-conflito";
+import { respostaDeEscritaRecusada, respostaDeMigracaoEmFalta } from "@/lib/resposta-de-conflito";
 import { updateQuoteWith } from "@/lib/quotes-store";
 import { transicaoDoPedido } from "@/lib/orcamento/estado-do-pedido";
 import type { AcontecimentoDoPedido } from "@/lib/orcamento/estado-do-pedido";
@@ -223,7 +223,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // mesmo tempo: o Estúdio a gravar, esta rota a mudar o estado, o portal do
     // cliente a registar o aceite. Quando as releituras não resolvem, quem
     // gravou tem de ver o que o servidor tem — não "Erro interno".
-    const conflito = respostaDeConflito(err);
+    const conflito = respostaDeEscritaRecusada(err);
     if (conflito) return conflito;
     const migracao = respostaDeMigracaoEmFalta(err, "As propostas");
     if (migracao) return migracao;

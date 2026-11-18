@@ -3,7 +3,7 @@ import type { Proposal, Quote } from "@/lib/orcamento/types";
 import { transicaoDoPedido, type AcontecimentoDoPedido } from "@/lib/orcamento/estado-do-pedido";
 import { ehMotivoDeRecusa } from "@/lib/orcamento/desfecho";
 import { getQuote, updateQuote, updateQuoteWith } from "@/lib/quotes-store";
-import { respostaDeConflito } from "@/lib/resposta-de-conflito";
+import { respostaDeEscritaRecusada } from "@/lib/resposta-de-conflito";
 import { PedidoQueNaoSaiu, enviarPedidoParaAReciclagem, quemApagou } from "@/lib/reciclagem";
 import {
   semearProducaoAoGanhar,
@@ -228,7 +228,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
    * A correcção é o ecrã DIZER de onde copiou. Manda em `base` a colecção tal
    * como a leu, e o servidor compara-a com a que tem guardada: se alguém lhe
    * mexeu no meio, recusa com 409 e devolve as duas versões (a resposta da
-   * casa — ver `respostaDeConflito`).
+   * casa — ver `respostaDeEscritaRecusada`).
    *
    * Comparação por forma CANÓNICA (chaves ordenadas), e não por `JSON.stringify`
    * simples: a mesma lista com as chaves escritas por outra ordem — uma ida e
@@ -656,7 +656,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // Três voltas do bloqueio optimista sem conseguir: é gente a gravar o
     // mesmo pedido ao mesmo tempo, e diz-se com 409 e as duas versões — não
     // com um «Erro interno» que convida a carregar outra vez por cima.
-    const conflito = respostaDeConflito(err);
+    const conflito = respostaDeEscritaRecusada(err);
     if (conflito) return conflito;
     log.error("orcamento PATCH falhou", err);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });

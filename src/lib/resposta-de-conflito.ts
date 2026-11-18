@@ -29,17 +29,12 @@ import {
  * continua recuperável mesmo tendo a gravação sido recusada — que é o mínimo
  * exigível a uma colisão.
  *
- * Devolve `null` quando o erro não é um conflito, para quem chama poder manter
- * o seu tratamento de sempre para tudo o resto:
- *
- *     } catch (err) {
- *       const conflito = respostaDeConflito(err);
- *       if (conflito) return conflito;
- *       log.error(...); return NextResponse.json({ error: "Erro interno" }, { status: 500 });
- *     }
+ * Devolve `null` quando o erro não é um conflito. As rotas usam, quase
+ * sempre, {@link respostaDeEscritaRecusada}, que junta esta à da ligação que
+ * já saiu (uma chave estrangeira).
  */
 export function respostaDeConflito(err: unknown): NextResponse | null {
-  if (!isConflictError(err)) return respostaDeLigacaoQueJaSaiu(err);
+  if (!isConflictError(err)) return null;
   const conflito = err as ConflictError;
   return NextResponse.json(
     {
@@ -51,6 +46,22 @@ export function respostaDeConflito(err: unknown): NextResponse | null {
     },
     { status: 409 },
   );
+}
+
+/**
+ * Uma escrita que a base recusou por causa de OUTRA escrita: ou duas pessoas
+ * ao mesmo tempo (409, {@link respostaDeConflito}), ou a coisa a que a linha
+ * se liga saiu entretanto (404, {@link respostaDeLigacaoQueJaSaiu}). `null`
+ * para tudo o resto, para quem chama manter o seu tratamento de sempre:
+ *
+ *     } catch (err) {
+ *       const recusada = respostaDeEscritaRecusada(err);
+ *       if (recusada) return recusada;
+ *       log.error(...); return NextResponse.json({ error: "Erro interno" }, { status: 500 });
+ *     }
+ */
+export function respostaDeEscritaRecusada(err: unknown): NextResponse | null {
+  return respostaDeConflito(err) ?? respostaDeLigacaoQueJaSaiu(err);
 }
 
 /**
@@ -85,17 +96,40 @@ export function respostaDeMigracaoEmFalta(err: unknown, oQueFalta: string): Next
 }
 
 /**
- * Uma escrita recusada por uma chave estrangeira (23503 em «insert or
- * update»): a linha aponta para uma coisa que outro ecrã acabou de apagar —
- * uma tarefa, uma proposta ou um contrato para um pedido que saiu (P5).
- * Repetir não resolve, por isso não é a frase de conflito («volta a
- * aplicar»): é 404 «Não encontrado», a frase de sempre de quando o que se
- * procura já não existe. E não é avaria: sem `log.error`. O `respostaDeConflito`
- * já a inclui; as rotas que não o usam chamam esta.
+ * As chaves estrangeiras para o PEDIDO (`quotes.id`): a das propostas, que já
+ * existia, e as três do P5 (`db/schema.sql`). Só estas querem dizer «o pedido
+ * desta linha saiu» — uma 23503 noutra chave é outra coisa, e fica com o
+ * tratamento de sempre. Acrescentar uma chave ao pedido é acrescentá-la aqui.
+ */
+export const LIGACOES_AO_PEDIDO: ReadonlySet<string> = new Set([
+  "proposals_quote_id_fkey",
+  "tasks_quote_id_fkey",
+  "invoices_quote_id_fkey",
+  "contracts_quote_id_fkey",
+]);
+
+/**
+ * As chaves estrangeiras que uma 23503 do PostgREST nomeia, entre aspas, na
+ * mensagem ou nos detalhes — seja qual for a língua da base (`lc_messages`).
+ */
+function restricoesDe(e: { message?: unknown; details?: unknown }): string[] {
+  const texto = `${String(e.message ?? "")} ${String(e.details ?? "")}`;
+  return [...texto.matchAll(/"([a-z0-9_]+_fkey)"/g)].map((m) => m[1]);
+}
+
+/**
+ * Uma escrita recusada por uma chave estrangeira para o pedido (23503): a
+ * linha aponta para um pedido que outro ecrã acabou de apagar — uma tarefa,
+ * uma proposta ou um contrato (P5). Reconhece-se pelo CÓDIGO e pelo NOME da
+ * restrição ({@link LIGACOES_AO_PEDIDO}), não pela frase em inglês. Nenhuma
+ * dessas chaves recusa um apagar (são `cascade` ou `set null`), por isso uma
+ * 23503 nelas é sempre a escrita do filho. Repetir não resolve: é 404 «Não
+ * encontrado», a frase de sempre, e não é avaria (sem `log.error`).
  */
 export function respostaDeLigacaoQueJaSaiu(err: unknown): NextResponse | null {
   if (!err || typeof err !== "object") return null;
-  const e = err as { code?: unknown; message?: unknown };
-  if (e.code !== "23503" || !/insert or update/i.test(String(e.message ?? ""))) return null;
+  const e = err as { code?: unknown; message?: unknown; details?: unknown };
+  if (e.code !== "23503") return null;
+  if (!restricoesDe(e).some((r) => LIGACOES_AO_PEDIDO.has(r))) return null;
   return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
 }

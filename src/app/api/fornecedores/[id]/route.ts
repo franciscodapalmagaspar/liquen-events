@@ -4,7 +4,7 @@ import { isAuthed } from "@/lib/admin-auth";
 import { enviarParaAReciclagem, quemApagou } from "@/lib/reciclagem";
 import { obterFornecedor, updateSupplier } from "@/lib/suppliers-store";
 import { supplierUpdateSchema, firstError } from "@/lib/validation";
-import { respostaDeConflito, respostaDeMigracaoEmFalta } from "@/lib/resposta-de-conflito";
+import { respostaDeEscritaRecusada, respostaDeMigracaoEmFalta } from "@/lib/resposta-de-conflito";
 import { log } from "@/lib/logger";
 import { normalizarTelefone } from "@/lib/contacto-do-pedido";
 
@@ -75,7 +75,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   } catch (err) {
     // Duas correcções à mesma ficha (o telefone novo e uma nota) — ver o
     // `touch` em suppliers-store.
-    const conflito = respostaDeConflito(err);
+    const conflito = respostaDeEscritaRecusada(err);
     if (conflito) return conflito;
     const migracao = respostaDeMigracaoEmFalta(err, "Os fornecedores");
     if (migracao) return migracao;

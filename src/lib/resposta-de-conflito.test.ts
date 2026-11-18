@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { NextRequest } from "next/server";
 import { ConflictError, MENSAGEM_DE_CONFLITO } from "./repository";
 import {
+  LIGACOES_AO_PEDIDO,
   respostaDeConflito,
+  respostaDeEscritaRecusada,
   respostaDeLigacaoQueJaSaiu,
   respostaDeMigracaoEmFalta,
 } from "./resposta-de-conflito";
@@ -160,8 +162,49 @@ describe("respostaDeLigacaoQueJaSaiu (P5)", () => {
     expect((await r!.json()).error).toBe("Não encontrado");
   });
 
-  it("o respostaDeConflito também a reconhece (as rotas que já o usam ficam cobertas)", () => {
-    expect(respostaDeConflito(ligacaoQueSaiu)?.status).toBe(404);
+  it("a `respostaDeEscritaRecusada` (a das rotas) reconhece-a; a de conflito, sozinha, não", () => {
+    expect(respostaDeEscritaRecusada(ligacaoQueSaiu)?.status).toBe(404);
+    expect(respostaDeConflito(ligacaoQueSaiu)).toBeNull();
+  });
+
+  // Júri de 18/11 (J4): pelo código e pelo NOME da restrição, não pela frase.
+  it("reconhece-se pelo nome da restrição, em qualquer língua, e também nos detalhes", () => {
+    expect(
+      respostaDeLigacaoQueJaSaiu({
+        code: "23503",
+        message: 'inserção na tabela "tasks" viola a restrição "tasks_quote_id_fkey"',
+      })?.status,
+    ).toBe(404);
+    expect(
+      respostaDeLigacaoQueJaSaiu({
+        code: "23503",
+        message: "violação",
+        details: 'Key (quote_id)=(Q) is not present — constraint "contracts_quote_id_fkey"',
+      })?.status,
+    ).toBe(404);
+  });
+
+  it("uma 23503 noutra chave estrangeira não é «o pedido saiu»", () => {
+    expect(
+      respostaDeLigacaoQueJaSaiu({
+        code: "23503",
+        message:
+          'insert or update on table "event_material_items" violates foreign key constraint "event_material_items_material_id_fkey"',
+      }),
+    ).toBeNull();
+  });
+
+  it("as três chaves do P5 existem no db/schema.sql com estes nomes", async () => {
+    const fs = await import("node:fs/promises");
+    const schema = await fs.readFile(`${process.cwd()}/db/schema.sql`, "utf8");
+    for (const nome of [
+      "tasks_quote_id_fkey",
+      "invoices_quote_id_fkey",
+      "contracts_quote_id_fkey",
+    ]) {
+      expect(LIGACOES_AO_PEDIDO.has(nome)).toBe(true);
+      expect(schema).toContain(`'${nome}'`);
+    }
   });
 
   it("um apagar recusado por um filho (23503 no delete) não é isto, nem os outros erros", () => {

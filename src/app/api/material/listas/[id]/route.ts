@@ -10,7 +10,7 @@ import {
 } from "@/lib/material-list-items-store";
 import { log } from "@/lib/logger";
 import { isMissingTable } from "@/lib/repository";
-import { respostaDeConflito } from "@/lib/resposta-de-conflito";
+import { respostaDeEscritaRecusada } from "@/lib/resposta-de-conflito";
 
 const NAO_INSTALADO =
   "O Material ainda não está criado na base de dados. No Supabase → SQL Editor, cola e corre o " +
@@ -106,7 +106,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
     // Colisão: alguém reordenou a lista enquanto esta gravação corrigia uma
     // quantidade (ou o contrário) — ver o `touch` em material-list-items-store.
-    const conflito = respostaDeConflito(err);
+    const conflito = respostaDeEscritaRecusada(err);
     if (conflito) return conflito;
     log.error("material lista PATCH falhou", err);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });

@@ -3,7 +3,7 @@ import { isAuthed } from "@/lib/admin-auth";
 import { getContract, updateContract } from "@/lib/contracts-store";
 import { getProposal } from "@/lib/proposals-store";
 import { nomeDeQuemEnvia } from "@/lib/email-quem-assina";
-import { respostaDeConflito, respostaDeMigracaoEmFalta } from "@/lib/resposta-de-conflito";
+import { respostaDeEscritaRecusada, respostaDeMigracaoEmFalta } from "@/lib/resposta-de-conflito";
 import { log } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -102,7 +102,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (!gravado) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
       return NextResponse.json(gravado);
     } catch (err) {
-      const conflito = respostaDeConflito(err);
+      const conflito = respostaDeEscritaRecusada(err);
       if (conflito) return conflito;
       log.error("contratos PATCH (desfazer) falhou", err, { id });
       return NextResponse.json({ error: "Erro interno" }, { status: 500 });
@@ -174,7 +174,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!gravado) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
     return NextResponse.json(gravado);
   } catch (err) {
-    const conflito = respostaDeConflito(err);
+    const conflito = respostaDeEscritaRecusada(err);
     if (conflito) return conflito;
     const migracao = respostaDeMigracaoEmFalta(err, "Os contratos");
     if (migracao) return migracao;
