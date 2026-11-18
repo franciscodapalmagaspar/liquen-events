@@ -1295,3 +1295,59 @@ do $$ begin
 end $$;
 create index if not exists tasks_quote_id_idx     on public.tasks (quote_id);
 create index if not exists contracts_quote_id_idx on public.contracts (quote_id);
+
+-- ── P7 (18/11): os códigos curtos das propostas ────────────────────────────
+-- Ver db/migracoes/20261118_p7_ligacoes_de_proposta.sql e
+-- src/lib/ligacoes-de-proposta-tabela.ts. A cópia do app_state está em
+-- ….copia.sql (numa base nova não há nada a copiar).
+
+create table if not exists public.ligacoes_de_proposta (
+  codigo      text primary key check (codigo ~ '^[0-9a-z]{1,64}$'),
+  proposal_id uuid not null references public.proposals (id) on delete cascade,
+  criada_em   timestamptz not null,
+  -- Anulável como o `expiraEm` do app_state: sem data, não expira.
+  expira_em   timestamptz,
+  -- Ninguém o escreve ainda (a «alavanca» de proposta-link-curto.ts); a leitura já o respeita.
+  revogada_em timestamptz,
+  -- O código que a proposta reaproveita no próximo envio (o antigo `ligacao-de-proposta:`).
+  atual       boolean not null default false
+);
+
+create unique index if not exists ligacoes_de_proposta_uma_atual
+  on public.ligacoes_de_proposta (proposal_id) where atual;
+create index if not exists ligacoes_de_proposta_proposal_id_idx
+  on public.ligacoes_de_proposta (proposal_id);
+
+alter table public.ligacoes_de_proposta enable row level security;
+revoke all on public.ligacoes_de_proposta from anon, authenticated;
+
+-- Gravar um código novo e torná-lo o atual da proposta, numa transação.
+-- `false` quando o código já existia (colisão de um código aleatório): nada muda.
+create or replace function public.gravar_ligacao_de_proposta(
+  p_codigo text,
+  p_proposal_id uuid,
+  p_criada_em timestamptz,
+  p_expira_em timestamptz
+) returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  insert into public.ligacoes_de_proposta (codigo, proposal_id, criada_em, expira_em, atual)
+  values (p_codigo, p_proposal_id, p_criada_em, p_expira_em, false)
+  on conflict (codigo) do nothing;
+  if not found then
+    return false;
+  end if;
+  update public.ligacoes_de_proposta set atual = false
+    where proposal_id = p_proposal_id and atual and codigo <> p_codigo;
+  update public.ligacoes_de_proposta set atual = true where codigo = p_codigo;
+  return true;
+end;
+$$;
+
+revoke execute on function public.gravar_ligacao_de_proposta(text, uuid, timestamptz, timestamptz)
+  from public, anon, authenticated;
+grant execute on function public.gravar_ligacao_de_proposta(text, uuid, timestamptz, timestamptz)
+  to service_role;

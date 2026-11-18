@@ -206,6 +206,8 @@ export const BACKUP_DATASETS: readonly BackupDataset[] = [
  * `db/schema.sql` esteja aqui ou em `BACKUP_DATASETS`.
  */
 export const NOT_BACKED_UP: Readonly<Record<string, string>> = {
+  ligacoes_de_proposta:
+    "Os códigos curtos dos links das propostas (P7, 18/11). Até ao tempo (4) do P7 são uma CÓPIA dos espaços `ligacao-proposta:` e `ligacao-de-proposta:` do `app_state`, que também não vão na cópia: um código perdido não perde dados (a proposta está na cópia), e o próximo envio cunha um novo. A decisão de os levar fica para o tempo (4), quando a tabela passar a ser a única fonte.",
   reciclagem:
     "O que se apagou nos últimos 30 dias (fase R3 do «tudo reversível»). Cada linha é uma CÓPIA de uma coisa que, enquanto existiu, foi nas cópias diárias como qualquer outra — a cópia do dia anterior ao apagar tem-na viva, na tabela dela. Levar a Reciclagem também seria levar o mesmo dado duas vezes, e uma reposição escreveria por cima a Reciclagem de hoje com a de há dois meses: ressuscitava, como apagado, o que entretanto foi reposto. O que fica de fora é só o que nasceu e se apagou no mesmo dia, entre duas cópias.",
   message_links:

@@ -6,6 +6,11 @@ import { SITE } from "./site";
 import { getProposal } from "./proposals-store";
 import { rateLimit } from "./rate-limit";
 import { log } from "./logger";
+import {
+  codigoAtualDaTabela,
+  gravarLigacaoNaTabela,
+  lerLigacaoDaTabela,
+} from "./ligacoes-de-proposta-tabela";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -72,6 +77,15 @@ import { log } from "./logger";
  * um `randomUUID` tem 122. Oitenta bits são mais do que suficientes para um
  * endereço que ninguém publica e que expira — e o que se ganha é um link com
  * 16 caracteres em vez de duzentos.
+ */
+
+/**
+ * ── ONDE VIVEM AS GAVETAS (P7, 18/11) ─────────────────────────────────────
+ *
+ * Na tabela `ligacoes_de_proposta` (ver `ligacoes-de-proposta-tabela.ts`), e,
+ * enquanto o P7 não chegar ao tempo (4), TAMBÉM no `app_state`: escreve-se nos
+ * dois, lê-se da tabela e, quando ela não sabe, do `app_state`. Um link antigo
+ * abre sempre pelo mesmo código, venha a resposta de onde vier.
  */
 
 /** O prefixo das gavetas, no armazenamento de estado partilhado. */
@@ -295,6 +309,9 @@ export async function criarLigacaoCurta(
         proposta: ligacao.propostaId,
       });
     }
+    // E a tabela (P7). Nunca lança, e falhar não estraga nada: o app_state,
+    // gravado acima, continua a abrir o link.
+    await gravarLigacaoNaTabela({ codigo, ...ligacao });
     return codigo;
   } catch (e) {
     log.warn("ligação curta: não deu para guardar — usa-se o token", {
@@ -326,7 +343,7 @@ export async function lerLigacaoCurta(
     }
   }
   try {
-    const g = await getState<LigacaoCurta>(chave(codigo));
+    const g = (await lerLigacaoDaTabela(codigo)) ?? (await getState<LigacaoCurta>(chave(codigo)));
     if (!g?.propostaId) return null;
     if (g.revogadaEm) return null;
     if (g.expiraEm && Date.parse(g.expiraEm) < Date.now()) return null;
@@ -343,6 +360,12 @@ export async function lerLigacaoCurta(
   }
 }
 
+/** Nem cortada nem expirada. */
+function aindaAbre(l: { revogadaEm?: string; expiraEm?: string }): boolean {
+  if (l.revogadaEm) return false;
+  return !(l.expiraEm && Date.parse(l.expiraEm) < Date.now());
+}
+
 /**
  * O código que esta proposta já tem, se ainda servir.
  *
@@ -355,13 +378,19 @@ export async function lerLigacaoCurta(
 async function codigoJaEmitido(propostaId: string): Promise<string | null> {
   const id = String(propostaId ?? "").trim();
   if (!id) return null;
+  // A tabela primeiro (P7). Um código dela que já não serve (expirado ou
+  // cortado) não decide nada: o app_state pode ter um mais novo, cunhado antes
+  // de a tabela existir.
+  const daTabela = await codigoAtualDaTabela(id);
+  if (daTabela && aindaAbre(daTabela) && pareceCodigoCurto(daTabela.codigo)) {
+    return daTabela.codigo;
+  }
   try {
     const guardado = await getState<{ codigo?: string }>(`${PREFIXO_INVERSO}${id}`);
     const codigo = String(guardado?.codigo ?? "");
     if (!pareceCodigoCurto(codigo)) return null;
     const ligacao = await getState<LigacaoCurta>(chave(codigo));
-    if (!ligacao?.propostaId || ligacao.revogadaEm) return null;
-    if (ligacao.expiraEm && Date.parse(ligacao.expiraEm) < Date.now()) return null;
+    if (!ligacao?.propostaId || !aindaAbre(ligacao)) return null;
     return codigo;
   } catch {
     // Uma leitura que falha não é «não há código». Mas o desfecho é o mesmo, e
