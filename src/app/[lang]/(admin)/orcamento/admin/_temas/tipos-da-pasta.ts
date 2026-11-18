@@ -1,5 +1,4 @@
-import type { ThemeImage } from "@/lib/theme-types";
-import { type SkipReason } from "@/lib/theme-types";
+import { type ThemeImage, type SkipReason } from "@/lib/theme-types";
 
 /**
  * Os tipos do estado da pasta de um tema: o que ela sabe, o que falhou, o que

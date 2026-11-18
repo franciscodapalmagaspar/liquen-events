@@ -1,12 +1,15 @@
 /*
  * A escrita do documento do estúdio (o redutor do `setDoc`).
  *
- * Saiu tal e qual do `ProposalStudio.tsx` (fase 1 de `docs/ESTRUTURA-DO-CODIGO.md`);
- * o componente reexporta o que já exportava, para nenhum chamador mudar.
+ * Saiu tal e qual do `ProposalStudio.tsx` (fase 1 de `docs/ESTRUTURA-DO-CODIGO.md`).
  */
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import { realinharChavesDosTemas } from "@/lib/pdf-editorial/plano";
 import type { StudioDoc } from "./documento-inicial";
+
+/** O que um `setDoc` recebe: o documento novo, ou como o tirar do anterior
+ *  (a mesma forma do `SetStateAction` do React, sem o importar). */
+export type EscritaDoDocumento = StudioDoc | ((anterior: StudioDoc) => StudioDoc);
 
 /**
  * As `fotosDasPaginas` que só foram LIMPAS a partir do estado anterior (as
@@ -26,10 +29,6 @@ export function marcarLimpas<T extends object | undefined>(fp: T): T {
  * tocou, ou só as limpou (`fotosLimpasDoAnterior`). Um par (temas, fotos) que
  * já esteve gravado junto — o que um «Anular» repõe — passa direito.
  */
-/** O que um `setDoc` recebe: o documento novo, ou como o tirar do anterior
- *  (a mesma forma do `SetStateAction` do React, sem o importar). */
-export type EscritaDoDocumento = StudioDoc | ((anterior: StudioDoc) => StudioDoc);
-
 export function escreverODocumento(prev: StudioDoc, u: EscritaDoDocumento): StudioDoc {
   const next = typeof u === "function" ? u(prev) : u;
   if (next === prev) return prev;

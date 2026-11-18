@@ -11,9 +11,9 @@ import type { Quote } from "@/lib/orcamento/types";
  * um sítio onde escrever a mesma coisa. Passam a funções, com testes — e as
  * acções em lote (mudar o estado, arquivar, apagar vários) usam as mesmas.
  *
- * Nenhuma muda a lista que recebe: devolvem uma lista nova, e os
- * pedidos que não mudaram são OS MESMOS objectos (o React compara-os por
- * identidade).
+ * Nenhuma muda a lista que recebe: devolvem uma lista nova — ou a MESMA,
+ * quando não há nada a mudar —, e os pedidos que não mudaram são OS MESMOS
+ * objectos (o React compara-os por identidade).
  */
 
 /** A lista com o pedido `id` alterado por `patch`. Sem esse pedido, igual. */

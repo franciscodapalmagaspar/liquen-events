@@ -3,55 +3,58 @@ import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { LIST_PAGE_SIZE } from "@/lib/orcamento/pedidos/regras-da-lista";
 import type { Quote } from "@/lib/orcamento/types";
-import type { FiltrosDaLista } from "./useFiltrosDosPedidos";
+import { useFiltrosDosPedidos, type FiltrosDaLista } from "./useFiltrosDosPedidos";
 import { usePaginaDaLista } from "./usePaginaDaLista";
 
 afterEach(cleanup);
 
-const pedidos = Array.from({ length: 160 }, (_, i) => ({ id: `q${i}` }) as unknown as Quote);
+const pedidos = Array.from(
+  { length: 160 },
+  (_, i) => ({ id: `q${i}`, name: `Pedido ${i}`, status: "pendente" }) as unknown as Quote,
+);
 
-const base = {
-  filterStatus: "all",
-  tagFilter: null,
-  filterCategory: "all",
-  showArchived: false,
-  mineOnly: false,
-  filterEspera: "all",
-  filterMes: "all",
-  filterRegiao: "all",
-  filterPlanner: "all",
-  search: "",
-  sort: "recent",
-  filtered: pedidos,
-};
-
+/** A lista inteira como ela a usa: os filtros reais, e a página por cima. */
 function montar() {
-  return renderHook(({ filtros }) => usePaginaDaLista({ filtros }), {
-    initialProps: { filtros: base as unknown as FiltrosDaLista },
+  return renderHook(() => {
+    const filtros = useFiltrosDosPedidos(pedidos, "Ana");
+    return { filtros, pagina: usePaginaDaLista({ filtros }) };
   });
 }
 
-describe("a página da lista volta ao princípio quando um filtro muda", () => {
-  for (const [filtro, valor] of [
-    ["search", "rita"],
-    ["filterStatus", "pendente"],
-    ["filterEspera", "parados"],
-    ["filterMes", "2027-05"],
-    ["filterRegiao", "lisboa"],
-    ["filterPlanner", "Ana"],
-  ] as const) {
-    it(`${filtro}: «Mostrar mais» desfeito, e nenhum lote novo pendurado`, () => {
-      const { result, rerender } = montar();
-      act(() => {
-        result.current.setVisibleCount(LIST_PAGE_SIZE * 2);
-        result.current.setInicioDoLote(LIST_PAGE_SIZE);
-      });
-      expect(result.current.visibleCount).toBe(LIST_PAGE_SIZE * 2);
-      expect(result.current.ehDoLoteNovo(pedidos[LIST_PAGE_SIZE])).toBe(true);
+/** Cada filtro da lista, e um valor diferente do de partida. */
+const MUDAR: Record<string, (f: FiltrosDaLista) => void> = {
+  procura: (f) => f.setSearch("pedido 1"),
+  estado: (f) => f.setFilterStatus("cotado"),
+  etiqueta: (f) => f.setTagFilter("vip"),
+  categoria: (f) => f.setFilterCategory("empresas"),
+  espera: (f) => f.setFilterEspera("7"),
+  mes: (f) => f.setFilterMes("2027-05"),
+  regiao: (f) => f.setFilterRegiao("lisboa"),
+  planner: (f) => f.setFilterPlanner("Rita"),
+  arquivados: (f) => f.setShowArchived(true),
+  soOsMeus: (f) => f.setMineOnly(true),
+  ordem: (f) => f.setSort("recent"),
+};
 
-      rerender({ filtros: { ...base, [filtro]: valor } as unknown as FiltrosDaLista });
-      expect(result.current.visibleCount).toBe(LIST_PAGE_SIZE);
-      expect(result.current.ehDoLoteNovo(pedidos[LIST_PAGE_SIZE])).toBe(false);
+describe("a página da lista volta ao princípio quando QUALQUER filtro muda", () => {
+  for (const [nome, mudar] of Object.entries(MUDAR)) {
+    it(`${nome}: «Mostrar mais» desfeito, e nenhum lote novo pendurado`, () => {
+      const { result } = montar();
+      act(() => {
+        result.current.pagina.setVisibleCount(LIST_PAGE_SIZE * 2);
+        result.current.pagina.setInicioDoLote(LIST_PAGE_SIZE);
+      });
+      expect(result.current.pagina.visibleCount).toBe(LIST_PAGE_SIZE * 2);
+
+      act(() => mudar(result.current.filtros));
+      expect(result.current.pagina.visibleCount).toBe(LIST_PAGE_SIZE);
+      const algum = result.current.filtros.filtered[LIST_PAGE_SIZE];
+      if (algum) expect(result.current.pagina.ehDoLoteNovo(algum)).toBe(false);
     });
   }
+
+  it("a lista dos filtros prende-se ao `criterios`: um filtro novo sem entrada aqui fica vermelho", () => {
+    const { result } = montar();
+    expect(Object.keys(result.current.filtros.criterios).sort()).toEqual(Object.keys(MUDAR).sort());
+  });
 });

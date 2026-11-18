@@ -1,8 +1,7 @@
 /*
  * O que tirar um tema, ou as suas fotografias, faz às páginas do PDF.
  *
- * Saiu tal e qual do `ProposalStudio.tsx` (fase 1 de `docs/ESTRUTURA-DO-CODIGO.md`);
- * o componente reexporta o que já exportava, para nenhum chamador mudar.
+ * Saiu tal e qual do `ProposalStudio.tsx` (fase 1 de `docs/ESTRUTURA-DO-CODIGO.md`).
  */
 import { grupoNoCasamento } from "@/lib/pdf-editorial/grupos";
 import { rubricasDosServicos, temasQueSaemComAsLinhas } from "@/lib/proposal-ordem";

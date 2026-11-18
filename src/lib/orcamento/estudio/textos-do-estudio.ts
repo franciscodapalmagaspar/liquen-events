@@ -2,8 +2,7 @@
  * As frases do estúdio: o estado da gravação e o número do total. O que o PDF
  * não leva vive em `conteudo-incompleto.ts`, ao lado.
  *
- * Saiu tal e qual do `ProposalStudio.tsx` (fase 1 de `docs/ESTRUTURA-DO-CODIGO.md`);
- * o componente reexporta o que já exportava, para nenhum chamador mudar.
+ * Saiu tal e qual do `ProposalStudio.tsx` (fase 1 de `docs/ESTRUTURA-DO-CODIGO.md`).
  */
 import { quandoGravado } from "@/lib/quando-gravado";
 

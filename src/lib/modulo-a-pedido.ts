@@ -10,19 +10,24 @@
  *
  *   • `aquecer()` vai buscá-lo e guarda-o. Idempotente; uma falha de rede não
  *     fica — a próxima chamada tenta outra vez.
- *   • `usar(f)` chama `f` com o módulo. Se ele já cá está, chama-a JÁ, no mesmo
- *     instante do clique: a impressão abre uma janela (`window.open`), e o
- *     browser só a deixa abrir enquanto o gesto que a pediu ainda está vivo. Por
- *     isso quem o usa aquece-o antes de o oferecer (ao montar). Se ainda não
- *     chegou, vai buscá-lo e chama `f` quando chegar.
+ *   • `usar(f)` chama `f` com o módulo: já, se ele já cá está; quando chegar,
+ *     se não. O que precisa do gesto vivo (abrir uma janela) faz-se ANTES de
+ *     chamar o `usar`, no clique — ver `imprimir-a-pedido.ts`.
  *
  * Devolve se `f` chegou a correr: `false` é o código que não veio (sem rede, ou
- * um deploy que o apagou), e quem chamou diz-lho.
+ * um deploy que o apagou), e quem chamou diz-lho — com `AVISO_SEM_LIGACAO`.
+ *
+ * O `janelaAPedido` (as janelas que desenham) constrói-se sobre este.
  */
 export interface ModuloAPedido<M> {
   aquecer: () => Promise<M | null>;
   usar: (f: (modulo: M) => void) => Promise<boolean>;
+  /** O módulo, se já chegou; `null` enquanto não. */
+  presente: () => M | null;
 }
+
+/** O que se diz quando o código pedido não chegou. */
+export const AVISO_SEM_LIGACAO = "Sem ligação — tenta outra vez";
 
 export function moduloAPedido<M>(carregar: () => Promise<M>): ModuloAPedido<M> {
   let chegou: M | null = null;
@@ -56,5 +61,5 @@ export function moduloAPedido<M>(carregar: () => Promise<M>): ModuloAPedido<M> {
     });
   };
 
-  return { aquecer, usar };
+  return { aquecer, usar, presente: () => chegou };
 }

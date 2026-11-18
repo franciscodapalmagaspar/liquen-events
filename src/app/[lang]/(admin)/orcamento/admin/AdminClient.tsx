@@ -14,6 +14,7 @@ import {
   guardarRascunho,
   oQueMudou,
   type CamposDoPedido,
+  type RascunhoEncontrado,
 } from "./rascunho-do-pedido";
 import { mesesDeEvento, plannersDe, regioesDe } from "@/lib/orcamento/espera";
 import { useToast } from "./Toast";
@@ -77,7 +78,6 @@ import { Button, EmCurso, FolhaOuDialogo, PerguntaDestrutiva } from "./ui";
 import { useDescarga } from "./ui/descarregar";
 
 import { useMarcaQueAnda } from "./ui/useMarcaQueAnda";
-import { type RascunhoEncontrado } from "./rascunho-do-pedido";
 /* A outra metade do vocabulário: a `.bo-saida` é a palavra em CSS, e este hook
    é a parte que o CSS não pode fazer sozinho — segurar o nó montado os 200 ms
    da saída. A prosa toda está no `ui/saida.ts` e na regra do `globals.css`. */
@@ -2326,16 +2326,15 @@ export default function AdminClient({
     window.location.href = "/orcamento/admin";
   }
 
-  const { appendActivity, refletirEstadoDoEstudio, refletirPrecoDoEstudio, refletirPedidoReposto } =
-    useHistoricoDoPedido({
-      setQuotes,
-      setSelected,
-      substituirPedido,
-      toast,
-      selectedRef,
-      escritoNoServidor,
-      edicao,
-    });
+  const { appendActivity, refletirEstadoDoEstudio, refletirPedidoReposto } = useHistoricoDoPedido({
+    setQuotes,
+    setSelected,
+    substituirPedido,
+    toast,
+    selectedRef,
+    escritoNoServidor,
+    edicao,
+  });
   const { guardarTudoDoPedido, guardarAgora } = useGravacaoDoPedido({
     refletirPedidoReposto,
     userName,
@@ -2365,6 +2364,8 @@ export default function AdminClient({
     setQuotes,
     quotesRef,
     setSelected,
+    selectedRef,
+    absorverDoServidor,
     setSelectedIds,
     setLote,
     bulkBusy,
@@ -2806,7 +2807,7 @@ export default function AdminClient({
               substituirPedido,
               alterarPedido,
               refletirEstadoDoEstudio,
-              refletirPrecoDoEstudio,
+              absorverDoServidor,
               marcarDesfecho,
               revalidarPedidos,
               verArquivados,

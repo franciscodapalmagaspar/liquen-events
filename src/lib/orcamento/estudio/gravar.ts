@@ -1,16 +1,10 @@
 /*
  * A gravação do rascunho e do preço no servidor, com as repetições e a verdade sobre onde ficou.
  *
- * Saiu tal e qual do `ProposalStudio.tsx` (fase 1 de `docs/ESTRUTURA-DO-CODIGO.md`);
- * o componente reexporta o que já exportava, para nenhum chamador mudar.
+ * Saiu tal e qual do `ProposalStudio.tsx` (fase 1 de `docs/ESTRUTURA-DO-CODIGO.md`).
  */
 import type { Quote, QuoteStatus } from "@/lib/orcamento/types";
-import {
-  fetchComTecto,
-  GRAVACAO_PAUSA_MS,
-  GRAVACAO_TECTO_MS,
-  GRAVACAO_TENTATIVAS,
-} from "@/lib/gravar-com-tecto";
+import { fetchComTecto, GRAVACAO_TECTO_MS, repetirAteGravar } from "@/lib/gravar-com-tecto";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -125,8 +119,9 @@ export async function gravarRascunhoNoServidor(
 ): Promise<ResultadoDaGravacao> {
   let porque: string | undefined;
   let sessaoExpirada = false;
-  for (let tentativa = 1; tentativa <= GRAVACAO_TENTATIVAS; tentativa++) {
-    try {
+  let gravado: ResultadoDaGravacao | null = null;
+  await repetirAteGravar(
+    async () => {
       const res = await fetchComTecto(
         `/api/orcamento/${quoteId}/proposta-rascunho`,
         {
@@ -138,7 +133,7 @@ export async function gravarRascunhoNoServidor(
       );
       const dados = await res.json().catch(() => null);
       if (res.ok) {
-        return {
+        gravado = {
           estado: "guardado",
           updatedAt: typeof dados?.updatedAt === "string" ? dados.updatedAt : undefined,
           overwrote: Boolean(dados?.overwrote),
@@ -157,6 +152,7 @@ export async function gravarRascunhoNoServidor(
               ? (dados.estadoDoPedido as QuoteStatus)
               : undefined,
         };
+        return true;
       }
       // O 503 da gravação manda `erro` (a frase do motivo); as outras recusas
       // da rota (400, 401, 413, 500) mandam `error`. Só se lia o primeiro, e
@@ -171,16 +167,14 @@ export async function gravarRascunhoNoServidor(
       sessaoExpirada = res.status === 401;
       // Um 4xx é o pedido que está errado, e repeti-lo dá o mesmo. Um 503
       // `permanente` é a instalação que está incompleta — também dá o mesmo.
-      if (res.status < 500 || dados?.permanente === true) break;
-    } catch {
-      // Rede em baixo, ou o tecto de tempo. É exactamente o caso que a
-      // repetição existe para apanhar.
+      return res.status < 500 || dados?.permanente === true;
+    },
+    // Rede em baixo, ou o tecto de tempo: o motivo da anterior já não vale.
+    () => {
       porque = undefined;
-    }
-    if (tentativa < GRAVACAO_TENTATIVAS) {
-      await new Promise((r) => setTimeout(r, GRAVACAO_PAUSA_MS * tentativa));
-    }
-  }
+    },
+  );
+  if (gravado) return gravado;
   return { estado: "so-local", porque, ...(sessaoExpirada ? { sessaoExpirada } : {}) };
 }
 
@@ -234,8 +228,9 @@ export async function mandarPrecoAoPedido(
 ): Promise<ResultadoDoPreco> {
   let porque: string | undefined;
   let valeTentarDeNovo = true;
-  for (let tentativa = 1; tentativa <= GRAVACAO_TENTATIVAS; tentativa++) {
-    try {
+  let gravado: ResultadoDoPreco | null = null;
+  await repetirAteGravar(
+    async () => {
       const res = await fetchComTecto(
         `/api/orcamento/${quoteId}`,
         {
@@ -253,23 +248,21 @@ export async function mandarPrecoAoPedido(
         // punha um alarme vermelho por cima de trabalho que está são — e ela
         // deixava de acreditar no alarme quando ele for verdade.
         const atualizado = (await res.json().catch(() => null)) as Quote | null;
-        return atualizado ? { estado: "gravado", quote: atualizado } : { estado: "gravado" };
-      } else {
-        const dados = await res.json().catch(() => null);
-        porque = typeof dados?.error === "string" ? dados.error : undefined;
-        if (res.status < 500) {
-          valeTentarDeNovo = false;
-          break;
-        }
+        gravado = atualizado ? { estado: "gravado", quote: atualizado } : { estado: "gravado" };
+        return true;
       }
-    } catch {
-      // Rede em baixo, ou o tecto de tempo. É exactamente o caso que a
-      // repetição existe para apanhar.
+      const dados = await res.json().catch(() => null);
+      porque = typeof dados?.error === "string" ? dados.error : undefined;
+      // Um 4xx é o pedido que está errado: repetir dá o mesmo, e o ecrã não
+      // oferece um botão que não pode funcionar.
+      if (res.status < 500) valeTentarDeNovo = false;
+      return res.status < 500;
+    },
+    // Rede em baixo, ou o tecto de tempo: é o caso que a repetição apanha.
+    () => {
       porque = undefined;
-    }
-    if (tentativa < GRAVACAO_TENTATIVAS) {
-      await new Promise((r) => setTimeout(r, GRAVACAO_PAUSA_MS * tentativa));
-    }
-  }
+    },
+  );
+  if (gravado) return gravado;
   return { estado: "falhou", porque, valeTentarDeNovo };
 }

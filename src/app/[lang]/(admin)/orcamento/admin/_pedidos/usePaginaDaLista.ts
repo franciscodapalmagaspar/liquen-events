@@ -21,20 +21,7 @@ export interface EntradasPaginaDaLista {
 }
 
 export function usePaginaDaLista({ filtros }: EntradasPaginaDaLista) {
-  const {
-    filterStatus,
-    tagFilter,
-    filterCategory,
-    showArchived,
-    mineOnly,
-    filterEspera,
-    filterMes,
-    filterRegiao,
-    filterPlanner,
-    search,
-    sort,
-    filtered,
-  } = filtros;
+  const { criterios, filtered } = filtros;
   // Paginação incremental da lista: com centenas de pedidos, renderizar tudo
   // degrada a página. Só o RENDER é paginado — exportar CSV, "selecionar
   // todos" e contagens continuam a operar sobre a lista filtrada completa.
@@ -58,23 +45,10 @@ export function usePaginaDaLista({ filtros }: EntradasPaginaDaLista) {
     // marca antiga ficava pendurada e as primeiras linhas de uma procura nova
     // entravam como se tivessem acabado de ser acrescentadas.
     setInicioDoLote(null);
-    // TODOS os filtros: os quatro do BO 4 (espera, mês, região, planner) ficaram
-    // de fora desta lista quando chegaram, e escolher um mês depois de «Mostrar
-    // mais» deixava a página a meio e animava as linhas 50–100 como um lote
-    // novo (revisão independente de 17/11).
-  }, [
-    search,
-    filterStatus,
-    filterCategory,
-    tagFilter,
-    sort,
-    showArchived,
-    mineOnly,
-    filterEspera,
-    filterMes,
-    filterRegiao,
-    filterPlanner,
-  ]);
+    // Qualquer filtro: o `criterios` muda quando muda algum (ver
+    // `useFiltrosDosPedidos`). Enumerados à mão, os quatro do BO 4 ficaram de
+    // fora, e escolher um mês depois de «Mostrar mais» deixava a página a meio.
+  }, [criterios]);
   const visibleQuotes = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
   /**
    * Os ids do lote novo — e nada quando não há lote novo.

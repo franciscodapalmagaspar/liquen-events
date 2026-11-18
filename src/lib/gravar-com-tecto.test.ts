@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchComTecto, GRAVACAO_TECTO_MS } from "./gravar-com-tecto";
+import {
+  fetchComTecto,
+  GRAVACAO_TECTO_MS,
+  GRAVACAO_TENTATIVAS,
+  repetirAteGravar,
+} from "./gravar-com-tecto";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -35,5 +40,27 @@ describe("fetchComTecto", () => {
       "/api/x",
       expect.objectContaining({ method: "POST", body: "{}" }),
     );
+  });
+});
+
+describe("repetirAteGravar — o ciclo de todas as gravações", () => {
+  it("pára à primeira que acaba (gravou, ou a recusa é definitiva)", async () => {
+    const tentar = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    vi.useFakeTimers();
+    const ciclo = repetirAteGravar(tentar);
+    await vi.runAllTimersAsync();
+    await ciclo;
+    expect(tentar).toHaveBeenCalledTimes(2);
+  });
+
+  it("uma tentativa que rebenta repete-se, e avisa quem chama", async () => {
+    const tentar = vi.fn().mockRejectedValue(new Error("Failed to fetch"));
+    const aoRebentar = vi.fn();
+    vi.useFakeTimers();
+    const ciclo = repetirAteGravar(tentar, aoRebentar);
+    await vi.runAllTimersAsync();
+    await ciclo;
+    expect(tentar).toHaveBeenCalledTimes(GRAVACAO_TENTATIVAS);
+    expect(aoRebentar).toHaveBeenCalledTimes(GRAVACAO_TENTATIVAS);
   });
 });

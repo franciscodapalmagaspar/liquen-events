@@ -1,6 +1,7 @@
 import { useEffect, useSyncExternalStore, type ComponentType } from "react";
 import { onIdle } from "@/lib/onIdle";
 import { useToast } from "./Toast";
+import { AVISO_SEM_LIGACAO, moduloAPedido } from "@/lib/modulo-a-pedido";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -56,7 +57,8 @@ type PropsAPedido = {
   aoNaoChegar?: () => void;
 };
 
-export const AVISO_SEM_LIGACAO = "Sem ligação — tenta outra vez";
+// O aviso é o do `moduloAPedido`, e sai também daqui (os testes leem-no daqui).
+export { AVISO_SEM_LIGACAO };
 
 export interface JanelaAPedido<P extends PropsDaJanela> {
   Janela: ComponentType<P & PropsAPedido>;
@@ -68,27 +70,16 @@ export interface JanelaAPedido<P extends PropsDaJanela> {
 export function janelaAPedido<P extends PropsDaJanela>(
   carregar: () => Promise<Modulo<P>>,
 ): JanelaAPedido<P> {
-  let Chegou: ComponentType<P> | null = null;
-  let aCaminho: Promise<boolean> | null = null;
+  // O carregar, o «já chegou» e a falha que não fica são do `moduloAPedido`;
+  // aqui só se avisa quem está a desenhar quando o código chega.
+  const modulo = moduloAPedido(carregar);
   const ouvintes = new Set<() => void>();
 
-  const aquecer = (): Promise<boolean> => {
-    if (Chegou) return Promise.resolve(true);
-    if (aCaminho) return aCaminho;
-    aCaminho = carregar().then(
-      (m) => {
-        Chegou = m.default;
-        aCaminho = null;
-        for (const avisar of ouvintes) avisar();
-        return true;
-      },
-      () => {
-        aCaminho = null;
-        return false;
-      },
-    );
-    return aCaminho;
-  };
+  const aquecer = (): Promise<boolean> =>
+    modulo.aquecer().then((chegou) => {
+      if (chegou) for (const avisar of ouvintes) avisar();
+      return chegou !== null;
+    });
 
   const subscrever = (avisar: () => void) => {
     ouvintes.add(avisar);
@@ -96,7 +87,7 @@ export function janelaAPedido<P extends PropsDaJanela>(
       ouvintes.delete(avisar);
     };
   };
-  const leitura = () => Chegou;
+  const leitura = () => modulo.presente()?.default ?? null;
   // No servidor e ao hidratar, a janela está fechada e desenha `null` — o mesmo
   // que o módulo desenharia; não há diferença de HTML a reconciliar.
   const leituraDoServidor = () => null;

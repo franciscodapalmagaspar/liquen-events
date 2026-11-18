@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { gravadoEmPorExtenso } from "@/lib/quando-gravado";
 import { useInscricaoNoRegisto, type ResultadoDoEcra } from "./registo-de-gravacoes";
-import { GRAVACAO_PAUSA_MS, GRAVACAO_TENTATIVAS } from "@/lib/gravar-com-tecto";
+import { repetirAteGravar } from "@/lib/gravar-com-tecto";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -169,8 +169,6 @@ export function respostaDeHttp(
   };
 }
 
-const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 /**
  * Corre uma tentativa de cada vez, com pausa curta e crescente, e devolve a
  * VERDADE sobre onde é que a coisa ficou. Nunca lança: uma edição não pode
@@ -180,22 +178,16 @@ export async function enviarComRepeticao(
   tentar: () => Promise<RespostaDoEnvio>,
 ): Promise<ResultadoDaGravacao> {
   let porque: string | undefined;
-  for (let tentativa = 1; tentativa <= GRAVACAO_TENTATIVAS; tentativa++) {
-    let r: RespostaDoEnvio;
-    try {
-      r = await tentar();
-    } catch {
-      // Rede em baixo, ou o tecto de tempo. É exactamente o caso que a
-      // repetição existe para apanhar — e não há motivo nenhum para mostrar,
-      // porque não houve resposta.
-      r = { estado: "falhou" };
-    }
-    if (r.estado === "guardado") return r;
+  let gravou = false;
+  // O ritmo e o ciclo são os de todas as gravações (`lib/gravar-com-tecto.ts`).
+  // Uma tentativa que rebenta não tem motivo para mostrar: não houve resposta.
+  await repetirAteGravar(async () => {
+    const r = await tentar();
+    if (r.estado === "guardado") return (gravou = true);
     if (r.porque) porque = r.porque;
-    if (r.definitivo) break;
-    if (tentativa < GRAVACAO_TENTATIVAS) await pausa(GRAVACAO_PAUSA_MS * tentativa);
-  }
-  return { estado: "nao-guardado", porque };
+    return r.definitivo === true;
+  });
+  return gravou ? { estado: "guardado" } : { estado: "nao-guardado", porque };
 }
 
 /**

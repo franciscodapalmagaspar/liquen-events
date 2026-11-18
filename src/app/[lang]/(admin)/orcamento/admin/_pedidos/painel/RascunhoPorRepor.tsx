@@ -1,8 +1,7 @@
 "use client";
 
-import { fraseDoQueMudou } from "../../rascunho-do-pedido";
+import { fraseDoQueMudou, type RascunhoEncontrado } from "../../rascunho-do-pedido";
 import { Button } from "../../ui";
-import { type RascunhoEncontrado } from "../../rascunho-do-pedido";
 
 /** O aviso do que ficou por gravar da última vez que este pedido esteve aberto
  *  (o rascunho no telemóvel), com «Recuperar» e «Descartar». (Saiu do painel na

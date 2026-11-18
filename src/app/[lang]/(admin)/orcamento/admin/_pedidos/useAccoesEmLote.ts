@@ -6,6 +6,7 @@ import { type Dispatch, type RefObject, type SetStateAction } from "react";
 import { type Avisar } from "../Toast";
 import { type Anular } from "../ui/anular";
 import { comPedidosSubstituidos, semPedidos } from "@/lib/orcamento/pedidos/lista-de-pedidos";
+import { plural } from "@/lib/plural";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -28,6 +29,10 @@ export interface EntradasAccoesEmLote {
   setQuotes: Dispatch<SetStateAction<Quote[]>>;
   quotesRef: RefObject<Quote[]>;
   setSelected: Dispatch<SetStateAction<Quote | null>>;
+  selectedRef: RefObject<Quote | null>;
+  /** O pedido que o servidor devolveu, no painel: a mesma regra dos campos de
+   *  sempre (o que ela não mexeu segue o servidor). */
+  absorverDoServidor: (q: Quote) => void;
   setSelectedIds: Dispatch<SetStateAction<Set<string>>>;
   setLote: Dispatch<
     SetStateAction<{
@@ -56,6 +61,8 @@ export function useAccoesEmLote({
   setQuotes,
   quotesRef,
   setSelected,
+  selectedRef,
+  absorverDoServidor,
   setSelectedIds,
   setLote,
   bulkBusy,
@@ -67,6 +74,17 @@ export function useAccoesEmLote({
   depoisDeApagarVarios,
   revalidarPedidos,
 }: EntradasAccoesEmLote) {
+  /**
+   * Os pedidos que um lote mudou, na lista e — o aberto — no painel, com os
+   * campos dele (`absorverDoServidor`). Trocar só o pedido deixava o campo do
+   * estado do painel no valor antigo, e o «Guardar» seguinte desfazia o lote
+   * (júri de 17/11).
+   */
+  function absorverVarios(porId: ReadonlyMap<string, Quote>) {
+    setQuotes((prev) => comPedidosSubstituidos(prev, porId));
+    const doAberto = porId.get(selectedRef.current?.id ?? "");
+    if (doAberto) absorverDoServidor(doAberto);
+  }
   /**
    * Apply a status to every selected pedido in one go.
    *
@@ -100,8 +118,7 @@ export function useAccoesEmLote({
         if (u && typeof u === "object") updated.set(ids[i], { ...u, id: u.id ?? ids[i] });
       });
       if (updated.size > 0) {
-        setQuotes((prev) => comPedidosSubstituidos(prev, updated));
-        setSelected((prev) => (prev && updated.has(prev.id) ? updated.get(prev.id)! : prev));
+        absorverVarios(updated);
       }
       const ok = updated.size;
       const failed = ids.length - ok;
@@ -130,8 +147,7 @@ export function useAccoesEmLote({
           const porId = new Map(
             repostos.filter((q): q is Quote => !!q).map((q) => [q.id, q] as const),
           );
-          setQuotes((prev) => comPedidosSubstituidos(prev, porId));
-          setSelected((prev) => (prev && porId.has(prev.id) ? porId.get(prev.id)! : prev));
+          absorverVarios(porId);
           const avisos: string[] = [];
           if (mudaramOutraVez.length > 0) {
             const n = mudaramOutraVez.length;
@@ -149,7 +165,7 @@ export function useAccoesEmLote({
       }
       if (failed > 0) {
         toast(
-          `${failed} pedido${failed !== 1 ? "s" : ""} não mudaram e ficam selecionados. Verifica a ligação e tenta outra vez.`,
+          `${plural(failed, "pedido não mudou e fica selecionado", "pedidos não mudaram e ficam selecionados")}. Verifica a ligação e tenta outra vez.`,
           "error",
         );
       }
@@ -211,8 +227,7 @@ export function useAccoesEmLote({
         if (u && typeof u === "object") updated.set(ids[i], { ...u, id: u.id ?? ids[i] });
       });
       if (updated.size > 0) {
-        setQuotes((prev) => comPedidosSubstituidos(prev, updated));
-        setSelected((prev) => (prev && updated.has(prev.id) ? updated.get(prev.id)! : prev));
+        absorverVarios(updated);
       }
       const ok = updated.size;
       const failed = ids.length - ok;
@@ -230,8 +245,7 @@ export function useAccoesEmLote({
               .filter((q): q is Quote => !!q && typeof q.id === "string")
               .map((q) => [q.id, q]),
           );
-          setQuotes((prev) => comPedidosSubstituidos(prev, porId));
-          setSelected((prev) => (prev && porId.has(prev.id) ? porId.get(prev.id)! : prev));
+          absorverVarios(porId);
           if (porId.size < updated.size) {
             throw new Error(
               `${porId.size} de ${updated.size} voltaram. Tenta outra vez no painel de cada pedido.`,
@@ -241,7 +255,7 @@ export function useAccoesEmLote({
       }
       if (failed > 0) {
         toast(
-          `${failed} pedido${failed !== 1 ? "s" : ""} não ${arquivar ? "foram arquivados" : "foram restaurados"} e ficam selecionados. Verifica a ligação e tenta outra vez.`,
+          `${plural(failed, `pedido não foi ${arquivar ? "arquivado" : "restaurado"} e fica selecionado`, `pedidos não foram ${arquivar ? "arquivados" : "restaurados"} e ficam selecionados`)}. Verifica a ligação e tenta outra vez.`,
           "error",
         );
       }

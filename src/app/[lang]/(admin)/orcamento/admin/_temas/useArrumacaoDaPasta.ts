@@ -1,6 +1,5 @@
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { ThemeImage, ThemeSummary } from "@/lib/theme-types";
-import { MAX_PHOTO_ORDER } from "@/lib/theme-types";
+import { type ThemeImage, type ThemeSummary, MAX_PHOTO_ORDER } from "@/lib/theme-types";
 import { capaDaFoto, type CapaDoCartao } from "../capa-do-cartao";
 import { porqueFalhou, porqueRebentou, type Falha } from "@/lib/porque-falhou";
 import { AccaoEmBloco, moveItem } from "@/lib/temas/listas-de-fotos";

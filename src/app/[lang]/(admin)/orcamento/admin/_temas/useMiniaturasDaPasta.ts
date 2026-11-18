@@ -1,6 +1,5 @@
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { ThemeImage, ThemeSummary } from "@/lib/theme-types";
-import { THEME_PAGE_SIZE } from "@/lib/theme-types";
+import { type ThemeImage, type ThemeSummary, THEME_PAGE_SIZE } from "@/lib/theme-types";
 import { ThumbJob } from "./tipos-da-pasta";
 import { plural } from "@/lib/plural";
 import { MAX_THUMB_BATCHES, MAX_BAD_BATCHES, MAX_REFRESH_PAGES } from "./tectos-da-pasta";

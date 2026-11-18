@@ -29,6 +29,11 @@ export interface EntradasLeituraDoPedido {
   edicao: EdicaoDoPedido;
 }
 
+/** Uma leitura a caminho, e a que a substituiu (se um `recarregarPedido` a substituiu). */
+interface VezDaLeitura {
+  substituta: Promise<LeituraDoPedido> | null;
+}
+
 export function useLeituraDoPedido({
   setQuotes,
   quotes,
@@ -90,33 +95,34 @@ export function useLeituraDoPedido({
    */
   const leiturasEmCurso = useRef(new Map<string, Promise<LeituraDoPedido>>());
   /**
-   * A leitura mais recente de cada pedido, mesmo depois de acabar. Um
-   * `recarregarPedido` lança outra por cima da que vai a caminho; quando a de
-   * BAIXO chega (às vezes depois da nova), traz o pedido de antes — não se
-   * grava, e quem a pediu recebe a nova (revisão independente de 17/11).
+   * A VEZ de cada leitura que vai a caminho. Um `recarregarPedido` lança outra
+   * por cima e marca a de baixo como substituída: quando ela chega (às vezes
+   * depois da nova), traz o pedido de antes — não se grava, e quem a pediu
+   * recebe a nova; se a nova falhar, recebe a sua (revisão de 17/11). Só vive
+   * enquanto a leitura vai a caminho: não guarda pedidos nenhuns.
    */
-  const maisRecente = useRef(new Map<string, Promise<LeituraDoPedido>>());
+  const vezes = useRef(new Map<string, VezDaLeitura>());
 
   async function comPedidoInteiro(q: Quote): Promise<LeituraDoPedido> {
     if (completos.current.has(q.id)) return { ok: true, quote: q };
     const aCaminho = leiturasEmCurso.current.get(q.id);
     if (aCaminho) return aCaminho;
-    const eAMaisRecente = () => maisRecente.current.get(q.id) === leitura;
-    const leitura: Promise<LeituraDoPedido> = lerPedidoInteiro(q, eAMaisRecente)
-      .then((lida) => (eAMaisRecente() ? lida : (maisRecente.current.get(q.id) ?? lida)))
+    const vez: VezDaLeitura = { substituta: null };
+    const leitura: Promise<LeituraDoPedido> = lerPedidoInteiro(q, vez)
+      .then((lida) =>
+        vez.substituta ? vez.substituta.then((nova) => (nova.ok ? nova : lida)) : lida,
+      )
       .finally(() => {
         // Só a sua: um `recarregarPedido` pode já ter posto outra no lugar.
         if (leiturasEmCurso.current.get(q.id) === leitura) leiturasEmCurso.current.delete(q.id);
+        if (vezes.current.get(q.id) === vez) vezes.current.delete(q.id);
       });
     leiturasEmCurso.current.set(q.id, leitura);
-    maisRecente.current.set(q.id, leitura);
+    vezes.current.set(q.id, vez);
     return leitura;
   }
 
-  async function lerPedidoInteiro(
-    q: Quote,
-    eAMaisRecente: () => boolean,
-  ): Promise<LeituraDoPedido> {
+  async function lerPedidoInteiro(q: Quote, vez: VezDaLeitura): Promise<LeituraDoPedido> {
     const oQue = `abrir o pedido de ${q.name || "este cliente"}`;
     let res: Response;
     try {
@@ -154,7 +160,7 @@ export function useLeituraDoPedido({
       return { ok: false, porque: `A resposta veio incompleta — não deu para ${oQue}. Repete.` };
     }
     // Uma leitura que já foi substituída traz o pedido de antes: não se grava.
-    if (!eAMaisRecente()) return { ok: true, quote: inteiro };
+    if (vez.substituta) return { ok: true, quote: inteiro };
     completos.current.add(inteiro.id);
     setQuotes((prev) => comPedidoSubstituido(prev, inteiro));
     return { ok: true, quote: inteiro };
@@ -180,7 +186,10 @@ export function useLeituraDoPedido({
     // E a que vai a caminho: é dela que o `comPedidoInteiro` se serviria, e é
     // exactamente a versão desactualizada que isto existe para deitar fora.
     leiturasEmCurso.current.delete(id);
-    const r = await comPedidoInteiro(actual);
+    const debaixo = vezes.current.get(id);
+    const nova = comPedidoInteiro(actual);
+    if (debaixo) debaixo.substituta = nova;
+    const r = await nova;
     if (r.ok) absorverDoServidor(r.quote);
   }
 

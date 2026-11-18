@@ -39,7 +39,7 @@ export function Vistas({ pedidos, navegacao, userName }: VistasProps) {
     openQuote,
     revalidarPedidos,
     refletirEstadoDoEstudio,
-    refletirPrecoDoEstudio,
+    absorverDoServidor,
     archivedCount,
     verArquivados,
     activeQuotes,
@@ -147,7 +147,9 @@ export function Vistas({ pedidos, navegacao, userName }: VistasProps) {
             // As propostas já feitas não estão nesta lista — estão lá.
             onIrParaPropostas={(procura) => irComPedido("propostas", { procura: procura ?? "" })}
             onNovoPedido={() => setNewQuoteOpen(true)}
-            onQuoteUpdated={refletirPrecoDoEstudio}
+            // O preço que o estúdio gravou: a lista troca o pedido e, se for o
+            // aberto, o campo do preço segue-o — se ela não lhe mexeu.
+            onQuoteUpdated={absorverDoServidor}
             onEstadoDoPedido={(q, status) => refletirEstadoDoEstudio(q.id, status)}
             onSent={(q) => {
               alterarPedido(q.id, { status: "cotado" });

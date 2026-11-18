@@ -1,8 +1,7 @@
 /*
  * O documento com que o estúdio abre: o que nasce do pedido, e as fotografias que ele leva.
  *
- * Saiu tal e qual do `ProposalStudio.tsx` (fase 1 de `docs/ESTRUTURA-DO-CODIGO.md`);
- * o componente reexporta o que já exportava, para nenhum chamador mudar.
+ * Saiu tal e qual do `ProposalStudio.tsx` (fase 1 de `docs/ESTRUTURA-DO-CODIGO.md`).
  */
 import type { Quote } from "@/lib/orcamento/types";
 import {

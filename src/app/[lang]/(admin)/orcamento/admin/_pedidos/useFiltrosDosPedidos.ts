@@ -7,6 +7,7 @@ import {
   haFiltroAActuar as haFiltroAActuarNaLista,
   oQueEstaAFiltrar as descreverFiltros,
   type FiltroDeEspera,
+  type FiltrosDosPedidos,
   type OrdemDosPedidos,
 } from "@/lib/orcamento/pedidos/filtros-dos-pedidos";
 import type { Quote, QuoteStatus } from "@/lib/orcamento/types";
@@ -125,40 +126,45 @@ export function useFiltrosDosPedidos(quotes: Quote[], userName: string) {
   // espera pela lista inteira (com centenas de pedidos, notava-se).
   const deferredSearch = useDeferredValue(search);
 
-  const filtered = useMemo(
-    () =>
-      filtrarEOrdenarPedidos(
-        quotes,
-        {
-          estado: filterStatus,
-          etiqueta: tagFilter,
-          categoria: filterCategory,
-          espera: filterEspera,
-          mes: filterMes,
-          regiao: filterRegiao,
-          planner: filterPlanner,
-          arquivados: showArchived,
-          soOsMeus: mineOnly,
-          procura: deferredSearch,
-          ordem: sort,
-        },
-        userName,
-      ),
+  /**
+   * OS FILTROS, NUM OBJECTO SÓ — a lista deles escreve-se aqui e mais em
+   * nenhum lado. Quem precisa de saber «mudou algum filtro?» (a página da lista,
+   * que volta ao princípio) compara este objecto, em vez de os enumerar outra
+   * vez: foi assim, a enumerar à mão, que os quatro do BO 4 ficaram de fora.
+   * A procura vai tal e qual se escreve; a lista filtra-se sobre a adiada.
+   */
+  const criterios = useMemo<FiltrosDosPedidos>(
+    () => ({
+      estado: filterStatus,
+      etiqueta: tagFilter,
+      categoria: filterCategory,
+      espera: filterEspera,
+      mes: filterMes,
+      regiao: filterRegiao,
+      planner: filterPlanner,
+      arquivados: showArchived,
+      soOsMeus: mineOnly,
+      procura: search,
+      ordem: sort,
+    }),
     [
-      quotes,
       filterStatus,
+      tagFilter,
       filterCategory,
       filterEspera,
       filterMes,
       filterRegiao,
       filterPlanner,
-      tagFilter,
-      deferredSearch,
-      sort,
       showArchived,
       mineOnly,
-      userName,
+      search,
+      sort,
     ],
+  );
+
+  const filtered = useMemo(
+    () => filtrarEOrdenarPedidos(quotes, { ...criterios, procura: deferredSearch }, userName),
+    [quotes, criterios, deferredSearch, userName],
   );
 
   return {
@@ -190,6 +196,7 @@ export function useFiltrosDosPedidos(quotes: Quote[], userName: string) {
     haFiltroAActuar,
     limparFiltros,
     oQueEstaAFiltrar,
+    criterios,
     filtered,
   };
 }

@@ -29,8 +29,9 @@ export interface PedidosDasVistas {
   substituirPedido: AccoesDosPedidos["substituirPedido"];
   alterarPedido: AccoesDosPedidos["alterarPedido"];
   refletirEstadoDoEstudio: (id: string, status: QuoteStatus) => void;
-  /** O estúdio gravou o pedido: a lista troca-o, e o preço do painel segue-o se for o aberto. */
-  refletirPrecoDoEstudio: (q: Quote) => void;
+  /** O servidor devolveu o pedido: a lista troca-o e, se for o aberto, os
+   *  campos do painel que ela não mexeu seguem-no. */
+  absorverDoServidor: (q: Quote) => void;
   marcarDesfecho: (actualizado: Quote) => void;
   revalidarPedidos: (forcar?: boolean) => Promise<void>;
   verArquivados: () => void;

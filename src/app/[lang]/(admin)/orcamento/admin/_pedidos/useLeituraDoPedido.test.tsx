@@ -96,4 +96,22 @@ describe("as leituras do pedido inteiro", () => {
     expect(setQuotes).toHaveBeenCalledTimes(1);
     expect(lida).toEqual({ ok: true, quote: depois });
   });
+
+  it("se a nova falhar, quem pediu a de baixo recebe a sua, que veio inteira", async () => {
+    const antes = { ...A, guests: 80 } as Quote;
+    const { comPedidoInteiro, recarregarPedido } = montar();
+
+    const primeira = comPedidoInteiro(A);
+    const recarga = recarregarPedido("A");
+    await act(async () => {
+      respostas[1](new Response("{}", { status: 503 }));
+      await recarga;
+    });
+    let lida: Awaited<typeof primeira> | undefined;
+    await act(async () => {
+      respostas[0](completo(antes));
+      lida = await primeira;
+    });
+    expect(lida).toEqual({ ok: true, quote: antes });
+  });
 });

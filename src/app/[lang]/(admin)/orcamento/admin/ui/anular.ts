@@ -3,6 +3,9 @@
 import { useCallback } from "react";
 import { useToast } from "../Toast";
 
+/** O «Anular» de um aviso: a mensagem, como repor, e o que dizer depois de repor. */
+export type Anular = (mensagem: string, repor: () => unknown, anulado?: string) => void;
+
 /**
  * ════════════════════════════════════════════════════════════════════════════
  * O «ANULAR» DA CASA — UM SÓ, IGUAL EM TODO O BACK OFFICE
@@ -22,9 +25,6 @@ import { useToast } from "../Toast";
  * sua maneira (as listas da gaveta têm a frase da colisão, «foi alterada noutro
  * sítio») devolve `false`: não aparece «Anulado.» nem um segundo aviso.
  */
-/** O «Anular» de um aviso: a mensagem, como repor, e o que dizer depois de repor. */
-export type Anular = (mensagem: string, repor: () => unknown, anulado?: string) => void;
-
 export function useAnular(): Anular {
   const { toast } = useToast();
   return useCallback(

@@ -1,7 +1,12 @@
 import type { Quote } from "@/lib/orcamento/types";
-import { esquecerRascunho } from "../rascunho-do-pedido";
+import { esquecerRascunho, type RascunhoEncontrado } from "../rascunho-do-pedido";
 import { fetchComTecto } from "@/lib/gravar-com-tecto";
-import { respostaDeHttp, type RespostaDoEnvio, enviarComRepeticao } from "../useGravacaoAutomatica";
+import {
+  respostaDeHttp,
+  type RespostaDoEnvio,
+  enviarComRepeticao,
+  type GravacaoAutomatica,
+} from "../useGravacaoAutomatica";
 import { randomId } from "../util";
 import { reporEstadoDoPedido } from "../anular-estado";
 import { asPropostasMudaram } from "../percentagem-do-sinal";
@@ -9,7 +14,6 @@ import { type NotasAutomaticas } from "@/lib/orcamento/pedidos/notas-automaticas
 import { comPedidoSubstituido } from "@/lib/orcamento/pedidos/lista-de-pedidos";
 import { type EdicaoDoPedido } from "./useEdicaoDoPedido";
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import type { GravacaoAutomatica } from "../useGravacaoAutomatica";
 
 import { porqueRecusou } from "@/lib/erro-do-servidor";
 import { type ResultadoDoEcra } from "../registo-de-gravacoes";
@@ -21,7 +25,6 @@ import {
 import { lerPainel } from "@/lib/orcamento/pedidos/painel-do-pedido";
 import { type Avisar } from "../Toast";
 import { type Anular } from "../ui/anular";
-import { type RascunhoEncontrado } from "../rascunho-do-pedido";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════

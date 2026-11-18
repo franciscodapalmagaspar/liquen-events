@@ -9,7 +9,13 @@ import {
 import { localizeHref } from "@/lib/i18n/config";
 import { navegarPara } from "../navegar";
 import type { Quote } from "@/lib/orcamento/types";
-import { haQuantoTempo, lerRascunho, oQueMudou, type CamposDoPedido } from "../rascunho-do-pedido";
+import {
+  haQuantoTempo,
+  lerRascunho,
+  oQueMudou,
+  type CamposDoPedido,
+  type RascunhoEncontrado,
+} from "../rascunho-do-pedido";
 import { prefetchList } from "../useCachedList";
 import { type SeparadorPorDecidir } from "../separador-por-decidir";
 import { propostaDaFaseDoPedido, type PropostaLeve } from "../percentagem-do-sinal";
@@ -19,7 +25,6 @@ import { type EdicaoDoPedido } from "./useEdicaoDoPedido";
 import { detailNextAction, type DetailTab } from "./separadores-do-painel";
 import { type SeparadorDoPedido } from "@/lib/orcamento/pedidos/proxima-accao";
 import { type Avisar } from "../Toast";
-import { type RascunhoEncontrado } from "../rascunho-do-pedido";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════

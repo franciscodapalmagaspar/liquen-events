@@ -1,6 +1,10 @@
 /**
  * As folhas de impressão de um evento (timeline, convidados, dossier) e o
  * evento em iCalendar (.ics). O CSV vive em `exportar-em-csv.ts`.
+ *
+ * Cada folha escreve-se na janela que recebe; por omissão abre-a ela mesma.
+ * Quem vai buscar este módulo a pedido abre a janela no clique e passa-a
+ * (`imprimir-a-pedido.ts`): o browser só deixa abrir janelas com o gesto vivo.
  */
 import type { Quote, TimelineItem } from "@/lib/orcamento/types";
 import { CATEGORIES, PACKAGES } from "@/lib/orcamento/data";
@@ -14,6 +18,12 @@ import {
   ordenar,
 } from "@/lib/orcamento/guiao-do-dia";
 import { eventTypeLabel, PAYMENT_KIND_LABEL, RSVP_LABEL } from "./exportar-em-csv";
+import {
+  abrirJanelaDeImpressao,
+  JANELA_DA_TIMELINE,
+  JANELA_DO_DOSSIER,
+  JANELA_DOS_CONVIDADOS,
+} from "./janelas-de-impressao";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -187,8 +197,10 @@ export function downloadEventIcs(q: Quote): void {
  * Open a clean, print-ready guest list for an event (alphabetical, with a
  * headcount summary). Handy to print or save as PDF for the venue/catering.
  */
-export function printGuestList(q: Quote): void {
-  const win = window.open("", "_blank", "width=820,height=1000");
+export function printGuestList(
+  q: Quote,
+  win: Window | null = abrirJanelaDeImpressao(JANELA_DOS_CONVIDADOS),
+): void {
   if (!win) return;
 
   const guests = (q.guestList ?? []).slice().sort((a, b) => a.name.localeCompare(b.name));
@@ -270,8 +282,10 @@ export function printGuestList(q: Quote): void {
  * Open a clean, print-ready run-sheet for a single event in a new window.
  * Designed for the day-of: contacts, key facts, the timeline and the checklist.
  */
-export function printRunSheet(q: Quote): void {
-  const win = window.open("", "_blank", "width=820,height=1000");
+export function printRunSheet(
+  q: Quote,
+  win: Window | null = abrirJanelaDeImpressao(JANELA_DA_TIMELINE),
+): void {
   if (!win) return;
 
   const cat = CATEGORIES.find((c) => c.id === q.category)?.label ?? "";
@@ -448,8 +462,10 @@ const RSVP_LABEL_PRINT: Record<string, string> = {
  * event: contact, logistics, financial, timeline, checklist, suppliers and
  * guest list. Designed to be saved as PDF and distributed to the team.
  */
-export function printEventDossier(q: Quote): void {
-  const win = window.open("", "_blank", "width=900,height=1100");
+export function printEventDossier(
+  q: Quote,
+  win: Window | null = abrirJanelaDeImpressao(JANELA_DO_DOSSIER),
+): void {
   if (!win) return;
 
   const cat = CATEGORIES.find((c) => c.id === q.category)?.label ?? "";

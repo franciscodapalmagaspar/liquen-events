@@ -1,7 +1,6 @@
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { ThemeImage, ThemeSummary } from "@/lib/theme-types";
+import { type ThemeImage, type ThemeSummary, THEME_COPY_CHUNK } from "@/lib/theme-types";
 import { type ThemeCopyOutcome } from "../ThemeCopyDialog";
-import { THEME_COPY_CHUNK } from "@/lib/theme-types";
 import { porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
 import { bibliotecaAlterada } from "../biblioteca-alterada";
 import { fraseDeMovimentoFalhado, fraseDoMovimento, fraseDoRegresso } from "@/lib/temas-arrasto";

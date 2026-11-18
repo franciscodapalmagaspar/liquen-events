@@ -1,8 +1,7 @@
 /*
  * Os preços das linhas e o IVA dos valores adicionais.
  *
- * Saiu tal e qual do `ProposalStudio.tsx` (fase 1 de `docs/ESTRUTURA-DO-CODIGO.md`);
- * o componente reexporta o que já exportava, para nenhum chamador mudar.
+ * Saiu tal e qual do `ProposalStudio.tsx` (fase 1 de `docs/ESTRUTURA-DO-CODIGO.md`).
  */
 import { normalizarValor, somaDosExtrasSemIva } from "@/lib/proposal-budget";
 import { eur } from "@/lib/money";

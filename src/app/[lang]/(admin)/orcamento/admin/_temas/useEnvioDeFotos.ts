@@ -1,6 +1,10 @@
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { ThemeImage, ThemeSummary } from "@/lib/theme-types";
-import { CHECK_CHUNK, type ThemeDuplicate } from "@/lib/theme-types";
+import {
+  type ThemeImage,
+  type ThemeSummary,
+  CHECK_CHUNK,
+  type ThemeDuplicate,
+} from "@/lib/theme-types";
 import { fingerprintBlob } from "@/lib/theme-fingerprint";
 import { prepareImageWithThumb } from "../image-prep";
 import { bibliotecaAlteradaEmLote } from "../biblioteca-alterada";
