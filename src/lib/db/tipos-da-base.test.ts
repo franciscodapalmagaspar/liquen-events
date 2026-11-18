@@ -130,4 +130,14 @@ describe("comparar-esquemas", () => {
   it("um tipo SQL que não conhece é um erro, não um `string` por omissão", () => {
     expect(() => esquemaDoSql(sql("  id interval primary key"))).toThrow(/interval/);
   });
+
+  // O que muda colunas de outra maneira o leitor não segue: diz-se que é ELE
+  // que não sabe, em vez de inventar uma divergência (ou de a esconder).
+  it.each([
+    ["drop column", "alter table public.coisas drop column nota;"],
+    ["rename", "alter table public.coisas rename column nota to notas;"],
+    ["alter column … type", "alter table public.coisas alter column n type integer;"],
+  ])("`%s` é um erro do leitor, dito como tal", (_nome, alteracao) => {
+    expect(() => esquemaDoSql(igual + alteracao)).toThrow(/não sabe ler/);
+  });
 });

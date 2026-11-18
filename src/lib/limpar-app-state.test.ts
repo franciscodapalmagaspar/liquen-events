@@ -10,6 +10,7 @@ import type { LinhaVarrida } from "@/lib/app-state/varrer";
 const st = vi.hoisted(() => ({
   espacos: {} as Record<string, LinhaVarrida[]>,
   incompletos: new Set<string>(),
+  transbordados: new Set<string>(),
   reciclagem: [] as { origemId: string; retrato: Record<string, unknown> }[] | Error,
   valores: new Map<string, unknown>(),
   registo: { valor: null as unknown, versao: null as string | null } as
@@ -34,6 +35,7 @@ vi.mock("@/lib/ler-todas-as-linhas", () => ({
 vi.mock("@/lib/app-state/varrer", () => ({
   varrerPrefixo: async (prefixo: string) => {
     if (st.varreduraPendurada) await new Promise(() => {});
+    if (st.transbordados.has(prefixo)) return { linhas: [], completa: false, transbordou: true };
     return { linhas: st.espacos[prefixo] ?? [], completa: !st.incompletos.has(prefixo) };
   },
 }));
@@ -94,6 +96,7 @@ beforeEach(() => {
     "ligacao-de-proposta:": [l(`ligacao-de-proposta:${P_APAGADA}`, { codigo: "abc" })],
   };
   st.incompletos = new Set();
+  st.transbordados = new Set();
   st.reciclagem = [];
   st.valores = new Map<string, unknown>([
     [`ligacao-de-proposta:${P_APAGADA}`, { codigo: "abc" }],
@@ -159,6 +162,12 @@ describe("o plano da noite", () => {
   it("um espaço que não se leu inteiro: não sai nada", async () => {
     st.incompletos.add("ligacao-proposta:");
     expect(await planearNaCopia(copia, AGORA)).toBeNull();
+  });
+
+  it("um espaço que passou do limite fica de fora; os outros limpam-se", async () => {
+    st.transbordados.add("ligacao-de-proposta:");
+    const { plano } = await planear();
+    expect(plano.saem.map((s) => s.key)).toEqual(["proposal-draft:q1", "proposal-draft:q-apagado"]);
   });
 
   it("a Reciclagem que não se lê: não sai nada", async () => {
