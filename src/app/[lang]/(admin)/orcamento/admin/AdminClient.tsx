@@ -292,6 +292,7 @@ export default function AdminClient({
     motivoVaiComADecisao,
     alteracoesPorConfirmar,
     escritoPorGravar,
+    absorver,
   } = edicao;
   /**
    * Achado n.º 19 da auditoria: pôr um pedido em «Ganho» à mão criava um
@@ -968,9 +969,9 @@ export default function AdminClient({
     (updated: Quote) => {
       const antes = selectedRef.current;
       substituirPedido(updated);
-      if (antes && antes.id === updated.id) edicao.absorver(antes, updated);
+      if (antes && antes.id === updated.id) absorver(antes, updated);
     },
-    [substituirPedido, edicao.absorver],
+    [substituirPedido, absorver],
   );
 
   /**

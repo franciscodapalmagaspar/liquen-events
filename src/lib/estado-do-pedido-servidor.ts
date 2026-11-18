@@ -7,7 +7,7 @@ import {
 } from "@/lib/orcamento/estado-do-pedido";
 import { getQuoteStatus, updateQuoteWith } from "@/lib/quotes-store";
 import { log } from "@/lib/logger";
-import { HISTORICO_MAXIMO } from "@/lib/orcamento/pedidos/juntar-ao-historico";
+import { juntarAoHistorico } from "@/lib/orcamento/pedidos/juntar-ao-historico";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -43,7 +43,6 @@ import { HISTORICO_MAXIMO } from "@/lib/orcamento/pedidos/juntar-ao-historico";
  */
 
 /** O mesmo tecto que o PATCH do pedido aplica ao histórico. */
-const MAX_HISTORICO = HISTORICO_MAXIMO;
 
 /**
  * Regista um acontecimento no pedido e sobe-lhe o estado, se for caso disso.
@@ -77,7 +76,7 @@ export async function registarAcontecimento(
       return {
         ...quote,
         status: transicao.status,
-        activityLog: [...(quote.activityLog ?? []), transicao.entrada].slice(-MAX_HISTORICO),
+        activityLog: juntarAoHistorico(quote.activityLog, [transicao.entrada]),
       };
     });
   } catch (e) {

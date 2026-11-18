@@ -180,9 +180,8 @@ export function useGravacaoDoPedido({
         }
         // Um 200 com corpo ilegível é um 200: GRAVOU. Não se repete (repetir
         // mandava outra vez as linhas do histórico) — relê-se o pedido.
-        guardado =
-          ((await res.json().catch(() => null)) as Quote | null) ??
-          (await lerOPedidoGravado(selected.id));
+        const corpo = (await res.json().catch(() => null)) as Quote | null;
+        guardado = corpo?.id ? corpo : await lerOPedidoGravado(selected.id);
         // Um estado novo gravado pelo formulário («Ganho», «Perdido») arrasta
         // a proposta no servidor: a lista leve relê-se, depois do PATCH.
         if ("status" in body) asPropostasMudaram();
