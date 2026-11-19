@@ -53,6 +53,7 @@ const HERO_SOURCES = [
   "/imagens/hd-edited.jpg", // sobre
   "/imagens/EW1_1330.jpg", // servicos
   "/imagens/DaniGui_Preview20.jpg", // galeria
+  "/imagens/galeria-outubro-52.jpg", // fundo do menu do telemóvel
   "/imagens/DJI_20250913190635_0120_D.jpg", // contacto
   "/imagens/EW1_1393.jpg", // clientes
   // Fundos de secção, faixas e capas de serviço — tudo o que é desenhado a

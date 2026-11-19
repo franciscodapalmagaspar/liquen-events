@@ -69,7 +69,8 @@ describe("o menu do telemóvel responde ao toque no mesmo instante", () => {
     act(() => void fireEvent.click(sobre));
 
     expect(sobre.className).toContain("text-white");
-    expect(sobre.querySelector("span[aria-hidden]")?.className).toContain("scale-x-100");
+    // O destino fica em negrito (o menu «Capa», 19/11).
+    expect(sobre.className).toContain("font-semibold");
     expect(galeria.style.opacity).toBe("0.3");
     // Esmorecer é só opacidade, e rápido: a placa gráfica anima-o sozinha.
     expect(galeria.style.transition).toContain("opacity 0.15s");

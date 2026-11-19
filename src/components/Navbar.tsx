@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, memo, type CSSProperties } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import SafeImage from "@/components/SafeImage";
 import { usePublicPathname } from "@/lib/use-public-pathname";
@@ -8,20 +8,12 @@ import { useTranslations } from "./LocaleProvider";
 import LanguageToggle from "./LanguageToggle";
 import Magnetic from "@/components/motion/Magnetic";
 import { useReducedMotion } from "@/lib/motion/useReducedMotion";
-import { localizeHref, type Locale } from "@/lib/i18n/config";
-import type { ChromeDict } from "@/lib/i18n";
+import { localizeHref } from "@/lib/i18n/config";
+import MenuDoTelemovel from "@/components/menu/MenuDoTelemovel";
+import { destinoAtivo, sentidoDaPassagem } from "@/components/menu/destinos";
 import { track } from "@/lib/track";
-import { EASE_OUT } from "@/lib/motion/tokens";
 import { useIsomorphicLayoutEffect } from "@/lib/motion/useIsomorphicLayoutEffect";
 
-// A desaceleração de assinatura, LIDA DA FICHA em vez de copiada. Era a quarta
-// cópia à mão da curva (o próprio `tokens.ts` a nomeia), e uma cópia é um sítio
-// onde o sítio pode passar a ter duas desacelerações sem ninguém dar por isso.
-const MENU_EASE = EASE_OUT;
-
-// Ordem do menu — define a DIREÇÃO das transições de página: navegar para um
-// item mais à frente desliza para a esquerda (avançar), voltar atrás desliza
-// para a direita. Ver PageTransition + .vt-page-fwd/bwd em globals.css.
 /**
  * A CAIXA DOS BOTÕES DA BARRA — E PORQUE É QUE VIVE NUMA CONSTANTE.
  *
@@ -52,396 +44,6 @@ const BOTAO_DA_BARRA =
   "toque alvo-toque inline-flex items-center justify-center gap-1.5 leading-none " +
   "border px-5 py-2.5 text-miuda tracking-[0.2em] uppercase";
 
-const NAV_ORDER = ["/", "/sobre", "/servicos", "/galeria", "/clientes", "/contacto"];
-function orderIdx(path: string): number {
-  if (path === "/") return 0;
-  const i = NAV_ORDER.findIndex((o) => o !== "/" && (path === o || path.startsWith(`${o}/`)));
-  return i === -1 ? 0 : i;
-}
-
-// The full-screen mobile menu overlay, extracted into a memoized child so the
-// Navbar's frequent scroll-driven re-renders (scrolled/hidden state) no longer
-// reconcile this ~180-line dialog subtree. It depends ONLY on isOpen / pathname
-// / locale / t / reduce / onClose — none of which change on scroll — and all of
-// links/navTypes/reveal are derived INSIDE it (not passed as fresh props) so the
-// memo comparison actually holds. The focus-trap / open-focus effect lives here
-// with the menuRef it guards; `onClose` (stable, from the parent) closes the
-// menu and returns focus to the hamburger button, which stays in the parent.
-const MobileMenu = memo(function MobileMenu({
-  isOpen,
-  pathname,
-  locale,
-  t,
-  reduce,
-  onClose,
-}: {
-  isOpen: boolean;
-  pathname: string;
-  locale: Locale;
-  t: ChromeDict;
-  reduce: boolean;
-  onClose: () => void;
-}) {
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  /**
-   * ── O TOQUE TEM RESPOSTA NO MESMO INSTANTE ─────────────────────────────
-   * Ela (16/10): «a entrada nas páginas não está muito boa, parece que está
-   * assim meia coisa». FILMADO a 390 px (telemóvel ×4 mais lento): depois de
-   * tocar em «Sobre» o menu ficava 0,54 s PARADO, sem sinal nenhum de que o
-   * toque tinha sido recebido — o processador estava a montar a página nova
-   * (já pré-carregada) — e só depois desaparecia de uma vez.
-   *
-   * Agora, no instante do toque, o destino acende (fica branco e o traço
-   * cresce) e os outros esmorecem. São só `opacity` e `scale`, que a placa
-   * gráfica anima sozinha enquanto o processador monta a página. O menu fica
-   * por cima até a página nova chegar e esvai-se sobre ela, como antes —
-   * fechá-lo logo destapava, a meio, a página de onde se saiu.
-   */
-  const [destino, setDestino] = useState<string | null>(null);
-  // Fechado o menu, esquece-se o destino (ajuste no próprio render, sem efeito).
-  const [abertoAntes, setAbertoAntes] = useState(isOpen);
-  if (abertoAntes !== isOpen) {
-    setAbertoAntes(isOpen);
-    if (!isOpen) setDestino(null);
-  }
-  const aoTocar = (href: string) => () => setDestino(href);
-
-  /**
-   * ── O MENU FECHADO NÃO PRÉ-CARREGA NADA ────────────────────────────────
-   * Fechado, o painel é só `opacity-0 invisible` — e tem de continuar a sê-lo:
-   * é isso que deixa a abertura e o fecho animarem (um `display: none` não
-   * transita) e que o põe a responder no primeiro fotograma do toque. Só que
-   * o observador de visibilidade do `<Link>` mede a CAIXA, não a visibilidade,
-   * e um painel `fixed` do tamanho do ecrã está sempre «à vista». Os sete
-   * links contavam como visíveis em todas as páginas, num telemóvel que nunca
-   * abriu o menu.
-   *
-   * MEDIDO (`next start`, 390×844 com toque, primeira visita, bytes na
-   * linha): com o `prefetch` forçado que aqui estava, 383 KB de pré-carga em
-   * `/` e 421 KB em `/galeria` — cada rota inteira, ~45 KB, e cada uma a
-   * reenviar o segmento do layout `[lang]` com o CSS embutido. Com isto e a
-   * omissão nos links do computador: 93 KB e 68 KB. Abrir o menu pede 66 KB.
-   *
-   * Por isso: `false` com o menu fechado, e a pré-carga POR OMISSÃO com ele
-   * aberto. O `<Link>` refaz o observador quando o `prefetch` muda (está nas
-   * dependências do ref dele), e o painel aberto entra logo à vista — portanto
-   * a pré-carga arranca no toque que abre o menu, enquanto a cascata de
-   * entrada (80 ms + 60 por item, 600 ms cada) ainda está a correr. Quando o
-   * dedo chega a um item, a página já está cá, como a nota do toque, aqui em
-   * cima, conta com ela. MEDIDO: menu aberto 1,2 s, toque em «Sobre», zero
-   * pedidos depois do toque, e o `<h1>` novo a 155 ms (mediana de 7) contra
-   * 152 ms antes — a mesma coisa.
-   *
-   * E porque é a por omissão e não `true`: ver a nota dos links do
-   * computador, mais abaixo.
-   */
-  const preCarga = isOpen ? undefined : false;
-
-  // Staggered reveal for the overlay's blocks — a single source of truth so the
-  // eyebrow, each link and the footer share the same cascade + easing. Under
-  // prefers-reduced-motion everything simply cross-fades in place (no travel).
-  const reveal = (delay: number): CSSProperties =>
-    reduce
-      ? {
-          opacity: isOpen ? 1 : 0,
-          transition: isOpen ? `opacity 0.3s ${MENU_EASE}` : `opacity 0.15s ${MENU_EASE}`,
-        }
-      : {
-          opacity: isOpen ? 1 : 0,
-          transform: isOpen ? "none" : "translateY(24px)",
-          // O FECHO estava em `ease` enquanto a ABERTURA estava na assinatura:
-          // o mesmo menu a abrir com uma curva e a fechar com outra. Medido no
-          // sítio a correr, eram as últimas 7 transições da página inicial fora
-          // da assinatura. Continua a ser rápido (0,15 s) — só deixa de ser uma
-          // desaceleração diferente.
-          transition: isOpen
-            ? `opacity 0.6s ${MENU_EASE} ${delay}ms, transform 0.6s ${MENU_EASE} ${delay}ms`
-            : `opacity 0.15s ${MENU_EASE}, transform 0.15s ${MENU_EASE}`,
-        };
-
-  const links = [
-    { href: "/sobre", label: t.nav.sobre },
-    { href: "/servicos", label: t.nav.servicos },
-    { href: "/galeria", label: t.nav.galeria },
-    { href: "/clientes", label: t.nav.clientes },
-  ];
-
-  // Featured services block at the foot of the menu (SpaceX "Upcoming Launches"
-  // idiom, adapted): two flagship services with a small photo, title + eyebrow
-  // and an arrow. Labels are kept inline (locale-switched) so this menu-only
-  // copy doesn't have to ride the shared chrome dictionary.
-  const featuredHeader = locale === "en" ? "Our services" : "Os nossos serviços";
-  const featured = [
-    {
-      href: "/servicos/casamentos",
-      img: "/imagens/EW1_1100.jpg",
-      title: locale === "en" ? "Weddings" : "Casamentos",
-      sub: locale === "en" ? "Decoration & coordination" : "Decoração e coordenação",
-    },
-    {
-      href: "/servicos/eventos-corporativos",
-      img: "/imagens/EW1_1332.jpg",
-      title: locale === "en" ? "Corporate Events" : "Eventos Corporativos",
-      sub: locale === "en" ? "For companies" : "Para empresas",
-    },
-  ];
-
-  // A section stays "current" while the visitor is on any page beneath it, so a
-  // service-detail route (/servicos/casamentos) keeps the Serviços item lit.
-  const isActive = (href: string) =>
-    pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
-
-  const navTypes = (href: string) => [
-    orderIdx(href) >= orderIdx(pathname) ? "nav-forward" : "nav-back",
-  ];
-
-  // Escape closes the overlay + traps Tab inside it (WAI-ARIA dialog pattern).
-  // Focus moves to the first link on open and back to the toggle button on
-  // close (via onClose), so keyboard users never land on a hidden element.
-  useEffect(() => {
-    if (!isOpen) return;
-    const menu = menuRef.current;
-    const focusables = () =>
-      Array.from(
-        menu?.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        ) ?? [],
-      );
-    // Double rAF: the click that opened the menu is still asserting its own
-    // (browser-default) focus on the toggle button through the first painted
-    // frame — a single rAF loses that race and focus silently snaps back to
-    // the button. Waiting a second frame reliably lands on the menu instead.
-    let raf2 = 0;
-    const raf1 = requestAnimationFrame(() => {
-      /**
-       * ── O FOCO VAI PARA O PAINEL, E NÃO PARA O PRIMEIRO LINK ────────────
-       *
-       * Palavras dela, com a fotografia: «aparece este retângulo branco à
-       * volta quando eu carrego no menu, quero que tires isso».
-       *
-       * O retângulo era o ANEL DE FOCO. Isto punha o foco no primeiro item
-       * («SOBRE»), e um foco posto por programa faz o `:focus-visible` casar
-       * — portanto o browser desenhava o anel à volta de um link em que
-       * ninguém tinha carregado. Num telemóvel, onde não há teclado nenhum,
-       * lê-se como um defeito.
-       *
-       * A correcção NÃO é apagar o anel: ele é o que diz a quem navega por
-       * teclado onde está, e a auditoria de acessibilidade desta casa é um
-       * `error` e não um aviso. A correcção é mover o foco para o PAINEL —
-       * que é `role="dialog"` e leva `tabIndex={-1}` — em vez de para um dos
-       * itens. É o padrão de um diálogo: o leitor de ecrã anuncia o menu, o
-       * primeiro `Tab` leva ao primeiro link, e aí sim o anel aparece, para
-       * quem o pediu com o teclado.
-       */
-      raf2 = requestAnimationFrame(() => menu?.focus());
-    });
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-        return;
-      }
-      if (e.key !== "Tab") return;
-      const items = focusables();
-      if (items.length === 0) return;
-      const first = items[0];
-      const last = items[items.length - 1];
-      /**
-       * O foco começa agora no PRÓPRIO painel (ver o `menu.focus()` acima), e
-       * daí um `Shift+Tab` saía do menu pela porta de trás — para o cromado do
-       * sítio, por baixo de um diálogo aberto. Do painel para trás é o último
-       * item, como se já se estivesse no primeiro.
-       */
-      if (e.shiftKey && (document.activeElement === first || document.activeElement === menu)) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [isOpen, onClose]);
-
-  return (
-    <div
-      ref={menuRef}
-      // Recebe o foco à abertura, e só por programa: `-1` mantém-no fora da
-      // ordem de tabulação, portanto ninguém aterra aqui a carregar em Tab.
-      tabIndex={-1}
-      role="dialog"
-      aria-modal={isOpen}
-      aria-label={t.nav.menuLabel}
-      aria-hidden={!isOpen}
-      // h-[100dvh] (dynamic viewport height) instead of inset-0 / 100vh: on
-      // mobile the layout viewport is taller than the VISIBLE area while the
-      // browser's URL bar is showing, so an inset-0 overlay pushed the bottom
-      // block (contacts) behind the browser chrome. dvh tracks the visible area,
-      // keeping the contacts on screen as the URL bar shows/hides.
-      className={`lg:hidden fixed inset-x-0 top-0 h-[100dvh] -z-10 flex flex-col bg-moss-dark transition-[opacity,visibility] duration-500 ${
-        isOpen ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
-      }`}
-    >
-      {/* Menu SpaceX — minimalismo puro: fundo liso monocromático, sem
-          numeração, sem serif, sem brilhos nem dourados. A tipografia sans
-          maiúscula muito espaçada e o espaço branco fazem todo o trabalho; o
-          único acento é um filete branco que cresce no item ativo. */}
-      {/* Conteúdo com scroll (links + serviços em destaque). pt-40 limpa o
-          logótipo (barra aberta h-150); a barra tem fundo moss quando o menu
-          está aberto, por isso o conteúdo desliza por trás dela sem se ver.
-          min-h-0 é essencial: sem ele um filho flex com overflow-y-auto cresce
-          até à altura do conteúdo (min-height:auto) em vez de fazer scroll
-          interno — e o rodapé (CTA + redes) acabava por sobrepor os cartões. */}
-      <div className="relative flex-1 min-h-0 overflow-y-auto overscroll-contain px-8 pt-40 pb-6">
-        <nav aria-label={t.nav.menuLabel} className="w-full">
-          {[...links, { href: "/contacto", label: t.nav.contacto }].map((link, i) => {
-            const escolhido = destino === link.href;
-            const active = destino ? escolhido : isActive(link.href);
-            const esmorece = destino !== null && !escolhido;
-            return (
-              <Link
-                key={link.href}
-                href={localizeHref(link.href, locale)}
-                prefetch={preCarga}
-                transitionTypes={navTypes(link.href)}
-                onClick={aoTocar(link.href)}
-                aria-current={isActive(link.href) ? "page" : undefined}
-                // MEDIDO com o menu ABERTO a 375 px e toque emulado: 311×43 px.
-                // Falha por um pixel — e é o menu inteiro, cinco itens, a única
-                // navegação que existe no telemóvel. Um varrimento que não abre
-                // o menu diz zero achados sobre ele com toda a confiança do
-                // mundo; este só apareceu ao abri-lo de propósito.
-                className={`alvo-toque group flex items-center justify-between py-2.5 sm:py-3 transition-colors duration-300 ${
-                  active ? "text-white" : "text-white/55 hover:text-white"
-                }`}
-                style={
-                  esmorece
-                    ? { ...reveal(0), opacity: 0.3, transition: `opacity 0.15s ${MENU_EASE}` }
-                    : reveal(80 + i * 60)
-                }
-              >
-                <span
-                  className={`text-[15px] sm:text-base tracking-[0.26em] uppercase font-light ${
-                    reduce ? "" : "transition-transform duration-500 group-hover:translate-x-1.5"
-                  }`}
-                  style={{ transitionTimingFunction: MENU_EASE }}
-                >
-                  {link.label}
-                </span>
-                <span
-                  aria-hidden
-                  // O traço cresce por `scale` e não por `width`: a largura
-                  // obriga a recalcular a linha do menu a cada fotograma.
-                  className={`h-px w-7 origin-left bg-current ${reduce ? "" : "transition-[scale,opacity] duration-500"} ${
-                    active
-                      ? "scale-x-100 opacity-100"
-                      : "scale-x-0 opacity-0 group-hover:scale-x-[0.57] group-hover:opacity-50"
-                  }`}
-                  style={{ transitionTimingFunction: MENU_EASE }}
-                />
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Serviços em destaque — cartão com foto + título + seta (idioma
-            SpaceX "Upcoming Launches", adaptado à Líquen). Imagens só montam com
-            o menu aberto para não descarregarem em todas as páginas. */}
-        <div className="mt-6" style={reveal(80 + 6 * 60)}>
-          <p className="mb-3 text-miuda tracking-[0.26em] uppercase text-white/45">
-            {featuredHeader}
-          </p>
-          <div className="border-t border-white/12">
-            {featured.map((s) => (
-              <Link
-                key={s.href}
-                href={localizeHref(s.href, locale)}
-                prefetch={preCarga}
-                transitionTypes={navTypes(s.href)}
-                onClick={aoTocar(s.href)}
-                className={`group flex items-center gap-4 border-b border-white/12 py-3 transition-opacity duration-150 ${
-                  destino !== null && destino !== s.href ? "opacity-30" : ""
-                }`}
-              >
-                <span className="relative h-14 w-14 flex-shrink-0 overflow-hidden bg-white/5">
-                  {isOpen && (
-                    /* SEM legenda de indisponível de propósito: numa miniatura
-                       de 56px uma etiqueta de texto não cabe e lê-se como mais
-                       um defeito. Aqui "digno" é silencioso — a superfície
-                       desfocada da própria foto, sobre o quadrado bg-white/5
-                       que já existe, e nunca o ícone de imagem partida (que é
-                       precisamente o que a dona fotografou no menu). */
-                    <SafeImage
-                      src={s.img}
-                      alt=""
-                      fill
-                      sizes="56px"
-                      quality={55}
-                      className="object-cover"
-                    />
-                  )}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-base leading-snug text-white font-semibold uppercase tracking-display">
-                    {s.title}
-                  </span>
-                  <span className="mt-1 block text-miuda tracking-[0.18em] uppercase text-white/45">
-                    {s.sub}
-                  </span>
-                </span>
-                <span
-                  aria-hidden
-                  className={`flex-shrink-0 text-white/50 group-hover:text-white ${
-                    reduce ? "" : "transition-transform duration-300 group-hover:translate-x-1"
-                  }`}
-                  style={{ transitionTimingFunction: MENU_EASE }}
-                >
-                  →
-                </span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Bloco inferior — apenas o CTA de contorno, compacto e ancorado ao fundo
-          do ecrã. Sem redes sociais aqui (já vivem no rodapé do site) para o
-          menu respirar e caber tudo. paddingBottom soma o safe-area-inset-bottom
-          (home indicator). */}
-      <div
-        className="relative shrink-0 px-8"
-        style={{
-          paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))",
-          ...reveal(80 + 5 * 60 + 40),
-        }}
-      >
-        <Link
-          href={localizeHref("/orcamento", locale)}
-          onClick={() => track("CTAClick", { source: "nav-mobile" })}
-          // 311×37 px medidos com o menu aberto — a acção principal do menu.
-          className="toque alvo-toque group flex items-center justify-between w-full border border-white/25 px-5 py-2.5 text-white text-miuda tracking-[0.28em] uppercase transition-colors duration-300 hover:bg-white hover:text-[#0c0e0b] hover:border-white"
-        >
-          <span>{t.nav.pedirOrcamento}</span>
-          <span
-            aria-hidden
-            className={reduce ? "" : "transition-transform duration-300 group-hover:translate-x-1"}
-            style={{ transitionTimingFunction: MENU_EASE }}
-          >
-            →
-          </span>
-        </Link>
-      </div>
-    </div>
-  );
-});
-
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -462,8 +64,7 @@ export default function Navbar() {
   // A section stays "current" while the visitor is on any page beneath it, so a
   // service-detail route (/servicos/casamentos) keeps the Serviços item lit and
   // exposes aria-current to assistive tech. Exact match otherwise.
-  const isActive = (href: string) =>
-    pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
+  const isActive = (href: string) => destinoAtivo(pathname, href);
 
   // Pages whose hero is a full-bleed dark image sitting *under* the transparent
   // navbar. On those, the unscrolled nav needs light text + a subtle scrim to
@@ -483,10 +84,8 @@ export default function Navbar() {
   // Scrim de legibilidade — SÓ sobre o hero escuro no topo (barra transparente)
   // ou com o menu aberto. Uma vez em scroll a barra ganha fundo sólido próprio,
   // pelo que o gradiente deixaria apenas uma sombra a sangrar para o conteúdo.
-  // No top scrim while the mobile menu is open: the menu carries its own moss
-  // background, so the dark hero-legibility gradient would just paint an ugly
-  // darker band across the top of the green. The bar's contents (logo, close)
-  // are already light (see `light` below) and read fine on the moss.
+  // Sem o gradiente de cima com o menu aberto: o menu traz o seu próprio véu
+  // por cima da fotografia (`MenuDoTelemovel`).
   const showScrim = !isOpen && !scrolled && overDarkHero;
   // Tratamento claro (texto/traços brancos) da barra — SÓ sobre o hero escuro no
   // topo (barra transparente) ou com o menu mobile aberto. Em scroll a barra
@@ -504,16 +103,17 @@ export default function Navbar() {
   // portanto 31% da altura a que o logótipo está desenhado (62/72 px em
   // repouso, 40/44 px na barra descida). SEM transição (1/11, à noite): no
   // iPhone o site ficou «travado», e isto é uma coisa a menos a mexer ao rolar.
-  // Com o menu aberto o selector não existe e o «fechar» fica onde está.
-  const aoNivelDaPalavra = isOpen
-    ? "translate-y-0"
-    : compacto
-      ? "translate-y-[calc(40px*0.31)] sm:translate-y-[calc(44px*0.31)]"
-      : "translate-y-[calc(62px*0.31)] sm:translate-y-[calc(72px*0.31)]";
+  // Abaixo de 360 px o logótipo desenha-se a 48 px (ele, 19/11: «isto tem que
+  // estar sempre espaçado»): a 62 o «EN» ficava a 7 px dele num ecrã de 320.
+  // Com o menu aberto a barra fica como em repouso (19/11, ele: «o logo tem
+  // que estar ao mesmo nível do logo do site normal»): idiomas e «fechar» à
+  // altura da palavra, como no topo de qualquer página.
+  const aoNivelDaPalavra = compacto
+    ? "translate-y-[calc(40px*0.31)] sm:translate-y-[calc(44px*0.31)]"
+    : "translate-y-[calc(62px*0.31)] max-[359px]:translate-y-[calc(48px*0.31)] sm:translate-y-[calc(72px*0.31)]";
 
-  const navTypes = (href: string) => [
-    orderIdx(href) >= orderIdx(pathname) ? "nav-forward" : "nav-back",
-  ];
+  // A direcção da passagem entre páginas (ver PageTransition e .vt-page-fwd/bwd).
+  const navTypes = (href: string) => [sentidoDaPassagem(pathname, href)];
 
   useEffect(() => {
     let frame = 0;
@@ -663,8 +263,9 @@ export default function Navbar() {
         // `fixed inset-0` do menu mobile à altura da barra em vez do viewport
         // (além do custo de re-desfocar a cada frame de scroll). A 95% de opacidade
         // já é praticamente sólida, pelo que o blur seria impercetível.
+        // Com o menu aberto, transparente: por baixo está a fotografia do menu.
         isOpen
-          ? "bg-moss-dark border-b border-transparent"
+          ? "bg-transparent border-b border-transparent"
           : scrolled
             ? "bg-surface/95 border-b border-foreground/10 shadow-sm shadow-black/5"
             : "bg-transparent border-b border-transparent"
@@ -677,16 +278,6 @@ export default function Navbar() {
           className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/50 via-black/15 to-transparent"
         />
       )}
-      {/* O fundo moss da barra com o menu aberto tinha 150 px de altura; a fila
-          passou a ter 76 (ver a nota da fila, abaixo). Esta camada repõe os
-          150 por trás do logótipo, para o conteúdo do menu continuar a passar
-          por baixo sem se ver. */}
-      <div
-        aria-hidden
-        className={`fundo-do-menu pointer-events-none absolute inset-x-0 top-0 h-[calc(150px+env(safe-area-inset-top))] bg-moss-dark transition-opacity duration-500 lg:hidden ${
-          isOpen ? "opacity-100" : "opacity-0"
-        }`}
-      />
       {/* px-12 (not px-16) in the lg→xl band: at exactly 1024px the nav links and
           the right-side actions sat only ~4px apart (nearly touching). The extra
           32px of inner width opens that gap; alignment with page content
@@ -702,8 +293,8 @@ export default function Navbar() {
           com `translate`, `scale` e `opacity`:
             · repouso: a fila desce 44 px (o centro fica nos 82 de uma barra de
               164);
-            · menu aberto: desce 37 px (o centro nos 75 de uma barra de 150); o
-              fundo moss dos 150 px é a camada `fundo-do-menu` aqui em cima;
+            · menu aberto: como em repouso (19/11 — o logótipo do menu é o
+              de todas as páginas, no mesmo sítio e do mesmo tamanho);
             · ao descer: 0.
           O logótipo troca entre dois (ver a nota junto deles). No computador o
           de repouso fica no fluxo com a largura de sempre, e ao descer os links
@@ -713,7 +304,7 @@ export default function Navbar() {
         */}
         <div
           className={`relative flex h-[76px] items-center justify-between transition-[translate] duration-500 motion-reduce:transition-none ${
-            isOpen ? "translate-y-[37px]" : scrolled ? "translate-y-0" : "translate-y-[44px]"
+            compacto ? "translate-y-0" : "translate-y-[44px]"
           }`}
         >
           {/* Logo: horizontally centred on mobile (absolute, out of flow), and
@@ -729,17 +320,15 @@ export default function Navbar() {
                 TODAS as páginas — passa a significar um segundo pedido ao PNG
                 original. */}
             {/* DOIS logótipos, e não um a crescer (auditoria externa, A2).
-                O de repouso tem as alturas de sempre (128/148, ou 104/120 com
-                o menu aberto) e por isso desenha-se exactamente como antes —
+                O de repouso tem as alturas de sempre (também com o menu
+                aberto) e por isso desenha-se exactamente como antes —
                 incluindo o tecto que o `max-width: 100%` lhe põe num telemóvel
                 estreito, onde ele fica a ~171 px de largura e não a 214. Um
                 `scale` não consegue imitar esse tecto, que depende da largura
                 do ecrã. O compacto tem as alturas da barra descida (52/58).
                 Ao descer, um esbate-se e encolhe e o outro aparece — só
                 `opacity` e `scale`; os estados de chegada são os de sempre.
-                O de abrir o menu continua a ser uma troca de altura, mas sem
-                transição: acontece uma vez, num toque, e não a cada fotograma
-                de scroll. */}
+                Abrir o menu já não troca de altura nenhuma. */}
             {/* RECORTADOS (29/10). O `logo-liquen.png` tem ~40 % de margem
                 vazia à volta (3747×2238, e o desenho ocupa 2146×1084): a
                 barra descida, com 58 px de altura de imagem, mostrava uma
@@ -762,9 +351,7 @@ export default function Navbar() {
               // o MESMO `sizes`, para pedirem o mesmo ficheiro.
               sizes="(min-width: 640px) 142px, 122px"
               priority
-              className={`object-contain w-auto lg:origin-left transition-[opacity,scale] duration-500 motion-reduce:transition-none ${
-                isOpen ? "h-[50px] sm:h-[58px]" : "h-[62px] sm:h-[72px]"
-              } ${compacto ? "opacity-0 scale-[calc(40/62)] sm:scale-[calc(44/72)]" : "opacity-100 scale-100"}`}
+              className={`object-contain w-auto h-[62px] max-[359px]:h-[48px] sm:h-[72px] lg:origin-left transition-[opacity,scale] duration-500 motion-reduce:transition-none ${compacto ? "opacity-0 scale-[calc(40/62)] sm:scale-[calc(44/72)]" : "opacity-100 scale-100"}`}
             />
             <SafeImage
               src="/logo-liquen-recortado.png"
@@ -803,7 +390,7 @@ export default function Navbar() {
           <div
             className={`lg:hidden relative z-10 flex items-center pointer-coarse:-ml-3.5 ${aoNivelDaPalavra}`}
           >
-            {!isOpen && <LanguageToggle light={light} />}
+            <LanguageToggle light={light} />
           </div>
 
           <div
@@ -917,7 +504,7 @@ export default function Navbar() {
         </div>
       </div>
 
-      <MobileMenu
+      <MenuDoTelemovel
         isOpen={isOpen}
         pathname={pathname}
         locale={locale}

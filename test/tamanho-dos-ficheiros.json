@@ -110,7 +110,7 @@
   "src/app/api/temas/[id]/imagens/route.ts": 543,
   "src/components/CampoTelefone.tsx": 777,
   "src/components/EntradaEmVideo.tsx": 2102,
-  "src/components/Navbar.tsx": 930,
+  "src/components/Navbar.tsx": 517,
   "src/components/SafeImage.tsx": 720,
   "src/components/ads/PedidoRapido.tsx": 512,
   "src/components/meta/PedidoRelampago.tsx": 583,

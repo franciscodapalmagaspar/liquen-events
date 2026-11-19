@@ -71,8 +71,9 @@ describe("a pré-carga do menu do telemóvel", () => {
   it("com o menu FECHADO, nenhum destino do painel pré-carrega", () => {
     const painel = montar();
     const links = destinosDoMenu(painel);
-    // Controlo positivo: os sete destinos estão mesmo montados (só invisíveis).
-    expect(links.length).toBe(7);
+    // Controlo positivo: os cinco destinos estão mesmo montados (só invisíveis).
+    // Eram sete até 19/11: os dois cartões de serviços saíram com o menu «Capa».
+    expect(links.length).toBe(5);
     for (const a of links) expect(a.dataset.prefetch, a.getAttribute("href")!).toBe("false");
   });
 
