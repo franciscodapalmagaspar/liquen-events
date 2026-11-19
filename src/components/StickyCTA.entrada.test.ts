@@ -29,7 +29,7 @@ describe("o «Pedir proposta» do canto e a chamada final da página", () => {
         join(process.cwd(), `src/app/[lang]/(site)/${pagina}/page.tsx`),
         "utf8",
       );
-      expect(p, pagina).toContain("<section data-chamada-final");
+      expect(p, pagina).toMatch(/<section\s+data-chamada-final\b/);
     }
   });
 });
