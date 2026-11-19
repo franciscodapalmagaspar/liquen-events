@@ -7,6 +7,7 @@ import {
 } from "@/lib/proposal-budget";
 import { opcionaisDe, totalDaVersaoAceite, type VersaoEscolhida } from "./versoes-da-proposta";
 import { eur, round2, splitSinal } from "@/lib/money";
+import type { ParteDaFatura } from "./partes-da-fatura";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -661,9 +662,11 @@ export type FaseDaFatura = "sinal" | "saldo";
  */
 export function parcelasDaFatura(
   f: Pick<Faturacao, "base" | "artigos">,
-  fase: FaseDaFatura,
+  fase: ParteDaFatura,
   pct: number,
 ): ParcelaDoArtigo[] {
+  // O total é cada artigo por inteiro: as parcelas do sinal e do saldo somam-no.
+  if (fase === "total") return f.artigos.map((a) => ({ ...a })).filter((p) => p.valor !== 0);
   const sinal = round2((f.base * pct) / 100);
   const alvo = fase === "sinal" ? sinal : round2(f.base - sinal);
   if (f.artigos.length === 0) return [];
@@ -701,49 +704,12 @@ export function totalComIvaNoMoloni(partes: readonly ParcelaDoArtigo[], vatRate:
  */
 export function conferenciaDoMoloni(
   f: Pick<Faturacao, "base" | "bruto" | "artigos" | "vatRate">,
-  fase: FaseDaFatura,
+  fase: ParteDaFatura,
   pct: number,
 ): { noMoloni: number; naProposta: number; diferenca: number } {
   const noMoloni = totalComIvaNoMoloni(parcelasDaFatura(f, fase, pct), f.vatRate);
-  const naProposta = splitSinal(f.bruto, pct)[fase];
+  const naProposta = fase === "total" ? round2(f.bruto) : splitSinal(f.bruto, pct)[fase];
   return { noMoloni, naProposta, diferenca: round2(noMoloni - naProposta) };
-}
-
-/**
- * Euros para COLAR no Moloni: sem separador de milhares (um espaço inquebrável
- * no meio do número pode não ser aceite no campo do preço). Só este texto.
- */
-const eurParaColar = (n: number): string =>
-  new Intl.NumberFormat("pt-PT", {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-    useGrouping: false,
-  }).format(n || 0);
-
-/** O texto a copiar para o Moloni à mão, quando a ligação não está feita. */
-export function textoDaFatura(
-  partes: ParcelaDoArtigo[],
-  fase: FaseDaFatura,
-  pct: number,
-  vatRate: number,
-  cliente?: { nome?: string; nif?: string },
-): string {
-  const titulo = fase === "sinal" ? `Sinal (${pct}%)` : `Saldo (${100 - pct}%)`;
-  const total = round2(partes.reduce((s, p) => s + p.valor, 0));
-  const nome = cliente?.nome?.trim();
-  const nif = cliente?.nif?.replace(/\s/g, "");
-  const quem = [nome, nif ? `NIF ${nif}` : ""].filter(Boolean).join(" · ");
-  return [
-    ...(quem ? [`Cliente: ${quem}`] : []),
-    `${titulo} — valores sem IVA (IVA ${Math.round(vatRate * 100)}%):`,
-    ...partes.map((p) => `${refDoArtigo(p.artigo)} · ${p.nome}: ${eurParaColar(p.valor)}`),
-    `Total sem IVA: ${eurParaColar(total)}`,
-    // Para conferir no Moloni de um relance (ele calcula o IVA linha a linha:
-    // pode diferir 1 cêntimo).
-    `Total com IVA: ${eurParaColar(totalComIvaNoMoloni(partes, vatRate))}`,
-  ].join("\n");
 }
 
 /**

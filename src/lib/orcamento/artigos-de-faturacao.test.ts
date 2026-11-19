@@ -18,10 +18,11 @@ import {
   sugerirArtigoDaLinha,
   trazerServicosParaOOrcamento,
   sugestaoDeReparto,
-  textoDaFatura,
   valorParaColar,
   type DocParaFaturar,
 } from "./artigos-de-faturacao";
+import { conferenciaDoMoloni } from "./artigos-de-faturacao";
+import { rotuloDaParte, textoDaFatura } from "./partes-da-fatura";
 
 /**
  * Como as propostas ACEITES estão de facto (medido a 5/11, só leitura): sem
@@ -632,5 +633,43 @@ describe("faturacaoPorArtigo — o cêntimo só vem dos «IVA incluído»", () =
     const f = faturacaoPorArtigo(d);
     expect(f.fecha).toBe(false);
     expect(f.porqueNaoFecha[0]).toMatch(/As linhas somam 5\s?000,00\s€: 0,02\s€ a menos/);
+  });
+});
+
+describe("o Total (100%) — para copiar ou mandar por WhatsApp (19/11)", () => {
+  const f = {
+    base: 1000,
+    bruto: 1230,
+    vatRate: 0.23,
+    artigos: [
+      { artigo: "decoracao", nome: "Decoração", valor: 700 },
+      { artigo: "flores", nome: "Flores", valor: 300 },
+    ],
+  } as unknown as Parameters<typeof parcelasDaFatura>[0] & { bruto: number; vatRate: number };
+
+  it("são os artigos por inteiro, e somam o sinal mais o saldo ao cêntimo", () => {
+    const total = parcelasDaFatura(f, "total", 30);
+    expect(total.map((p) => p.valor)).toEqual([700, 300]);
+    for (const pct of [30, 33, 50]) {
+      const soma = (fase: "sinal" | "saldo") =>
+        parcelasDaFatura(f, fase, pct).reduce((s, p) => s + Math.round(p.valor * 100), 0);
+      expect(soma("sinal") + soma("saldo")).toBe(100000);
+    }
+  });
+
+  it("o texto diz «Total (100%)» e o rótulo «Total 100%»", () => {
+    const t = textoDaFatura(parcelasDaFatura(f, "total", 30), "total", 30, 0.23);
+    expect(t).toContain("Total (100%)");
+    expect(t).toContain("Total sem IVA: 1000,00");
+    expect(rotuloDaParte("total", 30)).toBe("Total 100%");
+    expect(rotuloDaParte("sinal", 30)).toBe("Sinal 30%");
+    expect(rotuloDaParte("saldo", 30)).toBe("Saldo 70%");
+  });
+
+  it("a conferência do total compara com o bruto da proposta", () => {
+    const c = conferenciaDoMoloni(f, "total", 30);
+    expect(c.naProposta).toBe(1230);
+    expect(c.noMoloni).toBe(1230);
+    expect(c.diferenca).toBe(0);
   });
 });
