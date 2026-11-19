@@ -405,7 +405,13 @@ export function VistaDeHoras({
     if (!coluna) return;
     const r = coluna.getBoundingClientRect();
     const c = caixa.getBoundingClientRect();
-    if (r.right <= c.right && r.left >= c.left + LARGURA_DAS_HORAS) return;
+    // «Já se vê» só dispensa o salto com a caixa no início. Se já se rolou (por
+    // este mesmo efeito, antes de as colunas alargarem para dias inteiros),
+    // volta a encostar-se ao início de um dia: a quinta aparecia inteira mas
+    // com a quarta cortada a meio à esquerda (medido a 19/11, 288 px de rolo
+    // para colunas que passaram de 96 a 102,7).
+    const seVe = r.right <= c.right && r.left >= c.left + LARGURA_DAS_HORAS;
+    if (seVe && caixa.scrollLeft === 0) return;
     caixa.scrollLeft = inicioDoDiaAVista(caixa, coluna);
     // A largura útil entra porque as colunas só ficam certas depois de ela se
     // medir (e voltam a mudar ao rodar o telemóvel); não muda a ler.
