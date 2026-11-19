@@ -46,6 +46,8 @@ export const HERO_SOURCES = new Set([
   "/imagens/hd-edited.jpg",
   "/imagens/EW1_1330.jpg",
   "/imagens/DaniGui_Preview20.jpg",
+  // O fundo do menu do telemóvel (MenuDoTelemovel), a ecrã inteiro.
+  "/imagens/galeria-outubro-52.jpg",
   // A faixa das celebrações em /servicos (era a mesma fotografia da capa da galeria).
   "/imagens/galeria-jun26-16.jpg",
   "/imagens/DJI_20250913190635_0120_D.jpg",

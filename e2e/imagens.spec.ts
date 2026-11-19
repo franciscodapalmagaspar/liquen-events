@@ -22,8 +22,9 @@ import { imagensEmFalta, paginasPublicas, relatorio, varrerPagina } from "./imag
  * ficheiros que o computador nunca pede e vice-versa. Um pode faltar sem o outro
  * faltar.
  *
- * PORQUÊ O MENU ABERTO. As miniaturas dos serviços em destaque só são montadas
- * quando o menu abre (`{isOpen && <SafeImage …/>}` em src/components/Navbar.tsx).
+ * PORQUÊ O MENU ABERTO. A fotografia do menu só é montada quando ele abre pela
+ * primeira vez (`jaAbriu` em src/components/menu/MenuDoTelemovel.tsx; até 19/11
+ * eram as miniaturas dos serviços em destaque).
  * É uma delas que aparece partida na captura de ecrã da dona do site, e nenhuma
  * página fechada as veria alguma vez. A verificação vive dentro do caso de
  * telemóvel (o botão é `lg:hidden`) porque é um clique numa página que já está
@@ -281,7 +282,7 @@ async function abrirMenuEColherFalhas(page: Page) {
   const menu = page.locator(seletorMenu);
   await expect(menu).toBeVisible(espera);
 
-  // Guarda: se as miniaturas deixarem de ser montadas, isto tem de dar por ela
+  // Guarda: se a fotografia do menu deixar de ser montada, isto tem de dar por ela
   // em vez de passar a verde por não ter nada para verificar.
   const miniaturas = menu.locator("img");
   await expect(miniaturas.first()).toBeAttached(espera);

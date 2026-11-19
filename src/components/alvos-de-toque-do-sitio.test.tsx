@@ -137,9 +137,9 @@ function descrever(el: Element): string {
 
 /**
  * Terceira dispensa, e só existe do lado do DOM: UM LINK CUJA ALTURA VEM DE
- * DENTRO. O logótipo do cabeçalho mede 128 px porque a marca mede 128 px; os
- * dois cartões de serviço do menu medem 81 px porque a miniatura lá dentro é
- * `h-14`. Em nenhum dos dois o texto manda na caixa, e pôr-lhes `alvo-toque`
+ * DENTRO. O logótipo do cabeçalho mede 128 px porque a marca mede 128 px (os
+ * dois cartões de serviço do menu, que mediam 81 px pela miniatura `h-14`,
+ * saíram a 19/11). Em nenhum o texto manda na caixa, e pôr-lhes `alvo-toque`
  * não acrescentava um pixel.
  *
  * Vale para `<img>` e não para `<svg>`, de propósito: os três ícones de redes
