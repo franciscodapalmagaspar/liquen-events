@@ -77,6 +77,19 @@
       "galeria-outubro-52-2048.avif": 102525
     }
   },
+  "galeria-jun26-16": {
+    "carimbo": "l:640,1080,1536,2048|webp:q75e6|avif:q46e4|f8f993a0ceff5015",
+    "ficheiros": {
+      "galeria-jun26-16-640.webp": 35824,
+      "galeria-jun26-16-640.avif": 19160,
+      "galeria-jun26-16-1080.webp": 69252,
+      "galeria-jun26-16-1080.avif": 37436,
+      "galeria-jun26-16-1536.webp": 107616,
+      "galeria-jun26-16-1536.avif": 58430,
+      "galeria-jun26-16-2048.webp": 148558,
+      "galeria-jun26-16-2048.avif": 82483
+    }
+  },
   "DJI_20250913190635_0120_D": {
     "carimbo": "l:640,1080,1536,2048|webp:q75e6|avif:q46e4|fe79b87baa114812",
     "ficheiros": {

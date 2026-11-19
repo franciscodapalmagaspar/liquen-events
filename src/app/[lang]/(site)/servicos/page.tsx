@@ -71,7 +71,7 @@ const categoryMeta = [
     id: "celebracoes",
     num: "01",
     layout: "mosaic-left" as const,
-    band: "/imagens/DaniGui_Preview20.jpg",
+    band: "/imagens/galeria-jun26-16.jpg",
     services: [
       // As caras dos noivos estão a ~25 % da altura; a faixa larga cortava-as
       // pelo centro (ela, 28/10: «vamos colocar os noivos a verem-se»).
@@ -348,11 +348,11 @@ export default async function ServicosPage({ params }: { params: Promise<{ lang:
 
       {/* ── CTA — full-screen closing panel ── */}
       <section
+        data-chamada-final
         // O `py-28 lg:py-40` mudou-se daqui para o bloco de conteúdo. O
         // `contain-intrinsic-size` é o tamanho da caixa de CONTEÚDO: com o
         // padding aqui, o painel saltado media 560+224 px e o desenhado 560 px,
-        // e a página encolhia 224 px ao passar por ele. O conteúdo continua
-        // centrado na secção, por isso o aspecto é o mesmo.
+        // e a página encolhia 224 px ao passar por ele (o aspecto é o mesmo).
         className="cv-panel relative overflow-hidden flex items-center [--cv-h:clamp(560px,90vh,900px)]"
       >
         <SafeImage

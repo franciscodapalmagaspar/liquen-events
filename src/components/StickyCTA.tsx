@@ -32,7 +32,10 @@ export default function StickyCTA() {
   // Na galeria também não (ela, 2/11): «quando se está a ver a galeria não é
   // muito bom estar a aparecer isso». Quem está a ver fotografias não precisa
   // de um botão por cima delas; o do fim da página e o do menu chegam.
+  // Nem na página inicial (ele, 18/11): ao descer na entrada, o «Pedir
+  // proposta» do canto sai — a entrada já o tem logo no primeiro ecrã.
   const hidden =
+    pathname === "/" ||
     pathname.startsWith("/orcamento") ||
     pathname.startsWith("/contacto") ||
     esconderNaGaleria(pathname);
@@ -67,17 +70,27 @@ export default function StickyCTA() {
   // copyright / footer links.
   useEffect(() => {
     if (!mounted) return;
-    const footer = document.querySelector("footer");
-    if (!footer) return;
-    const io = new IntersectionObserver(([entry]) => setAtFooter(entry.isIntersecting), {
-      rootMargin: "0px 0px -40px 0px",
-    });
-    io.observe(footer);
+    // E também quando a chamada final da página (`data-chamada-final`, com o
+    // seu próprio «Pedir proposta») está no ecrã: os dois botões ficavam um
+    // por cima do outro no telemóvel (captura do dono, 18/11).
+    const alvos = [...document.querySelectorAll<HTMLElement>("footer, [data-chamada-final]")];
+    if (alvos.length === 0) return;
+    const aVista = new Set<Element>();
+    const io = new IntersectionObserver(
+      (entradas) => {
+        for (const e of entradas) {
+          if (e.isIntersecting) aVista.add(e.target);
+          else aVista.delete(e.target);
+        }
+        setAtFooter(aVista.size > 0);
+      },
+      { rootMargin: "0px 0px -40px 0px" },
+    );
+    for (const alvo of alvos) io.observe(alvo);
     return () => io.disconnect();
-    // The <footer> lives in the persistent root layout, so it's the same node on
-    // every route — observe it once when we mount idly, not tear-down/recreate
-    // the observer on each client-side navigation.
-  }, [mounted]);
+    // A chamada final muda de página para página: volta a procurar-se a cada
+    // navegação (o rodapé é o mesmo nó, mas é barato voltar a observá-lo).
+  }, [mounted, pathname]);
 
   if (hidden || !mounted) return null;
 
@@ -154,7 +167,7 @@ export default function StickyCTA() {
         onClick={() => track("CTAClick", { source: "sticky" })}
         className="toque alvo-toque group flex items-center gap-2 sm:gap-3 px-4 py-2.5 sm:px-6 sm:py-3 bg-black/20 border border-white shadow-[0_12px_40px_-12px_rgba(0,0,0,0.45)] hover:bg-white hover:border-white transition-colors duration-300 ease-expo"
       >
-        <span className="text-miuda tracking-[0.18em] sm:tracking-[0.28em] uppercase text-white group-hover:text-sage-800 transition-colors duration-300 ease-expo">
+        <span className="text-chamada tracking-[0.18em] sm:tracking-[0.28em] uppercase text-white group-hover:text-sage-800 transition-colors duration-300 ease-expo">
           {t.footer.pedirOrcamento}
         </span>
         <span

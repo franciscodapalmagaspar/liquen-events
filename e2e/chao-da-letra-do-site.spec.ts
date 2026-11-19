@@ -56,6 +56,10 @@ async function letraAbaixoDoChao(page: Page) {
       if (!proprio) continue;
       const r = el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) continue;
+      // A exceção pedida pelo dono a 18/11: as três chamadas em maiúsculas
+      // («Pedir proposta» e «Ver galeria» na entrada, e o que flutua ao
+      // descer) voltam ao tamanho de antes. Presas pelo teste de contrato.
+      if (el.closest('[class*="text-chamada"]')) continue;
       const px = parseFloat(getComputedStyle(el).fontSize);
       if (px >= chao) continue;
       fora.push({
