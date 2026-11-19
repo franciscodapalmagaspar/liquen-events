@@ -352,8 +352,7 @@ export default async function ServicosPage({ params }: { params: Promise<{ lang:
         // O `py-28 lg:py-40` mudou-se daqui para o bloco de conteúdo. O
         // `contain-intrinsic-size` é o tamanho da caixa de CONTEÚDO: com o
         // padding aqui, o painel saltado media 560+224 px e o desenhado 560 px,
-        // e a página encolhia 224 px ao passar por ele. O conteúdo continua
-        // centrado na secção, por isso o aspecto é o mesmo.
+        // e a página encolhia 224 px ao passar por ele (o aspecto é o mesmo).
         className="cv-panel relative overflow-hidden flex items-center [--cv-h:clamp(560px,90vh,900px)]"
       >
         <SafeImage
