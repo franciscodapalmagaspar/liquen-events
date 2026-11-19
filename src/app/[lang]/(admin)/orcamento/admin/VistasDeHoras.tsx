@@ -394,9 +394,9 @@ export function VistaDeHoras({
    * No telemóvel a semana rola de lado (48 + 7×96 px numa caixa de 343) e
    * abria sempre na segunda: numa sexta, o evento de HOJE ficava três colunas
    * fora do ecrã, sem nada a dizer que havia mais. Se hoje está nesta semana e
-   * a coluna dele não cabe à vista, a caixa abre com ela encostada às horas.
-   * Só ao trocar de semana, pela mesma razão do salto vertical: uma caixa que
-   * se mexe sozinha a meio de uma leitura tira-a do sítio.
+   * a coluna dele não cabe à vista, a caixa abre com ela encostada às horas
+   * (e, já rolada antes de as colunas alargarem, volta ao início de um dia —
+   * a quarta aparecia cortada às quintas, 19/11). Só ao trocar de semana.
    */
   useLayoutEffect(() => {
     const caixa = caixaRef.current;
@@ -405,16 +405,10 @@ export function VistaDeHoras({
     if (!coluna) return;
     const r = coluna.getBoundingClientRect();
     const c = caixa.getBoundingClientRect();
-    // «Já se vê» só dispensa o salto com a caixa no início. Se já se rolou (por
-    // este mesmo efeito, antes de as colunas alargarem para dias inteiros),
-    // volta a encostar-se ao início de um dia: a quinta aparecia inteira mas
-    // com a quarta cortada a meio à esquerda (medido a 19/11, 288 px de rolo
-    // para colunas que passaram de 96 a 102,7).
     const seVe = r.right <= c.right && r.left >= c.left + LARGURA_DAS_HORAS;
     if (seVe && caixa.scrollLeft === 0) return;
     caixa.scrollLeft = inicioDoDiaAVista(caixa, coluna);
-    // A largura útil entra porque as colunas só ficam certas depois de ela se
-    // medir (e voltam a mudar ao rodar o telemóvel); não muda a ler.
+    // A largura útil entra: as colunas só ficam certas depois de ela se medir.
   }, [chaveDosDias, hoje, larguraUtil]);
 
   return (
