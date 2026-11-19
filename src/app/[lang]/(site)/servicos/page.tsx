@@ -71,7 +71,7 @@ const categoryMeta = [
     id: "celebracoes",
     num: "01",
     layout: "mosaic-left" as const,
-    band: "/imagens/DaniGui_Preview20.jpg",
+    band: "/imagens/stephanie-mizio-834-1.jpg",
     services: [
       // As caras dos noivos estão a ~25 % da altura; a faixa larga cortava-as
       // pelo centro (ela, 28/10: «vamos colocar os noivos a verem-se»).

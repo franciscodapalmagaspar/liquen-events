@@ -51,7 +51,7 @@ const eyebrow = "text-foreground/68 text-miuda tracking-[0.48em] uppercase flex 
 // Agora há um teste que MEDE os ficheiros (mosaico.paisagem.test.ts).
 const MOSAIC_POOL = [
   "/imagens/PJ-5396.jpg",
-  "/imagens/DaniGui_Preview20.jpg",
+  "/imagens/stephanie-mizio-555-1.jpg",
   "/imagens/stephanie-mizio-523.jpg",
   "/imagens/stephanie-mizio-558.jpg",
   "/imagens/M&F0512.jpg",

@@ -47,7 +47,7 @@ export const SERVICES: ServiceDetail[] = [
       "Coordenação no dia",
     ],
     gallery: [
-      "/imagens/DaniGui_Preview20.jpg",
+      "/imagens/stephanie-mizio-589.jpg",
       "/imagens/matilde-tomas-27.jpg",
       "/imagens/JOAO_E_PEDRO_IMGL4226.jpg",
       "/imagens/ines-goncalo-421.jpg",
@@ -96,7 +96,7 @@ export const SERVICES: ServiceDetail[] = [
       "/imagens/ines-goncalo-421.jpg",
       "/imagens/JOAO_E_PEDRO_IMGL4226.jpg",
       "/imagens/matilde-tomas-27.jpg",
-      "/imagens/DaniGui_Preview20.jpg",
+      "/imagens/teresinhaeze-918.jpg",
     ],
     faqs: [
       {

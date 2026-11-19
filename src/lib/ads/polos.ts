@@ -268,7 +268,7 @@ export const POLOS: Polo[] = [
     ],
     hero: "/imagens/teresinhaeze-1434.jpg",
     fotos: [
-      "/imagens/DaniGui_Preview20.jpg",
+      "/imagens/teresinhaeze-923.jpg",
       "/imagens/EW1_0362.jpg",
       "/imagens/EW1_0576.jpg",
       "/imagens/EW1_0688.jpg",
