@@ -25,12 +25,17 @@ export function useArmadilhaDoFoco(aberto: boolean, fechar: () => void) {
   useEffect(() => {
     if (!aberto) return;
     const painel = painelRef.current;
+    // O `Tab` dá a volta pela BARRA também (idiomas, logótipo, «fechar»), que
+    // fica à vista por cima do painel: com o menu aberto o «PT / EN» é tocável
+    // e tem de ser alcançável por teclado (revisão de 19/11). Só o que se vê:
+    // os links do computador existem no DOM mas estão escondidos.
+    const ambito = painel?.closest<HTMLElement>("[data-public-nav]") ?? painel;
     const focaveis = () =>
       Array.from(
-        painel?.querySelectorAll<HTMLElement>(
+        ambito?.querySelectorAll<HTMLElement>(
           'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
         ) ?? [],
-      );
+      ).filter((el) => el.getClientRects().length > 0);
 
     let raf2 = 0;
     const raf1 = requestAnimationFrame(() => {

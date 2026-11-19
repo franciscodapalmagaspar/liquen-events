@@ -351,7 +351,7 @@ export default function Navbar() {
               // o MESMO `sizes`, para pedirem o mesmo ficheiro.
               sizes="(min-width: 640px) 142px, 122px"
               priority
-              className={`object-contain w-auto h-[62px] max-[359px]:h-[48px] sm:h-[72px] lg:origin-left transition-[opacity,scale] duration-500 motion-reduce:transition-none ${compacto ? "opacity-0 scale-[calc(40/62)] sm:scale-[calc(44/72)]" : "opacity-100 scale-100"}`}
+              className={`object-contain w-auto h-[62px] max-[359px]:h-[48px] sm:h-[72px] lg:origin-left transition-[opacity,scale] duration-500 motion-reduce:transition-none ${compacto ? "opacity-0 scale-[calc(40/62)] max-[359px]:scale-[calc(40/48)] sm:scale-[calc(44/72)]" : "opacity-100 scale-100"}`}
             />
             <SafeImage
               src="/logo-liquen-recortado.png"
@@ -363,13 +363,13 @@ export default function Navbar() {
               className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 lg:left-0 lg:translate-x-0 lg:origin-left object-contain w-auto max-w-none h-[40px] sm:h-[44px] transition-[opacity,scale] duration-500 motion-reduce:transition-none ${
                 compacto
                   ? "opacity-100 scale-100"
-                  : "opacity-0 scale-[calc(62/40)] sm:scale-[calc(72/44)]"
+                  : "opacity-0 scale-[calc(62/40)] max-[359px]:scale-[calc(48/40)] sm:scale-[calc(72/44)]"
               }`}
             />
           </Link>
 
           {/* Mobile: language toggle on the LEFT, balancing the centred logo
-              (hidden while the menu is open — the overlay carries its own).
+              (também com o menu aberto, desde 19/11: a barra fica como em repouso).
 
               `relative z-10`: o logótipo é `absolute` e por isso pinta POR
               CIMA de tudo o que está no fluxo — incluindo este selector. E o

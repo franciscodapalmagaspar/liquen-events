@@ -108,7 +108,10 @@ const MenuDoTelemovel = memo(function MenuDoTelemovel({
       // Recebe o foco à abertura, só por programa (ver `useArmadilhaDoFoco`).
       tabIndex={-1}
       role="dialog"
-      aria-modal={isOpen}
+      // Não modal para os leitores de ecrã: a barra (idiomas, «fechar») fica à
+      // vista por cima do painel e tem de ser alcançável; o foco fica preso ao
+      // menu e à barra pela armadilha do `Tab` (`useArmadilhaDoFoco`).
+      aria-modal={false}
       aria-label={t.nav.menuLabel}
       aria-hidden={!isOpen}
       // `100dvh`: a altura VISÍVEL, para o fim do painel não ficar por trás da
@@ -130,10 +133,14 @@ const MenuDoTelemovel = memo(function MenuDoTelemovel({
       <div aria-hidden className="absolute inset-0" style={{ backgroundImage: VEU }} />
 
       {/* A lista encosta ao fundo; num ecrã baixo (telemóvel deitado) o painel
-          rola por dentro em vez de cortar. `pt` limpa a barra do logótipo. */}
-      <div className="relative flex-1 min-h-0 overflow-y-auto overscroll-contain">
+          rola por dentro em vez de cortar. A área que rola COMEÇA abaixo da
+          barra (e não por baixo dela com `pt`): a barra é transparente, e ao
+          rolar os links passavam por trás do logótipo — e um toque nessa faixa
+          caía no logótipo e ia para a entrada (revisão de 19/11). O esbatido
+          dos primeiros 24 px faz a lista sumir em vez de ser cortada a direito. */}
+      <div className="relative flex-1 min-h-0 mt-[calc(150px+env(safe-area-inset-top))] overflow-y-auto overscroll-contain [mask-image:linear-gradient(to_bottom,transparent,black_24px)]">
         <div
-          className="min-h-full flex flex-col justify-end px-8 pt-[calc(150px+env(safe-area-inset-top))]"
+          className="min-h-full flex flex-col justify-end pt-6 pl-[calc(2rem+env(safe-area-inset-left))] pr-[calc(2rem+env(safe-area-inset-right))]"
           style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom))" }}
         >
           <nav aria-label={t.nav.menuLabel}>
