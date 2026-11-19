@@ -46,6 +46,8 @@ export const HERO_SOURCES = new Set([
   "/imagens/hd-edited.jpg",
   "/imagens/EW1_1330.jpg",
   "/imagens/DaniGui_Preview20.jpg",
+  // A faixa das celebrações em /servicos (era a mesma fotografia da capa da galeria).
+  "/imagens/galeria-jun26-16.jpg",
   "/imagens/DJI_20250913190635_0120_D.jpg",
   "/imagens/EW1_1393.jpg",
   // Fundos de secção, faixas e capas de serviço, todos a `sizes="100vw"`.

@@ -119,7 +119,11 @@ describe("escolher várias", () => {
     montar();
     await screen.findByText(A.title);
     fireEvent.keyDown(document.body, { key: "a", metaKey: true });
-    expect(within(barra()!).getByText("3 selecionadas")).toBeTruthy();
+    expect(
+      await within(
+        await screen.findByRole("toolbar", { name: "Ações nas tarefas selecionadas" }),
+      ).findByText("3 selecionadas"),
+    ).toBeTruthy();
     fireEvent.keyDown(document.body, { key: "Escape" });
     expect(barra()).toBeNull();
   });
@@ -296,7 +300,11 @@ describe("revisão · 6 — «Adiar uma semana» deixa as concluídas de fora", 
       await screen.findByRole("button", { name: /Concluídas \(1\)/ }, { timeout: 4000 }),
     );
     fireEvent.keyDown(document.body, { key: "a", metaKey: true });
-    expect(within(barra()!).getByText("3 selecionadas")).toBeTruthy();
+    expect(
+      await within(
+        await screen.findByRole("toolbar", { name: "Ações nas tarefas selecionadas" }),
+      ).findByText("3 selecionadas"),
+    ).toBeTruthy();
     fireEvent.click(within(barra()!).getByRole("button", { name: "Adiar uma semana" }));
     await waitFor(() => expect(escritas).toHaveLength(2));
     expect(escritas.some((e) => e.url.endsWith("t3"))).toBe(false);
@@ -328,7 +336,9 @@ describe("2.ª revisão · 10 — adiar com uma falha: as que ficaram têm «Anu
     montar();
     await screen.findByText(A.title);
     fireEvent.keyDown(document.body, { key: "a", metaKey: true });
-    fireEvent.click(within(barra()!).getByRole("button", { name: "Adiar uma semana" }));
+    // A barra desenha-se um ciclo depois do ⌘A (o mesmo de `escolherTodas`).
+    const lote = await screen.findByRole("toolbar", { name: "Ações nas tarefas selecionadas" });
+    fireEvent.click(within(lote).getByRole("button", { name: "Adiar uma semana" }));
     expect(await screen.findByText(/2 adiada\(s\), 1 não/)).toBeTruthy();
     escritas = [];
     falhar = () => false;

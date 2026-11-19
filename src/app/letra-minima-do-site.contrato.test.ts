@@ -169,4 +169,17 @@ describe("a letra mínima do site público", () => {
       expect(abaixoDoChaoNoTexto(bom, "amostra"), bom).toEqual([]);
     }
   });
+  it("a única exceção ao chão são as três chamadas que o dono pediu mais pequenas (18/11)", () => {
+    const tema = readFileSync(join(RAIZ, "src/app/tema.css"), "utf8");
+    expect(tema).toContain("--text-chamada-telemovel: 0.5625rem;");
+    expect(tema).toContain("--text-chamada: 0.625rem;");
+    const usam = FICHEIROS.filter((f) =>
+      /text-chamada/.test(semComentarios(readFileSync(join(RAIZ, f), "utf8"))),
+    ).filter((f) => f !== "src/app/tema.css");
+    expect(usam.sort()).toEqual(
+      ["src/app/[lang]/(site)/page.tsx", "src/components/StickyCTA.tsx"].sort(),
+    );
+    const entrada = readFileSync(join(RAIZ, "src/app/[lang]/(site)/page.tsx"), "utf8");
+    expect(entrada.match(/text-chamada-telemovel sm:text-chamada/g)?.length).toBe(2);
+  });
 });

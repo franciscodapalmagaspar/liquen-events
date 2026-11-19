@@ -273,7 +273,7 @@ export default async function SobrePage({ params }: { params: Promise<{ lang: st
       </section>
 
       {/* ── CTA ── */}
-      <section className="relative py-32 lg:py-52 overflow-hidden">
+      <section data-chamada-final className="relative py-32 lg:py-52 overflow-hidden">
         <SafeImage
           src="/imagens/DaniGui_Adois_61.jpg"
           alt={t.common.imageAlt.sobreOutdoor}

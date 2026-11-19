@@ -28,7 +28,7 @@ import RevealText from "@/components/motion/RevealText";
 const FOTO_DA_ENTRADA = "/imagens/entrada-floresta-clara.jpg";
 
 const serviceLinks = [
-  { image: "/imagens/DaniGui_Preview20.jpg", href: "/servicos/casamentos" },
+  { image: "/imagens/galeria-outubro-37.jpg", href: "/servicos/casamentos" },
   { image: "/imagens/EW1_1332.jpg", href: "/servicos/eventos-corporativos" },
   { image: "/imagens/DaniGui_JantarFesta_26.jpg", href: "/servicos" },
 ];
@@ -174,7 +174,7 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
                   <TrackedLink
                     href={localizeHref("/orcamento", locale)}
                     trackProps={{ source: "home-hero" }}
-                    className="alvo-toque group inline-flex items-center text-white text-miuda tracking-[0.28em] uppercase py-2 sm:pb-1 sm:py-0 sm:pointer-fine:pt-1 sm:pointer-fine:-mt-1 transition-colors hover:text-white"
+                    className="alvo-toque group inline-flex items-center text-white text-chamada-telemovel sm:text-chamada tracking-[0.28em] uppercase py-2 sm:pb-1 sm:py-0 sm:pointer-fine:pt-1 sm:pointer-fine:-mt-1 transition-colors hover:text-white"
                   >
                     <span className="inline-flex items-center gap-1.5 border-b border-white/60 transition-colors group-hover:border-white">
                       {t.common.pedirOrcamento} <span aria-hidden>→</span>
@@ -182,7 +182,7 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
                   </TrackedLink>
                   <Link
                     href={localizeHref("/galeria", locale)}
-                    className="alvo-toque group inline-flex items-center text-white/85 text-miuda tracking-[0.28em] uppercase py-2 sm:pb-1 sm:py-0 sm:pointer-fine:pt-1 sm:pointer-fine:-mt-1 transition-colors hover:text-white"
+                    className="alvo-toque group inline-flex items-center text-white/85 text-chamada-telemovel sm:text-chamada tracking-[0.28em] uppercase py-2 sm:pb-1 sm:py-0 sm:pointer-fine:pt-1 sm:pointer-fine:-mt-1 transition-colors hover:text-white"
                   >
                     <span className="inline-flex items-center gap-1.5 border-b border-white/30 transition-colors group-hover:border-white">
                       {t.common.verGaleria} <span aria-hidden>→</span>
