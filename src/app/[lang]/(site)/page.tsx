@@ -28,7 +28,7 @@ import RevealText from "@/components/motion/RevealText";
 const FOTO_DA_ENTRADA = "/imagens/entrada-floresta-clara.jpg";
 
 const serviceLinks = [
-  { image: "/imagens/teresinhaeze-905.jpg", href: "/servicos/casamentos" },
+  { image: "/imagens/galeria-outubro-37.jpg", href: "/servicos/casamentos" },
   { image: "/imagens/EW1_1332.jpg", href: "/servicos/eventos-corporativos" },
   { image: "/imagens/DaniGui_JantarFesta_26.jpg", href: "/servicos" },
 ];

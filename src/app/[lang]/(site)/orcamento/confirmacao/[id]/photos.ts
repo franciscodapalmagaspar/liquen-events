@@ -12,7 +12,7 @@
  */
 export const CONFIRMACAO_PHOTOS = {
   hero: "/imagens/DaniGui_JantarFesta_1.jpg",
-  galeria: "/imagens/stephanie-mizio-838-1.jpg",
+  galeria: "/imagens/galeria-outubro-36.jpg",
   instagram: "/imagens/DaniGui_JantarFesta_26.jpg",
   clientes: "/imagens/EW1_1332.jpg",
 } as const;
