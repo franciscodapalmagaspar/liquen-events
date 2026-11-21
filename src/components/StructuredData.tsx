@@ -1,5 +1,6 @@
 import { AREA_SERVIDA, OUTROS_NOMES, SITE, abs } from "@/lib/site";
 import { jsonLd } from "@/lib/jsonld";
+import { ASSUNTOS_DA_EMPRESA } from "@/lib/assuntos-da-empresa";
 import { getDictionary, htmlLang, type Locale } from "@/lib/i18n";
 
 /**
@@ -41,7 +42,17 @@ export default function StructuredData({ locale }: { locale: Locale }) {
       email: SITE.email,
       telephone: SITE.phone,
       image: abs(SITE.ogImage),
-      logo: abs("/logo-liquen.png"),
+      // Com as medidas: o Google só usa como logótipo uma imagem que saiba
+      // medir (e pede-a com pelo menos 112 × 112).
+      logo: {
+        "@type": "ImageObject",
+        "@id": `${SITE.url}/#logo`,
+        url: abs("/logo-liquen.png"),
+        contentUrl: abs("/logo-liquen.png"),
+        width: 3747,
+        height: 2238,
+        caption: SITE.name,
+      },
       description: t.meta.homeDescription,
       slogan: SITE.slogan,
       foundingDate: SITE.founded,
@@ -57,6 +68,9 @@ export default function StructuredData({ locale }: { locale: Locale }) {
         },
       ],
       knowsLanguage: ["pt-PT", "en"],
+      // Os assuntos de que a empresa é autoridade — o que as IAs e o Knowledge
+      // Graph usam para ligar a marca às pesquisas. Só o que a Líquen faz.
+      knowsAbout: ASSUNTOS_DA_EMPRESA[locale],
       // Todo o país, e só o país (ver AREA_SERVIDA em site.ts, 21/11).
       areaServed: AREA_SERVIDA,
       sameAs: [SITE.instagram, SITE.facebook, SITE.linkedin, SITE.googleBusiness].filter(Boolean),

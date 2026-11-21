@@ -29,7 +29,7 @@ import {
   ESCADA_PAINEL,
   EntradaComFotografia,
 } from "@/app/[lang]/(admin)/orcamento/admin/EntradaComFotografia";
-import { LARGURA_DO_SITEMAP } from "@/app/sitemap";
+import { LARGURA_DO_SITEMAP } from "@/lib/imagem-indexada";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -186,7 +186,9 @@ describe("só três ficheiros sabem escrever um URL de /_img/g/", () => {
   const AUTORIZADOS = new Set([
     "src/app/[lang]/(site)/galeria/gallery-image-loader.ts",
     "src/app/[lang]/(site)/galeria/gallery-srcset.ts",
-    "src/app/sitemap.ts",
+    // A versão que se dá ao Google (o sitemap e o JSON-LD da galeria), com o
+    // teste em `src/lib/area-servida.test.ts`.
+    "src/lib/imagem-indexada.ts",
   ]);
 
   function ficheiros(dir: string): string[] {
