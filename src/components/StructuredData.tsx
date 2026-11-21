@@ -1,4 +1,4 @@
-import { SITE, abs } from "@/lib/site";
+import { AREA_SERVIDA, SITE, abs } from "@/lib/site";
 import { jsonLd } from "@/lib/jsonld";
 import { getDictionary, htmlLang, type Locale } from "@/lib/i18n";
 
@@ -56,6 +56,8 @@ export default function StructuredData({ locale }: { locale: Locale }) {
         },
       ],
       knowsLanguage: ["pt-PT", "en"],
+      // Todo o país, e só o país (ver AREA_SERVIDA em site.ts, 21/11).
+      areaServed: AREA_SERVIDA,
       sameAs: [SITE.instagram, SITE.facebook, SITE.linkedin, SITE.googleBusiness].filter(Boolean),
       contactPoint: {
         "@type": "ContactPoint",

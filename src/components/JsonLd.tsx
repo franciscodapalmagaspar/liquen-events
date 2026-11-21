@@ -1,4 +1,4 @@
-import { SITE } from "@/lib/site";
+import { AREA_SERVIDA, SITE } from "@/lib/site";
 import { jsonLd } from "@/lib/jsonld";
 import { localizeHref, type Locale } from "@/lib/i18n";
 
@@ -79,6 +79,7 @@ export function ServiceJsonLd({
     serviceType: name,
     url: `${SITE.url}${localizeHref(path, locale)}`,
     provider: { "@id": `${SITE.url}/#organization` },
+    areaServed: AREA_SERVIDA,
   };
   return <JsonLd data={data} />;
 }
