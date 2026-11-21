@@ -449,7 +449,7 @@ export const pt = {
       },
       {
         q: "Deslocam-se ao local do evento?",
-        a: "Sim. Deslocamo-nos ao local do seu evento. Temos uma vasta rede de fornecedores e parceiros de confiança.",
+        a: "Sim. Trabalhamos em todo o país, de norte a sul e nas ilhas, e deslocamo-nos ao local do seu evento. Temos uma vasta rede de fornecedores e parceiros de confiança.",
       },
       {
         q: "Podem assumir apenas parte da organização?",

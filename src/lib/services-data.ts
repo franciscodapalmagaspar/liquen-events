@@ -61,7 +61,7 @@ export const SERVICES: ServiceDetail[] = [
       },
       {
         q: "Deslocam-se ao espaço onde vamos casar?",
-        a: "Sim. Decoramos e coordenamos casamentos no espaço que escolherem, em articulação com os fornecedores de cada zona.",
+        a: "Sim. Trabalhamos em todo o país: decoramos e coordenamos casamentos no espaço que escolherem, de norte a sul e nas ilhas, em articulação com os fornecedores de cada zona.",
       },
     ],
     related: ["festas-e-aniversarios"],
@@ -151,7 +151,7 @@ export const SERVICES: ServiceDetail[] = [
     faqs: [
       {
         q: "Deslocam-se ao espaço escolhido pela empresa?",
-        a: "Sim. Produzimos eventos corporativos com equipa própria e uma rede de fornecedores de confiança.",
+        a: "Sim. Trabalhamos em todo o país e produzimos eventos corporativos com equipa própria e uma rede de fornecedores de confiança.",
       },
       {
         q: "Tratam de eventos com convidados internacionais?",
@@ -243,7 +243,7 @@ export const SERVICES: ServiceDetail[] = [
       },
       {
         q: "Deslocam-se ao espaço da celebração?",
-        a: "Sim. Decoramos estas celebrações no espaço que escolherem, em articulação com os fornecedores de cada zona.",
+        a: "Sim. Trabalhamos em todo o país: decoramos estas celebrações no espaço que escolherem, em articulação com os fornecedores de cada zona.",
       },
     ],
     related: ["festas-e-aniversarios", "casamentos"],
@@ -286,7 +286,7 @@ const SERVICES_EN: Record<string, ServiceCopy> = {
       },
       {
         q: "Do you travel to our venue?",
-        a: "Yes. We decorate and coordinate weddings at the venue you choose, working with each area's suppliers.",
+        a: "Yes. We work all over Portugal: we decorate and coordinate weddings at the venue you choose, from north to south and on the islands, working with each area's suppliers.",
       },
     ],
   },
@@ -336,7 +336,7 @@ const SERVICES_EN: Record<string, ServiceCopy> = {
     faqs: [
       {
         q: "Do you travel to our chosen venue?",
-        a: "Yes. We produce corporate events with our own team and a trusted supplier network.",
+        a: "Yes. We work all over Portugal and produce corporate events with our own team and a trusted supplier network.",
       },
       {
         q: "Do you handle events with international guests?",
@@ -396,7 +396,7 @@ const SERVICES_EN: Record<string, ServiceCopy> = {
       },
       {
         q: "Do you travel to the venue?",
-        a: "Yes. We decorate these celebrations wherever they are held, working with each area's suppliers.",
+        a: "Yes. We work all over Portugal: we decorate these celebrations wherever they are held, working with each area's suppliers.",
       },
     ],
   },

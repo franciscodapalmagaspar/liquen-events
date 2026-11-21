@@ -75,8 +75,20 @@ export const SITE = {
 } as const;
 
 /**
+ * A área de serviço: PORTUGAL INTEIRO, e só o país — nenhuma cidade nem região.
+ *
+ * 21/11, o Francisco, com o resumo de IA da Google a dizer «forte presença no
+ * Alentejo e em Évora»: «eu só quero é que na IA e no Google e tudo mais
+ * apareça em todo o país». É a mesma frase que o site já diz no texto («em
+ * todo o país»), agora também dita às máquinas. Emitida no nó da empresa e em
+ * cada serviço (`StructuredData.tsx`, `JsonLd.tsx`). A morada de Évora continua
+ * fora de tudo o que se publica.
+ */
+export const AREA_SERVIDA = { "@type": "Country", name: "Portugal" } as const;
+
+/**
  * ════════════════════════════════════════════════════════════════════════════
- * A ÁREA DE SERVIÇO DEIXOU DE SER DECLARADA — e é de propósito
+ * HISTÓRIA (até 21/11): A ÁREA DE SERVIÇO TINHA DEIXADO DE SER DECLARADA
  * ════════════════════════════════════════════════════════════════════════════
  *
  * Havia aqui um `AREAS_SERVED` com Portugal à cabeça e seis cidades a seguir,

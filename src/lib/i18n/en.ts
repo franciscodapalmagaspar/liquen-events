@@ -428,7 +428,7 @@ export const en: Dict = {
       },
       {
         q: "Do you travel to the event venue?",
-        a: "Yes. We travel to wherever your event takes place. We have a wide network of trusted suppliers and partners.",
+        a: "Yes. We work all over Portugal, from north to south and on the islands, and travel to wherever your event takes place. We have a wide network of trusted suppliers and partners.",
       },
       {
         q: "Can you handle only part of the organisation?",
