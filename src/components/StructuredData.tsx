@@ -1,4 +1,4 @@
-import { AREA_SERVIDA, SITE, abs } from "@/lib/site";
+import { AREA_SERVIDA, OUTROS_NOMES, SITE, abs } from "@/lib/site";
 import { jsonLd } from "@/lib/jsonld";
 import { getDictionary, htmlLang, type Locale } from "@/lib/i18n";
 
@@ -35,6 +35,7 @@ export default function StructuredData({ locale }: { locale: Locale }) {
       "@type": ["Organization", "ProfessionalService"],
       "@id": orgId,
       name: SITE.name,
+      alternateName: [...OUTROS_NOMES],
       legalName: SITE.legalName,
       url: SITE.url,
       email: SITE.email,
@@ -87,6 +88,7 @@ export default function StructuredData({ locale }: { locale: Locale }) {
       "@id": siteId,
       url: SITE.url,
       name: SITE.name,
+      alternateName: [...OUTROS_NOMES],
       inLanguage: htmlLang(locale),
       publisher: { "@id": orgId },
     },

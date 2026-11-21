@@ -33,3 +33,25 @@ describe("a área de serviço é o país inteiro", () => {
     expect(t).toContain("trabalha em todo o país");
   });
 });
+
+describe("a marca e o IndexNow", () => {
+  it("a empresa e o site levam as outras grafias da marca", async () => {
+    const { OUTROS_NOMES } = await import("@/lib/site");
+    expect(OUTROS_NOMES).toContain("Liquen");
+    expect(
+      readFileSync("src/components/StructuredData.tsx", "utf8").match(
+        /alternateName: \[\.\.\.OUTROS_NOMES\]/g,
+      )?.length,
+    ).toBe(2);
+  });
+
+  it("a chave do IndexNow existe em public/ e é a mesma do script", async () => {
+    const { readdirSync } = await import("node:fs");
+    const script = readFileSync("scripts/indexnow.mjs", "utf8");
+    const chave = script.match(/const CHAVE = "([0-9a-f]{32})"/)?.[1];
+    expect(chave).toBeTruthy();
+    expect(readdirSync("public")).toContain(`${chave}.txt`);
+    expect(readFileSync(`public/${chave}.txt`, "utf8")).toBe(chave);
+    expect(script).toMatch(/VERCEL_ENV !== "production"/);
+  });
+});

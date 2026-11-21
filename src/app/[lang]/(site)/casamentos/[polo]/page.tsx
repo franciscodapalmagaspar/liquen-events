@@ -7,7 +7,7 @@ import TrackedAnchor from "@/components/ads/TrackedAnchor";
 import PedidoRapido, { TEXTOS_PT, TEXTOS_EN } from "@/components/ads/PedidoRapido";
 import { blurFor } from "@/lib/blur";
 import { pageMetadata } from "@/lib/page-metadata";
-import { BreadcrumbJsonLd } from "@/components/JsonLd";
+import { BreadcrumbJsonLd, ServiceJsonLd } from "@/components/JsonLd";
 import { getDictionary, localizeHref, normalizeLocale } from "@/lib/i18n";
 import { POLOS, getPolo, conteudoPolo, caminhoPolo } from "@/lib/ads/polos";
 import { SITE } from "@/lib/site";
@@ -125,6 +125,12 @@ export default async function PoloPage({
         homeName={t.nav.inicio}
         items={[{ name: c.h1, path: caminhoPolo(polo.slug) }]}
       />
+      <ServiceJsonLd
+        name={c.h1}
+        description={c.metaDescription}
+        path={caminhoPolo(polo.slug)}
+        locale={locale}
+      />
 
       {/* ── 1. HERÓI + FORMULÁRIO ─────────────────────────────────────────
           Uma só imagem, com `priority`: é o candidato a LCP e não pode
@@ -222,7 +228,7 @@ export default async function PoloPage({
                   // Distinct alt per photo: this is a real portfolio grid (the
                   // page's own point), not a decorative band, so alt="" left
                   // the whole section silent for screen readers.
-                  alt={`${t.common.imageAlt.portfolioExemplo}: ${c.regiao} ${i + 1}`}
+                  alt={`${t.common.imageAlt.portfolioExemplo} ${i + 1}`}
                   fill
                   loading="lazy"
                   sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"

@@ -84,6 +84,20 @@ export const SITE = {
  * cada serviço (`StructuredData.tsx`, `JsonLd.tsx`). A morada de Évora continua
  * fora de tudo o que se publica.
  */
+/**
+ * Outras grafias da marca, para a Google ligar quem escreve «Liquen» (sem
+ * acento) ou «Líquen» só à Líquen Events (21/11, o Francisco: «qualquer pessoa
+ * que escreva Líquen, aparece Líquen Events»). Só grafias que se escrevem de
+ * facto; os erros de ouvido («Lican», «Liken») não se põem aqui — corrige-os a
+ * própria Google à medida que a marca é pesquisada e citada.
+ */
+export const OUTROS_NOMES = [
+  "Líquen",
+  "Liquen",
+  "Liquen Events",
+  "Líquen Events Portugal",
+] as const;
+
 export const AREA_SERVIDA = { "@type": "Country", name: "Portugal" } as const;
 
 /**
