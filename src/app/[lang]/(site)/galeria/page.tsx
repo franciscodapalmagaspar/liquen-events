@@ -11,6 +11,7 @@ import { blurFor } from "@/lib/blur";
 import { aspectFor } from "@/lib/image-meta";
 import { BreadcrumbJsonLd, JsonLd } from "@/components/JsonLd";
 import { SITE } from "@/lib/site";
+import { imagemDoSitemap } from "@/lib/imagem-indexada";
 import { pageMetadata } from "@/lib/page-metadata";
 import { getDictionary, normalizeLocale, localizeHref } from "@/lib/i18n";
 import { OUTLINE_LIGHT_BUTTON_CLASS, VEU_DAS_PONTAS } from "@/lib/ui-classes";
@@ -210,10 +211,23 @@ export default async function GaleriaPage({ params }: { params: Promise<{ lang: 
               // por codificar torna o URL inválido — o motor de busca não o
               // consegue ir buscar e a entrada inteira não serve para nada.
               // Medido no HTML gerado antes desta correcção.
-              contentUrl: encodeURI(`${SITE.url}${p.src}`),
+              //
+              // A MESMA versão que o sitemap declara e que o site serve (a de
+              // 1280 px, 21/11): com o original aqui e a versão no sitemap, o
+              // Google via duas imagens diferentes para a mesma fotografia, e
+              // a legenda daqui não chegava à que ele indexa.
+              contentUrl: encodeURI(`${SITE.url}${imagemDoSitemap(p.src)}`),
               name: t.galeria.alt[p.label],
               creditText: SITE.name,
-              creator: { "@type": "Organization", name: SITE.name },
+              // O autor e o dono dos direitos são a MESMA entidade do resto do
+              // site (o `@id`), não um segundo «Líquen Events» solto.
+              creator: {
+                "@type": "Organization",
+                "@id": `${SITE.url}/#organization`,
+                name: SITE.name,
+              },
+              copyrightHolder: { "@id": `${SITE.url}/#organization` },
+              copyrightNotice: `© ${SITE.name}`,
             },
           })),
         }}

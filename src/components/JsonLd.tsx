@@ -46,7 +46,7 @@ export function BreadcrumbJsonLd({
 }
 
 /** FAQ structured data — can surface as expandable Q&A in Google. */
-export function FaqJsonLd({ faqs }: { faqs: { q: string; a: string }[] }) {
+export function FaqJsonLd({ faqs }: { faqs: readonly { q: string; a: string }[] }) {
   const data = {
     "@context": "https://schema.org",
     "@type": "FAQPage",

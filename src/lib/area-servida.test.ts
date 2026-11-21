@@ -33,3 +33,58 @@ describe("a área de serviço é o país inteiro", () => {
     expect(t).toContain("trabalha em todo o país");
   });
 });
+
+describe("a marca e o IndexNow", () => {
+  it("a empresa e o site levam as outras grafias da marca", async () => {
+    const { OUTROS_NOMES } = await import("@/lib/site");
+    expect(OUTROS_NOMES).toContain("Liquen");
+    expect(
+      readFileSync("src/components/StructuredData.tsx", "utf8").match(
+        /alternateName: \[\.\.\.OUTROS_NOMES\]/g,
+      )?.length,
+    ).toBe(2);
+  });
+
+  it("a chave do IndexNow existe em public/ e é a mesma do script", async () => {
+    const { readdirSync } = await import("node:fs");
+    const script = readFileSync("scripts/indexnow.mjs", "utf8");
+    const chave = script.match(/const CHAVE = "([0-9a-f]{32})"/)?.[1];
+    expect(chave).toBeTruthy();
+    expect(readdirSync("public")).toContain(`${chave}.txt`);
+    expect(readFileSync(`public/${chave}.txt`, "utf8")).toBe(chave);
+    expect(script).toMatch(/VERCEL_ENV !== "production"/);
+  });
+});
+
+describe("o que só o Google lê (21/11)", () => {
+  async function grafo(locale: "pt" | "en") {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { createElement } = await import("react");
+    const { default: StructuredData } = await import("@/components/StructuredData");
+    const html = renderToStaticMarkup(createElement(StructuredData, { locale }));
+    // O conteúdo entre o fim da etiqueta de abertura e o início da de fecho.
+    const json = html.slice(html.indexOf(">") + 1, html.lastIndexOf("<"));
+    return JSON.parse(json)["@graph"][0];
+  }
+
+  it("o logótipo vai com medidas (o Google pede ≥ 112 × 112)", async () => {
+    const org = await grafo("pt");
+    expect(org.logo["@type"]).toBe("ImageObject");
+    expect(org.logo.width).toBeGreaterThanOrEqual(112);
+    expect(org.logo.height).toBeGreaterThanOrEqual(112);
+  });
+
+  it("declara os assuntos que a empresa conhece, na língua da página", async () => {
+    expect((await grafo("pt")).knowsAbout).toContain("Decoração de casamentos");
+    expect((await grafo("en")).knowsAbout).toContain("Wedding decoration");
+  });
+
+  it("as fotografias da galeria são as mesmas que o sitemap declara", async () => {
+    const { imagemDoSitemap } = await import("@/lib/imagem-indexada");
+    expect(imagemDoSitemap("/imagens/a b.jpg")).toMatch(/^\/_img\/g\/.+-1280\.webp$/);
+    const pagina = readFileSync("src/app/[lang]/(site)/galeria/page.tsx", "utf8");
+    expect(pagina).toMatch(
+      /contentUrl: encodeURI\(`\$\{SITE\.url\}\$\{imagemDoSitemap\(p\.src\)\}`\)/,
+    );
+  });
+});

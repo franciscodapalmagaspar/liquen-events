@@ -6,7 +6,7 @@ import TrackedAnchor from "@/components/ads/TrackedAnchor";
 import PedidoRapido, { TEXTOS_PT, TEXTOS_EN } from "@/components/ads/PedidoRapido";
 import { blurFor } from "@/lib/blur";
 import { pageMetadata } from "@/lib/page-metadata";
-import { BreadcrumbJsonLd } from "@/components/JsonLd";
+import { BreadcrumbJsonLd, FaqJsonLd } from "@/components/JsonLd";
 import { getDictionary, localizeHref, normalizeLocale } from "@/lib/i18n";
 import { POLOS, caminhoPolo, conteudoPolo } from "@/lib/ads/polos";
 import { SITE } from "@/lib/site";
@@ -169,6 +169,8 @@ export default async function DestinationPage({ params }: { params: Promise<{ la
         homeName={t.nav.inicio}
         items={[{ name: c.h1, path: CAMINHO }]}
       />
+      {/* As cinco perguntas já estão à vista na página: os dados repetem-nas. */}
+      <FaqJsonLd faqs={c.perguntas} />
 
       {/* -mt-24 anula o pt-24 do <main> e o pt-24 devolve-o por dentro: a foto
           vai até ao topo, por baixo da barra transparente, e o texto fica

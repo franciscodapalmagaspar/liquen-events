@@ -4,7 +4,6 @@ import { SITE } from "@/lib/site";
 import { SERVICES } from "@/lib/services-data";
 import { PHOTOS } from "@/app/[lang]/(site)/galeria/photos-data";
 import { POLOS, ESTILOS, caminhoPolo } from "@/lib/ads/polos";
-import { galleryKey } from "@/app/[lang]/(site)/galeria/gallery-image-loader";
 
 const base = SITE.url;
 
@@ -24,9 +23,8 @@ const base = SITE.url;
  * O `scripts/so-originais-precisos.mjs` tira das publicações os originais a
  * que já nada se refere. Os que o código cita (OG, anúncios, JSON-LD) ficam.
  */
-export const LARGURA_DO_SITEMAP = 1280;
-export const imagemDoSitemap = (src: string): string =>
-  src.startsWith("/imagens/") ? `/_img/g/${galleryKey(src)}-${LARGURA_DO_SITEMAP}.webp` : src;
+import { imagemDoSitemap } from "@/lib/imagem-indexada";
+export { LARGURA_DO_SITEMAP, imagemDoSitemap } from "@/lib/imagem-indexada";
 
 const img = (file: string) => `${base}${imagemDoSitemap(`/imagens/${file}`)}`;
 

@@ -32,7 +32,7 @@ export function textoDoLlms(): string {
   const instagram = SITE.instagram.replace(/^https?:\/\//, "https://");
   return `# ${SITE.name}
 
-> ${SITE.name} is a Portuguese event-planning company organizing weddings, corporate events and private celebrations across Portugal since ${SITE.founded}. Tagline: "${SITE.slogan}" (${sloganEn.charAt(0).toUpperCase()}${sloganEn.slice(1)}) Rated ${SITE.reviews.rating.toFixed(1)} from ${SITE.reviews.count} reviews.
+> ${SITE.name} is a Portuguese event-planning company organizing weddings, corporate events and private celebrations across Portugal since ${SITE.founded}. Tagline: "${SITE.slogan}" (${sloganEn.charAt(0).toUpperCase()}${sloganEn.slice(1)})
 
 The site is Portuguese-first, with a full English mirror under \`/en/\`. Visitors can browse services, a photo gallery of past events, client testimonials, and request a tailored quote.
 
