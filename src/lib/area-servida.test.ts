@@ -62,7 +62,8 @@ describe("o que só o Google lê (21/11)", () => {
     const { createElement } = await import("react");
     const { default: StructuredData } = await import("@/components/StructuredData");
     const html = renderToStaticMarkup(createElement(StructuredData, { locale }));
-    const json = html.replace(/^<script[^>]*>/, "").replace(/<\/script>$/, "");
+    // O conteúdo entre o fim da etiqueta de abertura e o início da de fecho.
+    const json = html.slice(html.indexOf(">") + 1, html.lastIndexOf("<"));
     return JSON.parse(json)["@graph"][0];
   }
 
