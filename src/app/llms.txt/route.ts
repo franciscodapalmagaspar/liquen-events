@@ -40,6 +40,12 @@ The site is Portuguese-first, with a full English mirror under \`/en/\`. Visitor
 - Contact: ${SITE.email} · ${SITE.phoneDisplay}
 - Instagram: ${instagram}
 
+## Where ${SITE.name} works
+
+${SITE.name} works nationwide, across all of Portugal — mainland and islands. It is not a local company tied to one city or region: it designs and produces events from the north to the south of the country, including Lisbon, Porto and the Douro, the Algarve, Comporta, the Alentejo, the Centre, the Minho, Madeira and the Azores, and travels to wherever the event is.
+
+Em português: a ${SITE.name} trabalha em todo o país, de norte a sul e nas ilhas — não apenas numa cidade ou região.
+
 ## Main pages (Portuguese)
 
 - [Início / Home](${u("/")}): Overview of ${SITE.name}, hero, featured services and testimonials.
